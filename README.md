@@ -46,7 +46,7 @@ It is **not** a toy. It is **not** a script kiddie tool. It is built for operato
 ## Features
 
 ### Enumeration
-- Full Nmap integration via the **Nmap Configurobulator** (https://github.com/Null-H3x/Nmap-Configurobulator)— port profiles (`driveby`, `spyglass`, `full`), timing templates T1–T5, NSE script profiles from banner-only to full vuln sweep
+- Full Nmap integration via the **Nmap Configurobulator** (https://github.com/Null-H3x/Nmap-Configurobulator) — port profiles (`driveby`, `spyglass`, `full`), timing templates T1–T5, NSE script profiles from banner-only to full vuln sweep
 - Live PTY output stream — scan progress feeds directly into the dashboard terminal in real time, filtered to relevant findings only
 - Host classification by device type (gateway, server, workstation, IoT), OS detection, port risk scoring (danger / warning / info)
 - Timestamped HTML topology reports generated automatically per scan
@@ -131,6 +131,7 @@ git clone https://github.com/yourusername/h3x-dash.git
 cd h3x-dash
 
 # 2. Drop the Nmap Configurobulator into the project root
+#    ***https://github.com/Null-H3x/Nmap-Configurobulator***
 #    It should sit next to app.py:
 ls Nmap-Configurobulator.py
 
@@ -143,7 +144,7 @@ msfrpcd -P msfrpc -S -f
 # 4. In a second terminal, launch H3x-Dash
 sudo python3 app.py
 
-# 5. Open your browser
+# 5. Open a modern browser
 #    http://127.0.0.1:5000
 ```
 
