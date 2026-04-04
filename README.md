@@ -46,7 +46,7 @@ It is **not** a toy. It is **not** a script kiddie tool. It is built for operato
 ## Features
 
 ### Enumeration
-- Full Nmap integration via the **Nmap Configurobulator** — port profiles (`driveby`, `spyglass`, `full`), timing templates T1–T5, NSE script profiles from banner-only to full vuln sweep
+- Full Nmap integration via the **Nmap Configurobulator** (https://github.com/Null-H3x/Nmap-Configurobulator)— port profiles (`driveby`, `spyglass`, `full`), timing templates T1–T5, NSE script profiles from banner-only to full vuln sweep
 - Live PTY output stream — scan progress feeds directly into the dashboard terminal in real time, filtered to relevant findings only
 - Host classification by device type (gateway, server, workstation, IoT), OS detection, port risk scoring (danger / warning / info)
 - Timestamped HTML topology reports generated automatically per scan
