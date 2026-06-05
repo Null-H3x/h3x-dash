@@ -37,7 +37,7 @@ is not a defense. "I found a bug" is not permission.
 
 ## Reporting Vulnerabilities in H3x-Dash
 
-If you find a security vulnerability in H3x-Dash itself — for example, a
+If you find a security vulnerability in H3x-Dash itself - for example, a
 path traversal in the report download endpoint, an SSRF via the scan target
 field, or an authentication bypass - please report it responsibly.
 
