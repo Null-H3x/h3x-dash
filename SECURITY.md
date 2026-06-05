@@ -4,7 +4,7 @@
 
 H3x-Dash is an automated penetration testing framework. It is built for
 security professionals operating under explicit authorization. The following
-is not a disclaimer written by a lawyer — it is written by someone who has
+is not a disclaimer written by a lawyer - it is written by someone who has
 actually used these tools and understands the consequences of misuse.
 
 ---
@@ -23,7 +23,7 @@ actually used these tools and understands the consequences of misuse.
 
 - Any network or system without explicit written authorization
 - Cloud infrastructure (AWS, Azure, GCP) without the provider's explicit
-  approval — yes, their ToS counts, and yes, they will notice
+  approval - yes, their ToS counts, and yes, they will notice
 - Critical infrastructure of any kind, ever
 - Systems belonging to organizations you work for but haven't been
   contracted to test
@@ -39,7 +39,7 @@ is not a defense. "I found a bug" is not permission.
 
 If you find a security vulnerability in H3x-Dash itself — for example, a
 path traversal in the report download endpoint, an SSRF via the scan target
-field, or an authentication bypass — please report it responsibly.
+field, or an authentication bypass - please report it responsibly.
 
 **Do:**
 - Open a GitHub Security Advisory (preferred)
