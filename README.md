@@ -292,8 +292,10 @@ Parrot Security ships most of these tools by default. `sudo apt install parrot-t
 ## Setup & Launch
 
 ```bash
-# 1. Clone. Both the Configurabulator and web_scan are bundled, nothing to place manually.
+# 1. Clone and extract. The repo ships h3x-dash.tar.gz (not a tracked folder).
 git clone https://github.com/Null-H3x/h3x-dash.git
+cd h3x-dash
+tar -xzf h3x-dash.tar.gz
 cd h3x-dash
 
 # 2. Install dependencies
@@ -304,6 +306,14 @@ sudo python3 install.py
 
 # 4. Open the dashboard
 #    http://127.0.0.1:5000
+```
+
+### Repository layout
+
+Git tracks **`h3x-dash.tar.gz`**, not an extracted `h3x-dash/` tree. After cloning, extract the archive before running `install.py`. To rebuild the tarball after local edits:
+
+```bash
+./package.sh
 ```
 
 **That is it.** H3x-Dash manages `msfrpcd` automatically:
