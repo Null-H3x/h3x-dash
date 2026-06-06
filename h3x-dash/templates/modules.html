@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% set active = 'modules' %}
+{% block title %}MSF Modules{% endblock %}
+{% block topbar_title %}<span>◈</span> MSF Module Reference{% endblock %}
+
+{% block content %}
+
+<!-- Stats bar -->
+<div class="stat-grid" style="margin-bottom:1.25rem">
+  <div class="stat-card">
+    <div class="stat-label">TOTAL MODULES</div>
+    <div class="stat-val cyan"   id="s-total">{{ stats.total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">EXPLOITS</div>
+    <div class="stat-val red"    id="s-exploit">{{ stats.types.get('exploit', 0) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">AUXILIARY</div>
+    <div class="stat-val orange" id="s-auxiliary">{{ stats.types.get('auxiliary', 0) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">POST</div>
+    <div class="stat-val violet" id="s-post">{{ stats.types.get('post', 0) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">CVEs INDEXED</div>
+    <div class="stat-val green"  id="s-cves">{{ stats.cve_count }}</div>
+  </div>
+</div>
+
+<!-- Search + filter -->
+<div class="panel" style="margin-bottom:1rem">
+  <div class="panel-header"><span class="accent">◈</span> SEARCH INSTALLED MODULES</div>
+  <div class="panel-body">
+    <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+
+      <div style="flex:1;min-width:200px">
+        <input type="text" id="search-input"
+               placeholder="module name, CVE, platform, keyword..."
+               oninput="debounceSearch()"
+               style="width:100%">
+      </div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-cyan"    onclick="filterType('')">ALL</button>
+        <button class="btn"             onclick="filterType('exploit')">EXPLOIT</button>
+        <button class="btn"             onclick="filterType('auxiliary')">AUXILIARY</button>
+        <button class="btn"             onclick="filterType('post')">POST</button>
+      </div>
+
+      <button class="btn btn-violet" onclick="triggerRescan()">↺ RESCAN</button>
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);margin-top:.5rem">
+      {% if stats.last_scan %}
+        Index built: {{ stats.last_scan }} — from <code style="color:var(--cyan)">{{ stats.base }}</code>
+      {% elif not stats.ready %}
+        <span style="color:var(--orange)">⚙ Scanning module tree in background — reload in a moment</span>
+      {% else %}
+        <span style="color:var(--red)">Metasploit Framework not found at expected paths</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="panel">
+  <div class="panel-header">
+    <span class="accent">◈</span> RESULTS
+    <span id="result-count" style="color:var(--muted);margin-left:.5rem;font-size:11px"></span>
+  </div>
+  <div id="results-body">
+    <div style="padding:2rem;text-align:center;color:var(--muted)">
+      {% if stats.ready %}
+        Type a search term above. Try: <code style="color:var(--cyan)">smb</code>,
+        <code style="color:var(--cyan)">CVE-2017-0144</code>,
+        <code style="color:var(--cyan)">windows/smb</code>,
+        <code style="color:var(--cyan)">eternalblue</code>
+      {% else %}
+        Module index is building in the background. This takes 30–90 seconds
+        on first run. Reload the page when ready.
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  // Pre-fill search from URL ?q= param (e.g. linked from Enumerate findings)
+  const _urlQ = new URLSearchParams(window.location.search).get('q');
+  if (_urlQ) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const el = document.getElementById('search-input');
+      if (el) { el.value = _urlQ; runSearch(); }
+    });
+  }
+
+  let _debounce = null;
+  let _currentType = '';
+
+  // Refresh stats while index is building
+  {% if not stats.ready %}
+  const _statsPoll = setInterval(() => {
+    fetch('/api/modules/stats').then(r => r.json()).then(d => {
+      document.getElementById('s-total').textContent     = d.total;
+      document.getElementById('s-exploit').textContent   = d.types?.exploit   || 0;
+      document.getElementById('s-auxiliary').textContent = d.types?.auxiliary || 0;
+      document.getElementById('s-post').textContent      = d.types?.post      || 0;
+      document.getElementById('s-cves').textContent      = d.cve_count        || 0;
+      if (d.ready && d.total > 0) clearInterval(_statsPoll);
+    });
+  }, 3000);
+  {% endif %}
+
+  function debounceSearch() {
+    clearTimeout(_debounce);
+    _debounce = setTimeout(runSearch, 300);
+  }
+
+  function filterType(t) {
+    _currentType = t;
+    runSearch();
+  }
+
+  function runSearch() {
+    const q = document.getElementById('search-input').value.trim();
+    if (!q) {
+      document.getElementById('results-body').innerHTML =
+        '<div style="padding:2rem;text-align:center;color:var(--muted)">Enter a search term.</div>';
+      document.getElementById('result-count').textContent = '';
+      return;
+    }
+
+    const url = `/api/modules/search?q=${encodeURIComponent(q)}&type=${_currentType}&limit=150`;
+    fetch(url).then(r => r.json()).then(d => renderResults(d.modules || [], d.count || 0));
+  }
+
+  const RANK_COLOR = {
+    excellent:'var(--green)', great:'#7aff14', good:'var(--cyan)',
+    normal:'var(--text)', average:'var(--muted)', low:'#555', manual:'#444'
+  };
+  const TYPE_COLOR = {
+    exploit:'var(--red)', auxiliary:'var(--orange)', post:'var(--violet)'
+  };
+  const SEV_RANK = {excellent:0,great:1,good:2,normal:3,average:4,low:5,manual:6};
+
+  function renderResults(modules, count) {
+    const countEl = document.getElementById('result-count');
+    countEl.textContent = count ? `${count} result(s)` : 'No results';
+
+    if (!modules.length) {
+      document.getElementById('results-body').innerHTML =
+        '<div style="padding:2rem;text-align:center;color:var(--muted)">No modules matched.</div>';
+      return;
+    }
+
+    const rows = modules.map(m => {
+      const rc = RANK_COLOR[m.rank] || 'var(--muted)';
+      const tc = TYPE_COLOR[m.type] || '#888';
+      const cveHtml = (m.cves || []).slice(0,4).map(c =>
+        `<span style="color:var(--orange);font-size:9px;border:1px solid var(--orange);
+          padding:1px 5px;border-radius:3px;margin-right:3px">${c}</span>`
+      ).join('') + (m.cves?.length > 4
+        ? `<span style="color:var(--muted);font-size:9px">+${m.cves.length-4} more</span>` : '');
+
+      const msbHtml = (m.msbs || []).map(b =>
+        `<span style="color:var(--cyan);font-size:9px">${b}</span>`
+      ).join(' ');
+
+      return `<tr>
+        <td>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--violet)">${m.fullname}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${m.name}</div>
+        </td>
+        <td>
+          <span class="badge" style="border-color:${tc};color:${tc};font-size:9px">
+            ${m.type?.toUpperCase()}
+          </span>
+        </td>
+        <td style="color:${rc};font-size:10px;text-transform:uppercase">${m.rank}</td>
+        <td style="font-size:10px;color:var(--muted);max-width:220px">${m.description}</td>
+        <td style="min-width:120px">${cveHtml}${msbHtml}</td>
+        <td style="font-size:10px;color:var(--muted)">${m.platform}</td>
+        <td>
+          <button class="btn btn-violet"
+            onclick="sendToExploit('${m.fullname}')"
+            style="padding:.15rem .5rem;font-size:9px;white-space:nowrap">
+            USE ▶
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('results-body').innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th style="min-width:220px">MODULE</th>
+          <th>TYPE</th>
+          <th>RANK</th>
+          <th>DESCRIPTION</th>
+          <th>REFS</th>
+          <th>PLATFORM</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function sendToExploit(fullname) {
+    sessionStorage.setItem('h3x_prefill_module', fullname);
+    window.location.href = '/exploit';
+  }
+
+  function triggerRescan() {
+    fetch('/api/modules/rescan', {method:'POST'})
+      .then(() => {
+        document.getElementById('results-body').innerHTML =
+          '<div style="padding:2rem;text-align:center;color:var(--orange)">Rescan started — reload in ~60 seconds.</div>';
+      });
+  }
+</script>
+{% endblock %}

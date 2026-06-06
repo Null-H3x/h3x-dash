@@ -1,0 +1,342 @@
+<script>
+  window.SHELL_EMBEDDED = {{ 'true' if shell_embedded else 'false' }};
+
+  // ── Per-session state ────────────────────────────────────────────────────────
+  const SHELL_STATE = {
+    sessions:   [],
+    active_sid: null,
+    buffers:    {},
+    history:    {},
+    histIdx:    {},
+    histDraft:  {},
+    polling:    false,
+  };
+
+  const SHORTCUTS = {
+    meterpreter: [
+      {label: 'sysinfo',    cmd: 'sysinfo'},
+      {label: 'getuid',     cmd: 'getuid'},
+      {label: 'getsystem',  cmd: 'getsystem'},
+      {label: 'ps',         cmd: 'ps'},
+      {label: 'hashdump',   cmd: 'hashdump',  cls: 'creds'},
+      {label: 'kiwi',       cmd: 'load kiwi', cls: 'creds'},
+      {label: 'screenshot', cmd: 'screenshot'},
+      {label: 'pwd',        cmd: 'pwd'},
+      {label: 'background', cmd: 'background', cls: 'danger'},
+    ],
+    shell: [
+      {label: 'whoami',     cmd: 'whoami'},
+      {label: 'id',         cmd: 'id'},
+      {label: 'uname -a',   cmd: 'uname -a'},
+      {label: 'sudo -l',    cmd: 'sudo -l'},
+      {label: '/etc/passwd', cmd: 'cat /etc/passwd'},
+      {label: '/etc/shadow', cmd: 'cat /etc/shadow', cls: 'creds'},
+      {label: 'SUID find',  cmd: 'find / -perm -4000 -type f 2>/dev/null'},
+      {label: 'crontab',    cmd: 'crontab -l'},
+      {label: 'pwd',        cmd: 'pwd'},
+    ],
+    powershell: [
+      {label: 'whoami',     cmd: 'whoami'},
+      {label: 'Get-Process', cmd: 'Get-Process'},
+      {label: 'Get-LocalUser', cmd: 'Get-LocalUser'},
+      {label: 'systeminfo', cmd: 'systeminfo'},
+      {label: 'ipconfig',   cmd: 'ipconfig /all'},
+    ],
+  };
+
+  function focusShellPanel(sid) {
+    const panel = document.getElementById('shell-panel');
+    if (panel) panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+    if (sid) {
+      refreshSessions(true).then(() => selectSession(String(sid)));
+    }
+  }
+
+  function killAllSessions() {
+    const n = SHELL_STATE.sessions.length;
+    if (!n) {
+      alert('No active sessions to kill.');
+      return;
+    }
+    if (!confirm(`Kill all ${n} MSF session(s)? This cannot be undone.`)) return;
+
+    fetch('/api/msf/sessions/kill-all', {method: 'POST'})
+      .then(r => r.json())
+      .then(d => {
+        const killed = d.killed || [];
+        const failed = d.failed || [];
+        killed.forEach(sid => {
+          delete SHELL_STATE.buffers[sid];
+          delete SHELL_STATE.history[sid];
+          delete SHELL_STATE.histIdx[sid];
+          delete SHELL_STATE.histDraft[sid];
+          sessionStorage.removeItem('shell_hist_' + sid);
+        });
+        SHELL_STATE.active_sid = null;
+        const url = new URL(location);
+        url.searchParams.delete('sid');
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+        refreshSessions(true);
+        if (failed.length) {
+          alert(`Killed ${killed.length}; ${failed.length} failed:\n` +
+                failed.map(f => `  [${f.id}] ${f.message}`).join('\n'));
+        }
+      })
+      .catch(() => alert('Failed to reach MSF RPC — is msfrpcd running?'));
+  }
+
+  function refreshSessions(force) {
+    return fetch('/api/msf/sessions').then(r => r.json()).then(d => {
+      const sessions = d.sessions || [];
+      SHELL_STATE.sessions = sessions;
+      const summary = document.getElementById('session-summary');
+      if (summary) {
+        summary.textContent = sessions.length ? `${sessions.length} active` : '';
+      }
+
+      if (!sessions.length) {
+        const empty = document.getElementById('no-sessions');
+        const active = document.getElementById('active-shell');
+        if (empty) empty.style.display = '';
+        if (active) active.style.display = 'none';
+        return;
+      }
+      const empty = document.getElementById('no-sessions');
+      const active = document.getElementById('active-shell');
+      if (empty) empty.style.display = 'none';
+      if (active) active.style.display = '';
+
+      const urlSid = new URLSearchParams(location.search).get('sid');
+      if (urlSid && sessions.some(s => String(s.id) === String(urlSid))) {
+        SHELL_STATE.active_sid = String(urlSid);
+      } else if (!SHELL_STATE.active_sid ||
+                  !sessions.some(s => String(s.id) === String(SHELL_STATE.active_sid))) {
+        SHELL_STATE.active_sid = String(sessions[0].id);
+      }
+      renderTabs();
+      renderShortcuts();
+      renderTerm();
+    });
+  }
+
+  function renderTabs() {
+    const tabs = document.getElementById('session-tabs');
+    if (!tabs) return;
+    tabs.innerHTML = SHELL_STATE.sessions.map(s => {
+      const sid    = String(s.id);
+      const stype  = (s.type || '').toLowerCase().includes('meter') ? 'meterpreter'
+                    : (s.type || '').toLowerCase();
+      const active = sid === SHELL_STATE.active_sid ? ' active' : '';
+      const label  = s.user || s.info || 'session';
+      return `<div class="session-tab type-${stype}${active}"
+                   onclick="selectSession('${sid}')">
+        <span class="tab-dot">●</span>
+        <span style="color:var(--text)">[${sid}]</span>
+        <span style="color:var(--muted);font-size:10px">${stype}</span>
+        <span style="color:var(--cyan)">${s.target || '?'}</span>
+        <span style="color:var(--muted);font-size:10px">${label}</span>
+        <span class="tab-close" title="Close session ${sid}"
+              onclick="event.stopPropagation();closeSession('${sid}')">✕</span>
+      </div>`;
+    }).join('');
+  }
+
+  function closeSession(sid) {
+    sid = String(sid);
+    if (!confirm(`Close session ${sid}? This stops it in Metasploit.`)) return;
+
+    fetch(`/api/msf/session/${sid}/kill`, {method: 'POST'})
+      .then(r => r.json())
+      .then(d => {
+        delete SHELL_STATE.buffers[sid];
+        delete SHELL_STATE.history[sid];
+        delete SHELL_STATE.histIdx[sid];
+        delete SHELL_STATE.histDraft[sid];
+        sessionStorage.removeItem('shell_hist_' + sid);
+        if (SHELL_STATE.active_sid === sid) {
+          SHELL_STATE.active_sid = null;
+          const url = new URL(location);
+          url.searchParams.delete('sid');
+          history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }
+        refreshSessions(true);
+        if (d.status !== 'ok') {
+          alert('Could not close session ' + sid + ': ' +
+                (d.message || 'unknown error'));
+        }
+      })
+      .catch(() => alert('Failed to reach MSF RPC — is msfrpcd running?'));
+  }
+
+  function renderShortcuts() {
+    const bank = document.getElementById('shortcut-bank');
+    if (!bank) return;
+    const s = SHELL_STATE.sessions.find(s => String(s.id) === SHELL_STATE.active_sid);
+    if (!s) { bank.innerHTML = ''; return; }
+    const stype = (s.type || '').toLowerCase().includes('meter') ? 'meterpreter'
+                 : ((s.type || '').toLowerCase() || 'shell');
+    const list  = SHORTCUTS[stype] || SHORTCUTS.shell;
+
+    bank.innerHTML = list.map(sc =>
+      `<button class="shortcut-btn ${sc.cls || ''}"
+               onclick="runShortcut(${JSON.stringify(sc.cmd).replace(/"/g,'&quot;')})">
+        ${sc.label}
+      </button>`
+    ).join('') +
+    `<button class="shortcut-btn creds" onclick="captureCreds()"
+             title="Run the appropriate hashdump command and push parsed creds to the store">
+      🔑 CAPTURE CREDS
+    </button>`;
+  }
+
+  function renderTerm() {
+    const term = document.getElementById('shell-term');
+    if (!term) return;
+    const buf  = SHELL_STATE.buffers[SHELL_STATE.active_sid] || '';
+    if (!buf) {
+      term.innerHTML = '<span class="meta">[session ' + SHELL_STATE.active_sid +
+                       ' attached — output will stream here]</span>\n';
+    } else {
+      term.textContent = buf;
+    }
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function selectSession(sid) {
+    SHELL_STATE.active_sid = String(sid);
+    const url = new URL(location);
+    url.searchParams.set('sid', sid);
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    renderTabs(); renderShortcuts(); renderTerm();
+    const stored = sessionStorage.getItem('shell_hist_' + sid);
+    SHELL_STATE.history[sid] = stored ? JSON.parse(stored) : [];
+    SHELL_STATE.histIdx[sid] = SHELL_STATE.history[sid].length;
+  }
+
+  function pollLoop() {
+    if (SHELL_STATE.polling) return;
+    SHELL_STATE.polling = true;
+    setInterval(() => {
+      const sid = SHELL_STATE.active_sid;
+      if (!sid) return;
+      fetch(`/api/msf/session/${sid}/read`).then(r => r.json()).then(d => {
+        if (d.status === 'ok' && d.output) {
+          appendBuffer(sid, d.output, 'stdout');
+          renderTerm();
+        }
+      }).catch(() => {});
+    }, 1500);
+  }
+
+  function appendBuffer(sid, text, kind) {
+    if (!SHELL_STATE.buffers[sid]) SHELL_STATE.buffers[sid] = '';
+    SHELL_STATE.buffers[sid] += text;
+    if (SHELL_STATE.buffers[sid].length > 204800) {
+      SHELL_STATE.buffers[sid] = '...[truncated]...\n' +
+        SHELL_STATE.buffers[sid].slice(-180000);
+    }
+  }
+
+  function sendCmd() {
+    const input = document.getElementById('cmd-input');
+    if (!input) return;
+    const cmd   = input.value;
+    if (!cmd.trim() || !SHELL_STATE.active_sid) return;
+
+    const sid = SHELL_STATE.active_sid;
+    if (!SHELL_STATE.history[sid]) SHELL_STATE.history[sid] = [];
+    const hist = SHELL_STATE.history[sid];
+    if (hist[hist.length - 1] !== cmd) {
+      hist.push(cmd);
+      if (hist.length > 100) hist.shift();
+      sessionStorage.setItem('shell_hist_' + sid, JSON.stringify(hist));
+    }
+    SHELL_STATE.histIdx[sid] = hist.length;
+
+    appendBuffer(sid, '\n$ ' + cmd + '\n', 'echo');
+    renderTerm();
+    input.value = '';
+
+    fetch(`/api/msf/session/${sid}/run`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({command: cmd, timeout: 15}),
+    }).then(r => r.json()).then(d => {
+      if (d.status === 'ok') {
+        appendBuffer(sid, d.output || '', 'stdout');
+      } else if (d.session_dead) {
+        appendBuffer(sid, '[SESSION DIED] ' + (d.message || '') + '\n', 'stderr');
+        renderTerm();
+        refreshSessions(true);
+        return;
+      } else {
+        appendBuffer(sid, '[ERROR] ' + (d.message || 'unknown') + '\n', 'stderr');
+      }
+      renderTerm();
+    });
+  }
+
+  function runShortcut(cmd) {
+    const input = document.getElementById('cmd-input');
+    if (!input) return;
+    input.value = cmd;
+    sendCmd();
+  }
+
+  function onCmdKeydown(e) {
+    const sid   = SHELL_STATE.active_sid;
+    const input = e.target;
+    if (e.key === 'Enter') { sendCmd(); return; }
+    if (!sid) return;
+    const hist = SHELL_STATE.history[sid] || [];
+    if (e.key === 'ArrowUp') {
+      if (!hist.length) return;
+      e.preventDefault();
+      if (SHELL_STATE.histIdx[sid] === hist.length) {
+        SHELL_STATE.histDraft[sid] = input.value;
+      }
+      SHELL_STATE.histIdx[sid] = Math.max(0, SHELL_STATE.histIdx[sid] - 1);
+      input.value = hist[SHELL_STATE.histIdx[sid]];
+      input.setSelectionRange(input.value.length, input.value.length);
+    } else if (e.key === 'ArrowDown') {
+      if (!hist.length) return;
+      e.preventDefault();
+      SHELL_STATE.histIdx[sid] = Math.min(hist.length, SHELL_STATE.histIdx[sid] + 1);
+      if (SHELL_STATE.histIdx[sid] === hist.length) {
+        input.value = SHELL_STATE.histDraft[sid] || '';
+      } else {
+        input.value = hist[SHELL_STATE.histIdx[sid]];
+      }
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+
+  function captureCreds() {
+    const sid = SHELL_STATE.active_sid;
+    if (!sid) return;
+    appendBuffer(sid, '\n[capturing creds — running hashdump/shadow as appropriate...]\n', 'meta');
+    renderTerm();
+    fetch(`/api/msf/session/${sid}/capture_creds`, {method: 'POST'})
+      .then(r => r.json()).then(d => {
+        const msg = d.captured
+          ? `[✓ captured ${d.captured} credential(s) — pushed to credential store]\n` +
+            (d.sample || []).map(c => `    ${c.username} (${c.type})`).join('\n') + '\n'
+          : '[no credentials parsed from output — try running the dump manually]\n';
+        appendBuffer(sid, msg, d.captured ? 'echo' : 'meta');
+        renderTerm();
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    refreshSessions().then(() => {
+      pollLoop();
+      const urlSid = new URLSearchParams(location.search).get('sid');
+      if (urlSid) focusShellPanel(urlSid);
+      else if (location.hash === '#shell-panel') focusShellPanel();
+    });
+    setInterval(refreshSessions, 4000);
+    if (!window.SHELL_EMBEDDED) {
+      document.getElementById('cmd-input')?.focus();
+    }
+  });
+</script>

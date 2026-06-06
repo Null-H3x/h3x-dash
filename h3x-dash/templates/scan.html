@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% set active = 'scan' %}
+{% block title %}Scan{% endblock %}
+{% block topbar_title %}<span>◉</span> Enumeration / Scan{% endblock %}
+
+{% block content %}
+
+<div class="col-2" style="align-items:start">
+
+  <!-- Config panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="accent">◉</span> SCAN CONFIGURATION
+    </div>
+    <div class="panel-body">
+
+      <div class="form-row">
+        <label>TARGET (IP / CIDR / RANGE / URL)</label>
+        <input type="text" id="sc-target" placeholder="192.168.1.0/24  |  10.0.0.5  |  https://10.0.0.8/">
+      </div>
+
+      <div class="form-row">
+        <label>SCAN MODE</label>
+        <select id="sc-mode" onchange="updateScanMode()">
+          {% for k, desc in scan_modes.items() %}
+          <option value="{{ k }}" {% if k == 'network' %}selected{% endif %}>
+            {{ k | replace('_', ' ') | upper }} — {{ desc }}
+          </option>
+          {% endfor %}
+        </select>
+        <div id="sc-mode-hint" style="font-size:10px;color:var(--muted);margin-top:4px"></div>
+      </div>
+
+      <div class="form-row" id="sc-ports-row">
+        <label>PORT PROFILE</label>
+        <select id="sc-ports">
+          {% for k, v in port_profiles.items() %}
+          <option value="{{ k }}" {% if k == 'driveby' %}selected{% endif %}>
+            {{ k | upper }} — {{ port_profile_desc.get(k, v[:60]) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>TIMING</label>
+        <select id="sc-timing">
+          {% for t, desc in timing_desc.items() %}
+          <option value="{{ t }}" {% if t == 'T4' %}selected{% endif %}>{{ t }} — {{ desc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>NSE SCRIPT PROFILE</label>
+        <select id="sc-scripts">
+          {% for k, desc in script_desc.items() %}
+          <option value="{{ k }}" {% if k == 'banner' %}selected{% endif %}>{{ k | upper }} — {{ desc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>EXTRA NMAP ARGS (space-separated)</label>
+        <input type="text" id="sc-extra" placeholder="--open --min-rate 500 --max-retries 1">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:11px;color:var(--muted);cursor:pointer"
+               title="Run nmap with sudo (required for SYN scans and OS detection)">
+          <input type="checkbox" id="sc-sudo" checked style="width:auto">
+          USE SUDO
+        </label>
+
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:11px;cursor:pointer;
+                      color:var(--cyan)" id="sc-pn-label"
+               title="Skip host discovery (-Pn) — treat all hosts as up. Use this when the ping phase hangs (ICMP blocked, strict firewalls, VPN targets). Slower on large ranges with few live hosts.">
+          <input type="checkbox" id="sc-pn" style="width:auto;accent-color:var(--cyan)">
+          SKIP HOST DISCOVERY <span style="color:var(--muted)">(-Pn)</span>
+        </label>
+
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:11px;cursor:pointer;
+                      color:var(--muted)"
+               title="Disable DNS resolution (-n) — speeds up scans significantly. Recommended for internal network scans.">
+          <input type="checkbox" id="sc-no-dns" checked style="width:auto;accent-color:var(--cyan)">
+          NO DNS RESOLUTION <span style="color:var(--muted)">(-n)</span>
+        </label>
+
+        <label id="sc-web-scan-label" style="display:none;align-items:center;gap:.4rem;font-size:11px;cursor:pointer;
+                      color:var(--cyan)"
+               title="After port scan, fingerprint HTTP services (titles, TLS, tech stack)">
+          <input type="checkbox" id="sc-web-scan" style="width:auto;accent-color:var(--cyan)">
+          LAYER-7 WEB SCAN
+        </label>
+
+        <label id="sc-web-nse-label" style="display:none;align-items:center;gap:.4rem;font-size:11px;cursor:pointer;
+                      color:var(--muted)"
+               title="Include nmap http-NSE scripts during Layer-7 scan (slower, noisier)">
+          <input type="checkbox" id="sc-web-nse" style="width:auto">
+          HTTP-NSE <span style="color:var(--muted)">(slow)</span>
+        </label>
+
+      </div>
+
+      <div class="flex gap-1">
+        <button class="btn btn-green" id="btn-scan" onclick="startScan()">▶ INITIATE SCAN</button>
+        <button class="btn btn-red"   id="btn-stop" onclick="stopScan()" disabled>■ ABORT</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Status panel -->
+  <div style="display:flex;flex-direction:column;gap:1rem">
+    <div class="panel">
+      <div class="panel-header"><span class="accent">◎</span> SCAN STATUS</div>
+      <div class="panel-body">
+        <div class="flex items-center gap-1 mb-1">
+          <span class="status-dot" id="scan-dot" style="background:var(--muted)"></span>
+          <span id="scan-state" style="font-size:12px;letter-spacing:.08em">IDLE</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)" id="scan-meta"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="accent">◎</span> FINDINGS SUMMARY</div>
+      <div class="panel-body">
+        <div class="stat-grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:0">
+          <div class="stat-card" style="padding:.75rem 1rem">
+            <div class="stat-label">HOSTS UP</div>
+            <div class="stat-val cyan" id="res-hosts">0</div>
+          </div>
+          <div class="stat-card" style="padding:.75rem 1rem">
+            <div class="stat-label">DANGER PORTS</div>
+            <div class="stat-val red" id="res-danger">0</div>
+          </div>
+          <div class="stat-card" style="padding:.75rem 1rem">
+            <div class="stat-label">WARNING PORTS</div>
+            <div class="stat-val orange" id="res-warning">0</div>
+          </div>
+          <div class="stat-card" style="padding:.75rem 1rem">
+            <div class="stat-label">INFO PORTS</div>
+            <div class="stat-val" id="res-info">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /col-2 -->
+
+<!-- Terminal output -->
+<div class="panel mt-2">
+  <div class="panel-header">
+    <span class="accent">◈</span> LIVE OUTPUT
+    <button class="btn" onclick="clearTerm()" style="margin-left:auto;padding:.2rem .6rem;font-size:10px">CLEAR</button>
+  </div>
+  <div class="panel-body" style="padding:.75rem">
+    <div class="terminal" id="scan-terminal" style="min-height:200px">
+      <span class="t-dim">// Awaiting scan initiation...</span>
+    </div>
+  </div>
+</div>
+
+<!-- Results table -->
+<div class="panel mt-2" id="results-panel" style="display:none">
+  <div class="panel-header">
+    <span class="accent">◉</span> SCAN RESULTS
+    <button class="btn btn-violet" onclick="window.location='/exploit'" style="margin-left:auto;padding:.3rem .75rem;font-size:10px">
+      VIEW IN EXPLOIT ▶
+    </button>
+  </div>
+  <div id="results-body" style="padding:0"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  let _scanActive = false;
+  let _clientId   = null;
+  let _sse        = null;
+
+  function updateScanMode() {
+    const mode = document.getElementById('sc-mode').value;
+    const hint = document.getElementById('sc-mode-hint');
+    const portsRow = document.getElementById('sc-ports-row');
+    const portsSel = document.getElementById('sc-ports');
+    const webLbl = document.getElementById('sc-web-scan-label');
+    const nseLbl = document.getElementById('sc-web-nse-label');
+    const sudoCb = document.getElementById('sc-sudo');
+    const scriptsSel = document.getElementById('sc-scripts');
+
+    const hints = {
+      network:  'Multi-OS port discovery — Linux, Windows, network gear, databases, web, …',
+      web:      'HTTP/S port sweep plus Layer-7 fingerprint. Best for classroom webservers.',
+      web_only: 'Skips nmap entirely — probes web ports on each IP/URL target.',
+    };
+    hint.textContent = hints[mode] || '';
+    hint.style.color = mode === 'web_only' ? 'var(--cyan)' : 'var(--muted)';
+
+    const isWebOnly = (mode === 'web_only');
+    const isWeb     = (mode === 'web');
+
+    portsRow.style.display = isWebOnly ? 'none' : '';
+    if (isWeb) portsSel.value = 'web';
+
+    webLbl.style.display = (mode === 'network') ? 'flex' : 'none';
+    nseLbl.style.display = (isWeb || isWebOnly) ? 'flex' : 'none';
+
+    if (isWebOnly) {
+      sudoCb.checked = false;
+      sudoCb.disabled = true;
+      scriptsSel.value = 'none';
+      scriptsSel.disabled = true;
+    } else {
+      sudoCb.disabled = false;
+      scriptsSel.disabled = false;
+    }
+  }
+
+  // ── Restore state on page load ─────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    updateScanMode();
+    fetch('/api/scan/status').then(r => r.json()).then(d => {
+      if (d.state === 'running') {
+        setScanState('RUNNING');
+      } else if (d.state === 'complete' || d.host_count > 0) {
+        setScanState('COMPLETE');
+        document.getElementById('scan-meta').textContent =
+          `Target: ${d.meta?.target || ''} — ${d.host_count} host(s) found`;
+      }
+    });
+    fetch('/api/scan/results').then(r => r.json()).then(d => {
+      if (d.hosts && d.hosts.length > 0) {
+        renderResults(d);
+        document.getElementById('scan-terminal').innerHTML =
+          '<span class="t-dim">// Results restored from last scan — run a new scan to refresh</span>\n';
+      }
+    });
+  });
+
+  function startScan() {
+    const target = document.getElementById('sc-target').value.trim();
+    if (!target) { alert('Enter a target.'); return; }
+    if (_scanActive) return;
+
+    // Client-side pre-validation (server re-validates too)
+    if (/[;&|`$(){}\[\]<>\\'"]/.test(target)) {
+      alert('Target contains invalid characters.');
+      return;
+    }
+    if (target.includes('..') || target.startsWith('/')) {
+      alert('Invalid target format.');
+      return;
+    }
+
+    _clientId = 'scan-' + Date.now();
+    const mode = document.getElementById('sc-mode').value;
+    const payload = {
+      target,
+      client_id:    _clientId,
+      scan_mode:    mode,
+      timing:       document.getElementById('sc-timing').value,
+      port_profile: document.getElementById('sc-ports').value,
+      scripts:      document.getElementById('sc-scripts').value,
+      use_sudo:     document.getElementById('sc-sudo').checked,
+      web_scan:     document.getElementById('sc-web-scan').checked,
+      web_nse:      document.getElementById('sc-web-nse').checked,
+      extra_args:   (() => {
+        const base = document.getElementById('sc-extra').value.trim().split(/\s+/).filter(Boolean);
+        if (document.getElementById('sc-pn').checked && !base.includes('-Pn'))
+          base.unshift('-Pn');
+        if (document.getElementById('sc-no-dns').checked && !base.includes('-n'))
+          base.unshift('-n');
+        return base;
+      })(),
+    };
+
+    setScanState('RUNNING');
+    clearTerm();
+    termLine(`Initiating ${mode.replace('_',' ')} scan — target: ${target}`, 'info');
+
+    fetch('/api/scan/start', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    }).then(r => r.json()).then(d => {
+      if (d.status !== 'started') {
+        termLine(`[ERROR] ${d.message}`, 'err');
+        setScanState('ERROR');
+        return;
+      }
+      _sse = h3xStream(
+        `/api/scan/stream?client_id=${d.client_id || _clientId}`,
+        document.getElementById('scan-terminal'),
+        onScanComplete,
+      );
+    }).catch(e => {
+      termLine(`[ERROR] ${e}`, 'err');
+      setScanState('ERROR');
+    });
+  }
+
+  function stopScan() {
+    fetch('/api/scan/stop', {method:'POST'});
+    if (_sse) _sse.close();
+    setScanState('ABORTED');
+  }
+
+  function onScanComplete() {
+    setScanState('COMPLETE');
+    fetch('/api/scan/results').then(r => r.json()).then(renderResults);
+  }
+
+  function setScanState(state) {
+    _scanActive = (state === 'RUNNING');
+    const dot  = document.getElementById('scan-dot');
+    const lbl  = document.getElementById('scan-state');
+    const bScan = document.getElementById('btn-scan');
+    const bStop = document.getElementById('btn-stop');
+
+    const colors = {RUNNING:'var(--cyan)',COMPLETE:'var(--green)',
+                    ERROR:'var(--red)',ABORTED:'var(--orange)',IDLE:'var(--muted)'};
+    dot.style.background = colors[state] || 'var(--muted)';
+    lbl.textContent = state;
+    bScan.disabled  = _scanActive;
+    bStop.disabled  = !_scanActive;
+  }
+
+  function clearTerm() {
+    document.getElementById('scan-terminal').innerHTML =
+      '<span class="t-dim">// Terminal cleared</span>\n';
+  }
+
+  function termLine(text, cls='') {
+    const t = document.getElementById('scan-terminal');
+    const s = document.createElement('span');
+    if (cls) s.className = `t-${cls}`;
+    s.textContent = text + '\n';
+    t.appendChild(s);
+    t.scrollTop = t.scrollHeight;
+  }
+
+  function renderResults(data) {
+    const hosts  = data.hosts || [];
+    const panel  = document.getElementById('results-panel');
+    const body   = document.getElementById('results-body');
+    panel.style.display = 'block';
+
+    // Update summary stats
+    let danger = 0, warning = 0, info = 0;
+    hosts.forEach(h => {
+      (h.ports || []).forEach(p => {
+        if (p.risk === 'danger') danger++;
+        else if (p.risk === 'warning') warning++;
+        else info++;
+      });
+    });
+    document.getElementById('res-hosts').textContent   = hosts.length;
+    document.getElementById('res-danger').textContent  = danger;
+    document.getElementById('res-warning').textContent = warning;
+    document.getElementById('res-info').textContent    = info;
+
+    if (!hosts.length) {
+      body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No live hosts found.</div>';
+      return;
+    }
+
+    const riskColor = {danger:'var(--red)',warning:'var(--orange)',info:'var(--cyan)'};
+    const typeColor = {
+      gateway:'#D85A30',server:'#1D9E75',workstation:'#378ADD',
+      iot:'#BA7517',switch:'#534AB7',scanner:'#D4537E',unknown:'#888'
+    };
+
+    body.innerHTML = hosts.map(h => {
+      const tc = typeColor[h.type] || '#888';
+      const portRows = (h.ports || []).map(p => {
+        const rc = riskColor[p.risk] || '#888';
+        return `<tr>
+          <td style="color:${rc};font-weight:500">${p.port}</td>
+          <td style="color:var(--muted)">${(p.protocol||'tcp').toUpperCase()}</td>
+          <td style="color:${rc}">${p.service||''}</td>
+          <td style="color:var(--muted);font-size:11px">${p.version||'—'}</td>
+          <td><span class="badge badge-${p.risk||'info'}">${(p.risk||'info').toUpperCase()}</span></td>
+        </tr>`;
+      }).join('');
+
+      const webRows = (h.web || []).map(w => {
+        const fp = w.fingerprint || {};
+        const sc = w.severity_counts || {};
+        const crit = (sc.CRITICAL||0) + (sc.HIGH||0);
+        const badge = crit
+          ? `<span class="badge badge-danger">${crit} high+</span>`
+          : `<span class="badge badge-green">${w.finding_count||0} findings</span>`;
+        return `<tr>
+          <td style="color:var(--cyan)">${w.url || '?'}</td>
+          <td>${fp.status || '?'}</td>
+          <td style="color:var(--muted);font-size:11px">${fp.server || '—'}</td>
+          <td style="color:var(--muted);font-size:11px">${fp.title || '—'}</td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('');
+
+      return `<div style="border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;
+                    border-bottom:1px solid var(--border2)">
+          <span style="color:#fff;font-size:14px;font-weight:500">${h.ip}</span>
+          <span class="badge" style="border-color:${tc};color:${tc}">${(h.type||'unknown').toUpperCase()}</span>
+          <span style="color:var(--muted);font-size:11px">${h.os||''}</span>
+          <span style="margin-left:auto;color:var(--violet);font-size:11px">${(h.ports||[]).length} port(s)${(h.web||[]).length ? ' · '+(h.web||[]).length+' web' : ''}</span>
+        </div>
+        ${portRows
+          ? `<table class="data-table"><thead><tr>
+               <th>PORT</th><th>PROTO</th><th>SERVICE</th><th>VERSION</th><th>RISK</th>
+             </tr></thead><tbody>${portRows}</tbody></table>`
+          : '<div style="padding:.75rem 1rem;color:var(--muted);font-size:11px">No open ports.</div>'
+        }
+        ${webRows
+          ? `<div style="padding:.35rem 1rem .65rem;font-size:10px;color:var(--violet);letter-spacing:.08em">LAYER-7 WEB</div>
+             <table class="data-table"><thead><tr>
+               <th>URL</th><th>STATUS</th><th>SERVER</th><th>TITLE</th><th>FINDINGS</th>
+             </tr></thead><tbody>${webRows}</tbody></table>`
+          : ''
+        }
+      </div>`;
+    }).join('');
+  }
+</script>
+{% endblock %}
