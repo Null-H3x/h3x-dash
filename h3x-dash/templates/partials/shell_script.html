@@ -52,6 +52,93 @@
     }
   }
 
+  function _sessionRowHtml(s) {
+    const stype = (s.type || '?').toUpperCase();
+    return `<div class="session-strip-row" data-sid="${s.id}"
+                 style="padding:.15rem 0;border-bottom:1px solid var(--border2)">
+      <span style="color:var(--green)">[${s.id}]</span>
+      <span style="color:var(--violet);margin:0 .4rem">${stype}</span>
+      <span style="color:var(--cyan)">${s.target || s.tunnel || '?'}</span>
+      <span style="color:var(--muted);margin-left:.4rem">${s.user || ''}</span>
+      <span style="color:var(--muted);margin-left:.4rem;font-size:10px">
+        ${s.platform || ''} ${s.arch || ''}</span>
+    </div>`;
+  }
+
+  function syncSessionStrip() {
+    const strip = document.getElementById('session-strip');
+    const detEl = document.getElementById('ss-detail');
+    const txtEl = document.getElementById('ss-text');
+    if (!strip || !detEl) return;
+
+    const sessions = SHELL_STATE.sessions || [];
+    if (!sessions.length) {
+      strip.style.display = 'none';
+      detEl.innerHTML = '';
+      if (txtEl) txtEl.textContent = '';
+      return;
+    }
+
+    strip.style.display = 'block';
+    detEl.innerHTML = sessions.map(_sessionRowHtml).join('');
+    if (txtEl) {
+      txtEl.textContent =
+        `✓ ${sessions.length} SESSION${sessions.length > 1 ? 'S' : ''} ACTIVE`;
+      txtEl.style.color = 'var(--green)';
+    }
+    const dot = document.getElementById('ss-dot');
+    if (dot) {
+      dot.style.background = 'var(--green)';
+      dot.style.boxShadow = '0 0 0 2px var(--green)33';
+    }
+  }
+
+  function _dropSessionLocally(sid) {
+    sid = String(sid);
+    SHELL_STATE.sessions = SHELL_STATE.sessions.filter(s => String(s.id) !== sid);
+    delete SHELL_STATE.buffers[sid];
+    delete SHELL_STATE.history[sid];
+    delete SHELL_STATE.histIdx[sid];
+    delete SHELL_STATE.histDraft[sid];
+    sessionStorage.removeItem('shell_hist_' + sid);
+
+    const input = document.getElementById('cmd-input');
+    if (SHELL_STATE.active_sid === sid) {
+      SHELL_STATE.active_sid = SHELL_STATE.sessions.length
+        ? String(SHELL_STATE.sessions[0].id) : null;
+      if (input) input.value = '';
+      const url = new URL(location);
+      if (SHELL_STATE.active_sid) url.searchParams.set('sid', SHELL_STATE.active_sid);
+      else url.searchParams.delete('sid');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+
+    const summary = document.getElementById('session-summary');
+    if (summary) {
+      summary.textContent = SHELL_STATE.sessions.length
+        ? `${SHELL_STATE.sessions.length} active` : '';
+    }
+
+    if (!SHELL_STATE.sessions.length) {
+      const empty = document.getElementById('no-sessions');
+      const active = document.getElementById('active-shell');
+      if (empty) empty.style.display = '';
+      if (active) active.style.display = 'none';
+      const term = document.getElementById('shell-term');
+      if (term) term.innerHTML = '';
+      if (input) input.value = '';
+    } else {
+      const empty = document.getElementById('no-sessions');
+      const active = document.getElementById('active-shell');
+      if (empty) empty.style.display = 'none';
+      if (active) active.style.display = '';
+      renderTabs();
+      renderShortcuts();
+      renderTerm();
+    }
+    syncSessionStrip();
+  }
+
   function killAllSessions() {
     const n = SHELL_STATE.sessions.length;
     if (!n) {
@@ -72,10 +159,18 @@
           delete SHELL_STATE.histDraft[sid];
           sessionStorage.removeItem('shell_hist_' + sid);
         });
+        SHELL_STATE.sessions = [];
         SHELL_STATE.active_sid = null;
         const url = new URL(location);
         url.searchParams.delete('sid');
         history.replaceState(null, '', url.pathname + url.search + url.hash);
+        const empty = document.getElementById('no-sessions');
+        const active = document.getElementById('active-shell');
+        if (empty) empty.style.display = '';
+        if (active) active.style.display = 'none';
+        const input = document.getElementById('cmd-input');
+        if (input) input.value = '';
+        syncSessionStrip();
         refreshSessions(true);
         if (failed.length) {
           alert(`Killed ${killed.length}; ${failed.length} failed:\n` +
@@ -99,6 +194,7 @@
         const active = document.getElementById('active-shell');
         if (empty) empty.style.display = '';
         if (active) active.style.display = 'none';
+        syncSessionStrip();
         return;
       }
       const empty = document.getElementById('no-sessions');
@@ -116,6 +212,7 @@
       renderTabs();
       renderShortcuts();
       renderTerm();
+      syncSessionStrip();
     });
   }
 
@@ -145,27 +242,22 @@
     sid = String(sid);
     if (!confirm(`Close session ${sid}? This stops it in Metasploit.`)) return;
 
+    // Drop from tabs, terminal, command field, and session strip immediately.
+    _dropSessionLocally(sid);
+
     fetch(`/api/msf/session/${sid}/kill`, {method: 'POST'})
       .then(r => r.json())
       .then(d => {
-        delete SHELL_STATE.buffers[sid];
-        delete SHELL_STATE.history[sid];
-        delete SHELL_STATE.histIdx[sid];
-        delete SHELL_STATE.histDraft[sid];
-        sessionStorage.removeItem('shell_hist_' + sid);
-        if (SHELL_STATE.active_sid === sid) {
-          SHELL_STATE.active_sid = null;
-          const url = new URL(location);
-          url.searchParams.delete('sid');
-          history.replaceState(null, '', url.pathname + url.search + url.hash);
-        }
         refreshSessions(true);
         if (d.status !== 'ok') {
           alert('Could not close session ' + sid + ': ' +
                 (d.message || 'unknown error'));
         }
       })
-      .catch(() => alert('Failed to reach MSF RPC — is msfrpcd running?'));
+      .catch(() => {
+        alert('Failed to reach MSF RPC — is msfrpcd running?');
+        refreshSessions(true);
+      });
   }
 
   function renderShortcuts() {
