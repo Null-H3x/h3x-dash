@@ -29,7 +29,7 @@
 
 H3x-Dash is a Flask-based penetration testing dashboard that automates the full offensive security pipeline in a single browser interface. It wires together network enumeration, vulnerability identification, exploit execution, and loot reporting into one cohesive workflow, with state that persists across tabs so you are never clicking back into an empty screen. Scan, enumerate, pop a shell, collect the loot, write the report, repeat.
 
-Built by a U.S. Army communications and cybersecurity professional. Designed for operators who already understand the tools they are running and just want them in one place that does not fight back.
+Built by a cybersecurity professional for operators who already understand the tools they are running and just want them in one place that does not fight back.
 
 **It is not** a one-click root button. **It is not** authorized for use outside explicitly controlled environments. It connects real tools, executes real commands, and produces real results against real systems. The dashboard is friendly. The consequences of pointing it at the wrong network are not.
 
