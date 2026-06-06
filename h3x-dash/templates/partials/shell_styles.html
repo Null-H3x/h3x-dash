@@ -1,0 +1,123 @@
+<style>
+  .session-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+    overflow-x: auto;
+  }
+  .session-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: all .15s;
+  }
+  .session-tab:hover { background: var(--surface2); color: var(--text); }
+  .session-tab.active {
+    background: var(--bg);
+    color: var(--text);
+    border-bottom: 1px solid var(--bg);
+    margin-bottom: -1px;
+    z-index: 2;
+  }
+  .session-tab.type-meterpreter .tab-dot { color: var(--green); }
+  .session-tab.type-shell       .tab-dot { color: var(--cyan); }
+  .session-tab.type-powershell  .tab-dot { color: var(--violet); }
+
+  .tab-close {
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 3px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .tab-close:hover { background: var(--red); color: var(--bg); }
+
+  .shell-term {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0 4px 4px 4px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text);
+    height: calc(100vh - 380px);
+    min-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .shell-term.embedded {
+    height: 280px;
+    min-height: 200px;
+  }
+  .shell-term .prompt   { color: var(--cyan);  }
+  .shell-term .stdout   { color: var(--text);  }
+  .shell-term .stderr   { color: var(--red);   }
+  .shell-term .meta     { color: var(--muted); font-style: italic; }
+  .shell-term .echo     { color: var(--green); }
+
+  .shortcut-bank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 0;
+  }
+  .shortcut-btn {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--cyan);
+    padding: 3px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .shortcut-btn:hover { background: var(--violet); border-color: var(--violet); color: var(--bg); }
+  .shortcut-btn.danger { color: var(--red); border-color: var(--red); }
+  .shortcut-btn.danger:hover { background: var(--red); color: var(--bg); }
+  .shortcut-btn.creds  { color: var(--green); border-color: var(--green); font-weight: 700; }
+  .shortcut-btn.creds:hover { background: var(--green); color: var(--bg); }
+
+  .cmd-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .cmd-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--cyan);
+    color: var(--text);
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-radius: 3px;
+  }
+  .cmd-input:focus { outline: 1px solid var(--violet); }
+
+  .no-sessions {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--muted);
+  }
+  .no-sessions.embedded {
+    padding: 2rem 1.5rem;
+  }
+</style>

@@ -1,0 +1,48 @@
+{% include 'partials/shell_styles.html' %}
+
+<div class="panel mt-2" id="shell-panel">
+  <div class="panel-header">
+    <span class="accent">⌬</span> INTERACTIVE SHELL
+    <span id="session-summary" style="margin-left:.5rem;font-size:10px;color:var(--muted)"></span>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button class="btn btn-red" onclick="killAllSessions()"
+              style="padding:.2rem .5rem;font-size:10px"
+              title="Stop every MSF session and clear stale tabs">✕ KILL ALL</button>
+      <button class="btn" onclick="refreshSessions(true)"
+              style="padding:.2rem .5rem;font-size:10px">↺ REFRESH</button>
+    </div>
+  </div>
+
+  <div id="shell-area" style="padding:.75rem 1rem">
+    <div class="no-sessions{% if shell_embedded %} embedded{% endif %}" id="no-sessions">
+      <div style="font-size:48px;color:var(--violet);margin-bottom:1rem">⌬</div>
+      <div style="font-size:14px;color:var(--text);margin-bottom:.5rem">No active sessions yet.</div>
+      <div style="font-size:11px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.6">
+        {% if shell_embedded %}
+        Launch an exploit above — sessions appear here automatically once a payload lands.
+        {% else %}
+        Successfully exploit a target on the
+        <a href="/exploit#shell-panel" style="color:var(--cyan)">Exploit</a> tab, then come back here.
+        Sessions auto-populate as Meterpreter and shell connections land.
+        {% endif %}
+      </div>
+    </div>
+
+    <div id="active-shell" style="display:none">
+      <div class="session-tabs" id="session-tabs"></div>
+      <div class="shell-term{% if shell_embedded %} embedded{% endif %}" id="shell-term"></div>
+      <div class="shortcut-bank" id="shortcut-bank"></div>
+      <div class="cmd-input-row">
+        <input type="text" id="cmd-input" class="cmd-input"
+               placeholder="enter command — ↑/↓ for history, ENTER to send"
+               onkeydown="onCmdKeydown(event)" autocomplete="off">
+        <button class="btn btn-cyan" onclick="sendCmd()"
+                style="padding:.4rem 1rem;font-size:11px">SEND ▶</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">
+        Session type drives dispatch — Meterpreter commands use run_with_output,
+        raw shells use write+read. Output below streams from polling /read.
+      </div>
+    </div>
+  </div>
+</div>

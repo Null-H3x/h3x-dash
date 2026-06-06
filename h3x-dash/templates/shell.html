@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Shell — H3x-Dash{% endblock %}
+{% block topbar_title %}<span style="font-family:var(--mono)">⌬</span> Interactive Shell{% endblock %}
+
+{% block content %}
+{% set shell_embedded = false %}
+{% include 'partials/shell_panel.html' %}
+{% endblock %}
+
+{% block extra_script %}
+{% include 'partials/shell_script.html' %}
+{% endblock %}
