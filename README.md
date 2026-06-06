@@ -10,7 +10,7 @@
 <div align="center">
 
 **Automated Penetration Testing Framework**
-
+`// AUTHORIZED USE ONLY //`
 `// SCAN > ENUMERATE > EXPLOIT > LOOT // AUTHORIZED USE ONLY //`
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-0ff0fc?style=flat-square&logo=python&logoColor=white)
