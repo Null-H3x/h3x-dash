@@ -5,6 +5,14 @@
     <span class="accent">⌬</span> ACTIVE SESSIONS
     <span id="session-summary" style="margin-left:.5rem;font-size:10px;color:var(--muted)"></span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;
+                    font-size:10px;color:var(--muted);white-space:nowrap"
+             title="On new Meterpreter sessions: migrate to notepad.exe, then background">
+        <input type="checkbox" id="opt-autohandoff" class="h3x-autohandoff-cb" checked
+               style="width:auto;accent-color:var(--cyan)"
+               onchange="typeof setAutoHandoff==='function'&&setAutoHandoff(this.checked)">
+        auto-handoff
+      </label>
       <button class="btn btn-red" onclick="killAllSessions()"
               style="padding:.2rem .5rem;font-size:10px"
               title="Stop every MSF session and clear stale tabs">✕ KILL ALL</button>
@@ -29,6 +37,28 @@
     </div>
 
     <div id="active-shell" style="display:none">
+      <div class="handoff-banner" id="handoff-banner">
+        <div class="handoff-banner-title">✓ SESSION LANDED — POST-EXPLOIT HANDOFF</div>
+        <div class="handoff-banner-sub" id="handoff-banner-sub">
+          Recommended order: migrate into a stable process → elevate (if needed) →
+          harvest creds → background the session so it survives console detach.
+        </div>
+        <div class="handoff-steps">
+          <button class="handoff-btn primary" onclick="runHandoffStep('migrate -n notepad.exe')">
+            ① MIGRATE
+          </button>
+          <button class="handoff-btn" onclick="runHandoffStep('getsystem')">
+            ② GETSYSTEM
+          </button>
+          <button class="handoff-btn creds" onclick="runHandoffStep('hashdump')">
+            ③ HASHDUMP
+          </button>
+          <button class="handoff-btn" onclick="runHandoffStep('background')">
+            ④ BACKGROUND
+          </button>
+          <button class="handoff-btn dismiss" onclick="dismissHandoffBanner()">✕ DISMISS</button>
+        </div>
+      </div>
       <div class="session-tabs" id="session-tabs"></div>
       <div class="shell-term{% if shell_embedded %} embedded{% endif %}" id="shell-term"></div>
       <div class="shortcut-bank" id="shortcut-bank"></div>

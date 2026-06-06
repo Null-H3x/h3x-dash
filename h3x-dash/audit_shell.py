@@ -293,10 +293,22 @@ else:
     fail("Exploit page shell panel not positioned between host-class and CVE panels")
 
 if 'focusShellPanel' in exploit_html and 'closeSession' in shell_script and \
-   '_dropSessionLocally' in shell_script and 'syncSessionStrip' in shell_script:
-    ok("Exploit page close-session drops tab, command field, and session strip")
+   '_dropSessionLocally' in shell_script and 'syncSessionStrip' in shell_script and \
+   '_clearShellArea' in shell_script and 'SHELL_STATE.closing' in shell_script:
+    ok("Exploit page close/kill removes session tabs from shell-area immediately")
 else:
     fail("Exploit page close-session UI cleanup missing")
+
+if 'handoff-banner' in shell_panel and 'runHandoffStep' in shell_script and \
+   'runAutoHandoff' in shell_script and 'migrate -n notepad.exe' in shell_script:
+    ok("Post-land handoff banner + auto-handoff + migrate shortcut wired")
+else:
+    fail("Post-connection persistence handoff layer missing")
+
+if 'h3x-autohandoff-cb' in exploit_html and 'opt-autohandoff' in shell_panel:
+    ok("Auto-handoff checkbox on Exploit launcher and session panel")
+else:
+    fail("Auto-handoff checkbox missing")
 
 
 # ── Dead-session classifier ────────────────────────────────────────────────────
