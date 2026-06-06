@@ -7,7 +7,7 @@
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;
                     font-size:10px;color:var(--muted);white-space:nowrap"
-             title="On new Meterpreter sessions: migrate to notepad.exe, then background">
+             title="On new Meterpreter: stabilize, then background (skips migrate if launch auto-migrate ran)">
         <input type="checkbox" id="opt-autohandoff" class="h3x-autohandoff-cb" checked
                style="width:auto;accent-color:var(--cyan)"
                onchange="typeof setAutoHandoff==='function'&&setAutoHandoff(this.checked)">

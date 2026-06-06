@@ -310,6 +310,18 @@ if 'h3x-autohandoff-cb' in exploit_html and 'opt-autohandoff' in shell_panel:
 else:
     fail("Auto-handoff checkbox missing")
 
+if ('h3x_last_launch' in exploit_html and '_getLaunchContext' in shell_script and
+        'skipMigrate' in shell_script and 'HANDOFF_STABILIZE_MS' in shell_script):
+    ok("Auto-handoff reads launch context and skips double-migrate after stabilize delay")
+else:
+    fail("Auto-handoff missing launch-context / stabilize / skip-migrate guards")
+
+if ('_scheduleHandoff' in shell_script and '_drainHandoffQueue' in shell_script and
+        'duplicate session' in shell_script):
+    ok("Auto-handoff serializes queue and only handoffs primary Meterpreter session")
+else:
+    fail("Auto-handoff queue / primary-session selection missing")
+
 
 # ── Dead-session classifier ────────────────────────────────────────────────────
 from modules.msf_engine import MsfEngine
