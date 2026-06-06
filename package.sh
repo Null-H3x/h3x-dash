@@ -19,6 +19,7 @@ tar -czf "$OUT" \
   --exclude='scans' \
   --exclude='reports' \
   --exclude='loot' \
+  --exclude='logs' \
   --exclude='.env' \
   --exclude='venv' \
   --exclude='.venv' \
