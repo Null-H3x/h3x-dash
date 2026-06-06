@@ -246,6 +246,50 @@ if len(eternal) == 1:
 else:
     fail(f"Dedup broken: EternalBlue appears {len(eternal)} times")
 
+# ── 16. End-to-end chain + class-filter integration ─────────────────────────
+from modules import host_classifier as _hc
+
+_ms2 = {'ip': '10.0.0.50', 'os': 'Linux 2.6.x', 'arch': ''}
+_ms2_ports = [
+    {'port': 445, 'service': 'microsoft-ds', 'version': 'Samba smbd 3.X'},
+]
+_ms2_classes = [c['class_id'] for c in _hc.classify({**_ms2, 'ports': _ms2_ports})
+                if c['confidence'] >= 30]
+_ms2_all = ch.suggest(_ms2, _ms2_ports)
+_ms2_filt = ch.suggest(_ms2, _ms2_ports, host_classes=_ms2_classes)
+if any('ms17_010' in (s.get('msf_module') or '') for s in _ms2_filt):
+    fail("Class-filtered Linux Samba host still suggests EternalBlue")
+else:
+    ok("Class-filtered Linux Samba host hides EternalBlue family")
+
+_win = {'ip': '10.0.0.10', 'os': 'Windows 10 Pro', 'arch': ''}
+_win_ports = [{'port': 445, 'service': 'microsoft-ds', 'version': ''}]
+_win_classes = [c['class_id'] for c in _hc.classify({**_win, 'ports': _win_ports})
+                if c['confidence'] >= 30]
+_win_filt = ch.suggest(_win, _win_ports, host_classes=_win_classes)
+if any('usermap_script' in (s.get('msf_module') or '') for s in _win_filt):
+    fail("Class-filtered Windows workstation still suggests Samba usermap_script")
+else:
+    ok("Class-filtered Windows workstation hides Samba usermap_script")
+
+if len(_ms2_filt) < len(_ms2_all):
+    ok(f"Class filter reduces suggestion count ({len(_ms2_filt)} of {len(_ms2_all)})")
+else:
+    warn("Class filter did not reduce Linux Samba suggestion count — verify primary class")
+
+# Every exploit-class module must resolve a non-empty payload
+empty_payload = []
+for key, entries in CVE_MAP.items():
+    for _cve, mod, _desc, _sev in entries:
+        if mod and mod.startswith('exploit/'):
+            p = smart_payload(mod, 'Linux 2.6', '')
+            if not p:
+                empty_payload.append(mod)
+if empty_payload:
+    fail(f"Exploit modules with empty smart_payload: {empty_payload[:5]}")
+else:
+    ok("Every exploit-class module resolves a non-empty smart_payload")
+
 # ── Report ────────────────────────────────────────────────────────────────────
 print("\n" + "═" * 72)
 print(f" PARANOIA AUDIT — {len(FAIL)} FAIL · {len(WARN)} WARN · "

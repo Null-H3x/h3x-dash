@@ -190,7 +190,35 @@ if len(filtered) == 1:
 else:
     fail("Unmapped module incorrectly filtered out")
 
-# ── 12. best_class returns confident pick or None ────────────────────────────
+# ── 12. SMB ambiguity — multi-class list must not leak cross-platform modules ─
+# Port 445 alone scores both linux_samba_host AND windows_workstation. Filtering
+# must use the primary class only, not any() across alternates.
+smb_sugs = [
+    {'msf_module': 'exploit/windows/smb/ms17_010_eternalblue'},
+    {'msf_module': 'exploit/multi/samba/usermap_script'},
+]
+# Linux Samba is primary even when Windows alternates are present
+filtered = hc.filter_modules(smb_sugs,
+    ['linux_samba_host', 'windows_workstation', 'windows_server'])
+fm = {s.get('msf_module') for s in filtered}
+if 'exploit/multi/samba/usermap_script' in fm and \
+   'exploit/windows/smb/ms17_010_eternalblue' not in fm:
+    ok("SMB ambiguity: primary linux_samba_host hides EternalBlue despite "
+       "Windows alternates in class list")
+else:
+    fail(f"SMB ambiguity leak on linux_samba_host primary: {fm}")
+
+filtered = hc.filter_modules(smb_sugs,
+    ['windows_workstation', 'windows_server', 'linux_samba_host'])
+fm = {s.get('msf_module') for s in filtered}
+if 'exploit/windows/smb/ms17_010_eternalblue' in fm and \
+   'exploit/multi/samba/usermap_script' not in fm:
+    ok("SMB ambiguity: primary windows_workstation hides usermap despite "
+       "linux_samba_host alternate in class list")
+else:
+    fail(f"SMB ambiguity leak on windows_workstation primary: {fm}")
+
+# ── 13. best_class returns confident pick or None ────────────────────────────
 h = host('10.0.0.10', 'Windows 10 Pro',
          (135, 'msrpc'), (445, 'microsoft-ds'), (3389, 'ms-wbt-server'))
 if hc.best_class(h) == 'windows_workstation':

@@ -298,10 +298,12 @@ else:
 
 
 # ── Dead-session classifier ────────────────────────────────────────────────────
-from modules.msf_engine import MsfEngine as _ME
+from modules.msf_engine import MsfEngine
+
+_eng = MsfEngine()
 
 # The exact MSF error for a session that opened then died
-dead = _ME._classify_session_error(
+dead = _eng._classify_session_error(
     Exception("Session ID (3) does not exist"), '3')
 if dead.get('session_dead') is True and 'died' in dead.get('message', '').lower():
     ok("Dead-session error ('does not exist') classified as session_dead with "
@@ -310,14 +312,14 @@ else:
     fail(f"Dead-session not classified correctly: {dead}")
 
 # Unknown-session phrasing also caught
-dead2 = _ME._classify_session_error(Exception("Unknown session 5"), '5')
+dead2 = _eng._classify_session_error(Exception("Unknown session 5"), '5')
 if dead2.get('session_dead') is True:
     ok("'Unknown session' phrasing also classified as session_dead")
 else:
     fail(f"'Unknown session' not classified as dead: {dead2}")
 
 # A genuinely different error must NOT be flagged as a dead session
-other = _ME._classify_session_error(Exception("connection reset by peer"), '3')
+other = _eng._classify_session_error(Exception("connection reset by peer"), '3')
 if not other.get('session_dead') and other.get('status') == 'error':
     ok("Non-dead-session errors are NOT mislabeled session_dead (stay raw)")
 else:

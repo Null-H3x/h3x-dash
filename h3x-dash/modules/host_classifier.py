@@ -444,8 +444,13 @@ def filter_modules(suggestions: list[dict],
                     classes: list[str],
                     min_confidence: int = 30) -> list[dict]:
     """
-    Drop suggestions whose msf_module doesn't apply to any of the given classes.
+    Drop suggestions whose msf_module doesn't apply to the host's primary class.
     Modules with no class mapping are kept (treated as universal).
+
+    Uses only classes[0] (highest-confidence match from classify()) rather than
+    any() across all alternates. SMB on 445 routinely scores both
+    linux_samba_host and windows_workstation; an any()-based filter would keep
+    EternalBlue on Samba hosts and usermap_script on Windows boxes.
 
     Args:
         suggestions: list of dicts from CveChain.suggest() — each has 'msf_module'
@@ -454,6 +459,7 @@ def filter_modules(suggestions: list[dict],
     """
     if not classes:
         return list(suggestions)
+    primary = classes[0]
     out = []
     for s in suggestions:
         mod = s.get('msf_module')
@@ -461,7 +467,10 @@ def filter_modules(suggestions: list[dict],
             # Pure-info entries (no module) — always keep
             out.append(s)
             continue
-        if any(module_applies(mod, c) for c in classes):
+        if mod not in MODULE_CLASSES:
+            out.append(s)   # unmapped → universal, keep
+            continue
+        if module_applies(mod, primary):
             out.append(s)
     return out
 

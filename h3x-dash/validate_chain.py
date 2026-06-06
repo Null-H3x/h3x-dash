@@ -39,7 +39,15 @@ def main() -> int:
                    help='msfrpcd password (default: msfrpc)')
     p.add_argument('--ssl', action='store_true',
                    help='msfrpcd was started WITHOUT -S (i.e. with SSL on)')
+    p.add_argument('--offline', action='store_true',
+                   help='Skip msfrpcd check; run audit_chain.py instead')
     args = p.parse_args()
+
+    if args.offline:
+        import subprocess
+        print("[*] --offline: running audit_chain.py (internal consistency only)\n")
+        rc = subprocess.call([sys.executable, 'audit_chain.py'])
+        return 0 if rc == 0 else 1
 
     eng = MsfEngine()
     res = eng.connect(host=args.host, port=args.port,
