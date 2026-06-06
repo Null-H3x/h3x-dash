@@ -274,12 +274,13 @@ if not missing:
 else:
     fail(f"Shell partial missing anchors: {missing}")
 
-# 16. Nav link jumps to embedded shell on Exploit page
+# 16. Standalone Shell nav removed — sessions live on Exploit page only
 base_html = Path('templates/base.html').read_text()
-if '/exploit#shell-panel' in base_html:
-    ok("Shell nav link wired in base.html → exploit#shell-panel")
+if 'href="/exploit#shell-panel"' not in base_html and \
+   "active == 'shell'" not in base_html:
+    ok("Standalone Shell nav removed from sidebar (sessions on Exploit page)")
 else:
-    fail("Shell nav link missing or broken in base.html")
+    fail("Shell nav link still present in base.html — should be removed")
 
 # 17. Exploit page embeds shell between host-class and CVE panels
 exploit_html = Path('templates/exploit.html').read_text()
@@ -291,10 +292,11 @@ if host_idx != -1 and shell_idx != -1 and cve_idx != -1 and host_idx < shell_idx
 else:
     fail("Exploit page shell panel not positioned between host-class and CVE panels")
 
-if 'focusShellPanel' in exploit_html and 'OPEN SHELL' in exploit_html:
-    ok("Exploit page session-strip deep-links to embedded shell when session lands")
+if 'focusShellPanel' in exploit_html and 'closeSession' in shell_script and \
+   '_dropSessionLocally' in shell_script and 'syncSessionStrip' in shell_script:
+    ok("Exploit page close-session drops tab, command field, and session strip")
 else:
-    fail("Exploit page deep-link to embedded shell missing")
+    fail("Exploit page close-session UI cleanup missing")
 
 
 # ── Dead-session classifier ────────────────────────────────────────────────────

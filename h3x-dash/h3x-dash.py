@@ -728,12 +728,12 @@ def api_msf_session_capture_creds(sid):
 
 @app.route('/shell')
 def page_shell():
-    """Legacy route — shell UI now lives on the Exploit page."""
+    """Legacy route — interactive shell lives on the Exploit page."""
     sid = request.args.get('sid')
     dest = '/exploit'
     if sid:
         dest += f'?sid={sid}'
-    return redirect(dest + '#shell-panel')
+    return redirect(dest)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
