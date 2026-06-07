@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Eye Cipher Workbench — Noita glyph cryptanalysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b0e; --panel:#13151b; --panel-2:#191c24; --panel-3:#1f2330;
+    --border:#2a2e3a; --border-bright:#3a3f4e;
+    --text:#d9dbe1; --dim:#7b8089; --faint:#565b65;
+    --amber:#f6a821; --teal:#5ad1c8; --good:#6cd86c; --bad:#ff6a5c; --violet:#9d8bf0;
+    --scanline:.5; --glow:rgba(246,168,33,.06); --vignette:rgba(0,0,0,.6);
+    --mono:'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;
+    line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.15) 3px,rgba(0,0,0,0) 4px);
+    mix-blend-mode:overlay;opacity:var(--scanline);}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(ellipse 80% 60% at 50% 0%,var(--glow),transparent 70%),
+               radial-gradient(ellipse 120% 90% at 50% 120%,var(--vignette),transparent);}
+  .shell{position:relative;z-index:3;max-width:1180px;margin:0 auto;padding:30px 22px 70px;}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+    border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap;}
+  .brand h1{font-size:20px;font-weight:700;letter-spacing:3px;margin:0;}
+  .brand h1 .mk{color:var(--amber);}
+  .brand .sub{color:var(--dim);font-size:11px;letter-spacing:1px;margin-top:4px;}
+  .trace{height:36px;width:190px;opacity:.85;}
+  .trace path{stroke:var(--amber);stroke-width:1.4;fill:none;}
+  .hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:9px;}
+  .swatches-row{display:flex;align-items:center;gap:8px;}
+  .sw-label{font-size:9px;letter-spacing:1.8px;color:var(--faint);}
+  .brand{display:flex;align-items:center;gap:14px;}
+  .eyelogo{height:46px;width:auto;display:block;flex:0 0 auto;
+    background:#f1ede2;border:1px solid var(--border-bright);border-radius:7px;padding:10px 13px;}
+  .tabs{display:flex;gap:3px;margin-bottom:11px;}
+  .tab{flex:1 1 auto;background:var(--panel-2);color:var(--dim);border:1px solid var(--border);
+    border-bottom:2px solid var(--border);font-family:var(--mono);font-size:11.5px;letter-spacing:.5px;
+    padding:9px 12px;cursor:pointer;border-radius:3px 3px 0 0;transition:color .12s,border-color .12s,background .12s;}
+  .tab:hover{color:var(--text);}
+  .tab.on{color:var(--amber);background:var(--bg);border-color:var(--border-bright);
+    border-bottom:2px solid var(--amber);font-weight:600;}
+  .imports{margin-top:11px;}
+  .imp-label{display:block;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;
+    color:var(--faint);margin-bottom:7px;}
+  .imp-row{display:flex;flex-wrap:wrap;gap:5px;align-items:stretch;}
+  .imp{background:var(--panel-2);color:var(--dim);border:1px solid var(--border);border-radius:2px;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.4px;padding:6px 10px;cursor:pointer;
+    transition:color .12s,border-color .12s,background .12s;}
+  .imp:hover{color:var(--amber);border-color:var(--border-bright);}
+  .imp.side{color:var(--amber);border-color:var(--amber);}
+  .imp.side:hover{background:var(--amber);color:var(--bg);}
+  .imp.clr{margin-left:auto;color:var(--bad);border-color:var(--border);}
+  .imp.clr:hover{border-color:var(--bad);}
+  .imp-sep{flex:0 0 1px;background:var(--border);margin:1px 4px;}
+  .imp-note{font-size:10.5px;color:var(--faint);line-height:1.6;
+    border:1px dashed var(--border);border-radius:2px;padding:8px 10px;}
+  .trace .g{stroke:var(--border);stroke-width:.5;}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:15px 15px 17px;}
+  .panel + .panel{margin-top:14px;}
+  .plabel{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--amber);margin:0 0 11px;}
+  .plabel .ix{color:var(--bg);background:var(--amber);font-weight:700;padding:1px 6px;border-radius:2px;font-size:9.5px;}
+  .plabel .rt{margin-left:auto;color:var(--faint);font-size:10px;letter-spacing:.6px;text-transform:none;}
+  .hint{color:var(--faint);font-size:10.5px;line-height:1.6;margin:8px 0 0;}
+
+  label.field{display:block;font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--dim);margin:0 0 5px;}
+  textarea,input[type=text],input[type=number],select{
+    width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:2px;
+    font-family:var(--mono);font-size:12.5px;padding:8px;outline:none;
+    transition:border-color .15s,box-shadow .15s;}
+  textarea{min-height:84px;line-height:1.6;resize:vertical;}
+  textarea:focus,input:focus,select:focus{border-color:var(--amber);box-shadow:0 0 0 1px rgba(246,168,33,.22);}
+  textarea::placeholder,input::placeholder{color:var(--faint);}
+  input[disabled]{opacity:.4;}
+  select{cursor:pointer;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:920px){.grid2{grid-template-columns:1fr;}}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .row > .grp{display:flex;flex-direction:column;}
+  .row > .grp.sm{max-width:110px;}
+  .row > .grp.flex{flex:1 1 130px;}
+
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:2px;overflow:hidden;flex-wrap:wrap;}
+  .seg button{background:var(--panel-2);color:var(--dim);border:0;border-right:1px solid var(--border);
+    font-family:var(--mono);font-size:11px;letter-spacing:.5px;padding:7px 11px;cursor:pointer;
+    transition:background .12s,color .12s;}
+  .seg button:last-child{border-right:0;}
+  .seg button:hover{color:var(--text);}
+  .seg button.on{background:var(--amber);color:var(--bg);font-weight:600;}
+
+  button.act{background:transparent;color:var(--amber);border:1px solid var(--amber);
+    font-family:var(--mono);font-size:11px;letter-spacing:.9px;text-transform:uppercase;
+    padding:8px 13px;border-radius:2px;cursor:pointer;transition:background .14s,color .14s;}
+  button.act:hover{background:var(--amber);color:var(--bg);}
+  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--border);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;
+    padding:7px 11px;border-radius:2px;cursor:pointer;}
+  button.ghost:hover{color:var(--text);border-color:var(--border-bright);}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;}
+  .chip{background:var(--panel-2);border:1px solid var(--border);border-radius:2px;
+    padding:5px 9px;font-size:10.5px;display:flex;gap:7px;align-items:baseline;}
+  .chip .k{color:var(--dim);letter-spacing:.4px;}
+  .chip .v{color:var(--text);font-weight:600;}
+  .chip.warn{border-color:var(--bad);} .chip.warn .v{color:var(--bad);}
+  .chip.ok .v{color:var(--good);}
+
+  /* pipeline */
+  .stage{background:var(--panel-2);border:1px solid var(--border);border-radius:3px;
+    padding:11px 11px 12px;margin-bottom:9px;position:relative;}
+  .stage.err{border-color:var(--bad);}
+  .stagehead{display:flex;align-items:center;gap:7px;margin-bottom:9px;}
+  .stagehead .num{background:var(--panel-3);color:var(--amber);font-size:9.5px;font-weight:700;
+    width:19px;height:19px;display:flex;align-items:center;justify-content:center;border-radius:2px;flex:0 0 auto;}
+  .stagehead select{flex:1 1 auto;}
+  .mini{background:var(--panel-3);color:var(--dim);border:1px solid var(--border);border-radius:2px;
+    width:24px;height:25px;font-family:var(--mono);font-size:12px;cursor:pointer;padding:0;flex:0 0 auto;
+    transition:color .12s,border-color .12s;}
+  .mini:hover{color:var(--amber);border-color:var(--border-bright);}
+  .mini.x:hover{color:var(--bad);}
+  .pparams{display:flex;gap:9px;flex-wrap:wrap;}
+  .pparams .pp{display:flex;flex-direction:column;flex:1 1 130px;}
+  .pparams .pp.full{flex:1 1 100%;}
+  .stagepreview{margin-top:9px;font-size:10.5px;color:var(--faint);word-break:break-all;
+    border-top:1px dashed var(--border);padding-top:7px;line-height:1.6;}
+  .stagepreview.bad{color:var(--bad);}
+  .addbar{display:flex;gap:8px;margin-top:4px;align-items:flex-end;}
+  .addbar select{flex:1 1 auto;}
+  .emptystack{color:var(--faint);font-style:italic;font-size:11px;padding:6px 0;}
+
+  /* output */
+  .outbox{background:var(--bg);border:1px solid var(--border);border-radius:2px;padding:12px;
+    min-height:90px;font-size:15px;line-height:1.75;word-break:break-word;white-space:pre-wrap;}
+  .outbox .np{color:var(--faint);} .outbox .pr{color:var(--teal);} .outbox .lt{color:var(--text);}
+  .numbox{background:var(--bg);border:1px solid var(--border);border-radius:2px;padding:9px;
+    margin-top:9px;font-size:11px;color:var(--dim);max-height:104px;overflow:auto;word-break:break-all;line-height:1.7;}
+  .empty{color:var(--faint);font-style:italic;}
+
+  /* scanners + freq */
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:11.5px;}
+  th{text-align:left;color:var(--dim);font-weight:500;letter-spacing:.6px;text-transform:uppercase;
+    font-size:9.5px;padding:5px 7px;border-bottom:1px solid var(--border);}
+  td{padding:6px 7px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr.brow{cursor:pointer;transition:background .1s;}
+  tr.brow:hover{background:var(--panel-2);}
+  tr.brow.diag{cursor:default;}
+  tr.brow.diag:hover{background:transparent;}
+  td.key{color:var(--amber);font-weight:600;white-space:nowrap;}
+  td.score{white-space:nowrap;color:var(--text);}
+  .bar{display:inline-block;height:6px;background:var(--amber);border-radius:1px;vertical-align:middle;margin-right:6px;min-width:1px;}
+  td.prev{color:var(--dim);font-size:11px;}
+  .freqrow{display:flex;align-items:center;gap:8px;font-size:11px;margin:3px 0;}
+  .freqrow .sym{width:34px;color:var(--amber);font-weight:600;}
+  .freqrow .fb{height:9px;background:var(--teal);border-radius:1px;}
+  .freqrow .ct{color:var(--dim);width:42px;}
+
+  footer{margin-top:28px;border-top:1px solid var(--border);padding-top:13px;
+    color:var(--faint);font-size:10px;letter-spacing:.3px;line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="brand">
+      <img class="eyelogo" alt="Noita eye glyph" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALMAAAB4CAYAAAC5O8OEAAABqElEQVR4nO3dsW3DMABFQSYzuPD+06XwDknjwkWAILYskg93E0j0A6sPeQwAAAAAAHjex+wHWMnlcv2e/Qz/dbt9+Q3vPmc/ABxFzGSImQwxkyFmMsRMhpjJEDMZYiZDzGSImQwxkyFmMsRMhpjJWHILO2tXvOM2+OyzWvmM3MxkiJkMMZMhZjLETIaYyRAzGWImQ8xkiJkMMZMhZjLETIaYyXjbnO+VaeLKM8PfHDHD3OWdV35XNzMZYiZDzGSImQwxkyFmMsRMhpjJEDMZYiZDzGSImQwxk/HneunZldQuK7BH/gj+HO9qys1MhpjJEDMZYiZDzGSImQwxkyFmMsRMhpjJEDMZYiZDzGT41twBVv7+2tFWflc3MxliJkPMZIiZDDGTIWYyxEyGmMkQMxliJkPMZIiZDDGTIWYyxEzGkhvaWV/j3GVT/Ojss1r5jNzMZIiZDDGTIWYyxEyGmMkQMxliJkPMZIiZDDGTIWYyxEyGmMlYds43gz+C35ubmQwxkyFmMsRMhpjJEDMZYiZDzGSImQwxkyFmMsRMhpgBAAAAAADGGD+ApDzKVaPFKQAAAABJRU5ErkJggg==">
+      <div>
+        <h1>EYE&nbsp;CIPHER&nbsp;WORKBENCH</h1>
+        <div class="sub">Noita glyph cryptanalysis · chainable decryption pipeline</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="swatches-row"><span class="sw-label">MODE</span><div class="seg" id="modeSeg"></div></div>
+      <div class="swatches-row"><span class="sw-label">SCALE</span>
+        <div class="seg" id="scaleSeg">
+          <button data-s="auto" class="on">Auto</button>
+          <button data-s="100">100%</button>
+          <button data-s="125">125%</button>
+          <button data-s="150">150%</button>
+          <button data-s="200">200%</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- INPUT -->
+  <div class="panel">
+    <p class="plabel"><span class="ix">01</span> Ciphertext<span class="rt" id="iocReadout"></span></p>
+    <div class="tabs">
+      <button class="tab on" data-tab="trigram">TRIGRAM · 0-82</button>
+      <button class="tab" data-tab="plaintext">PLAINTEXT · A-Z</button>
+    </div>
+    <textarea id="cipher" placeholder="Trigram indices — values 0-82 (the 83-symbol alphabet). Any delimiter.
+e.g.  50 66 5 48 62 13 75 29 24 61 42 70 66 62 32"></textarea>
+    <div class="imports">
+      <span class="imp-label">Import data sets — click to append in any order</span>
+      <div class="imp-row" id="importWrap"></div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <div class="grp sm">
+        <label class="field">Alphabet size N</label>
+        <input type="number" id="modN" value="83" min="2" />
+      </div>
+      <div class="grp" style="justify-content:flex-end;">
+        <label class="field">&nbsp;</label>
+        <div style="display:flex;gap:8px;">
+          <button class="act" id="exBtn">Worked example</button>
+          <button class="ghost" id="clrBtn">Clear</button>
+        </div>
+      </div>
+    </div>
+    <div class="chips" id="inDiag"></div>
+    <p class="hint">N is the modulus for all modular operations (83 = the eye alphabet, prime, so every nonzero value is invertible). XOR ignores N — it is bitwise.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:14px;">
+
+    <!-- PIPELINE -->
+    <div>
+      <div class="panel">
+        <p class="plabel"><span class="ix">02</span> Decryption pipeline<span class="rt">applied top → bottom</span></p>
+        <div id="stack"></div>
+        <div class="addbar">
+          <select id="addSel"></select>
+          <button class="act" id="addBtn">+ Add</button>
+        </div>
+        <p class="hint">Operations run in order, each transforming the value stream. The document notes the cipher "may have a second step" — stack stages to model that. Each stage shows its own output preview.</p>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div>
+      <div class="panel">
+        <p class="plabel"><span class="ix">03</span> Decoded output</p>
+        <div class="row" style="margin-bottom:10px;">
+          <div class="grp flex">
+            <label class="field">Value → character map</label>
+            <select id="mapMode">
+              <option value="ascii">ASCII code point</option>
+              <option value="az0">A–Z  (0=A, mod 26)</option>
+              <option value="az1">A–Z  (1=A, mod 26)</option>
+              <option value="custom">Custom 83-symbol table</option>
+            </select>
+          </div>
+        </div>
+        <div class="grp" id="customWrap" style="display:none;margin-bottom:10px;">
+          <label class="field">Custom table — char at index = glyph value</label>
+          <input type="text" id="customMap" placeholder="ABCDEFG…  (position 0,1,2,… → that glyph value)" />
+        </div>
+        <div class="outbox" id="plain"><span class="empty">Awaiting ciphertext…</span></div>
+        <div class="chips" id="outDiag"></div>
+        <div style="margin-top:10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
+          <label class="field" style="margin:0;">Non-printables</label>
+          <div class="seg" id="npMode">
+            <button data-v="dot" class="on">· dot</button>
+            <button data-v="hex">\xHH</button>
+            <button data-v="raw">raw</button>
+          </div>
+          <button class="ghost" id="copyBtn" style="margin-left:auto;">Copy text</button>
+        </div>
+        <div class="numbox" id="nums"><span class="empty">numeric result…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCANNERS -->
+  <div class="panel" style="margin-top:14px;">
+    <p class="plabel"><span class="ix">04</span> Automated key scanners<span class="rt">candidates ranked by index of coincidence (IoC)</span></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="act" data-scan="shift">Shift · all N</button>
+      <button class="act" data-scan="affine">Affine · k×φ</button>
+      <button class="act" data-scan="beaufort">Beaufort · all K</button>
+      <button class="act" data-scan="xor">XOR · 256 bytes</button>
+      <button class="act" data-scan="primroot">Primitive-root · g</button>
+      <button class="act" data-scan="progression">Progression · step</button>
+      <button class="act" data-scan="quadprog">Progression · step + quad</button>
+      <button class="act" data-scan="fracsweep">Fractionate · period × depth</button>
+      <button class="act" data-scan="coset">Decimate · k × offset</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;">
+      <button class="act" data-scan="friedman">Friedman period · k=1..30</button>
+      <button class="act" data-scan="kasiski">Kasiski · repeated n-grams</button>
+      <button class="act" data-scan="isomorph">Δ-isomorph finder</button>
+    </div>
+    <p class="hint">Candidate scans (top row) rank by IoC; click a row to push the operation onto the pipeline. Structural diagnostics (bottom row) describe the cipher itself — Friedman tests period via per-coset IoC, Kasiski reports repeated n-grams and their GCD-of-distances, Δ-isomorph finds matched difference-sequence stretches (the constraint-5.2 signature). Diagnostic rows show findings, not candidates, and aren't clickable.</p>
+    <div id="scanWrap"></div>
+  </div>
+
+  <!-- FREQUENCY -->
+  <div class="panel" style="margin-top:14px;">
+    <p class="plabel"><span class="ix">05</span> Glyph frequency<span class="rt">raw ciphertext</span></p>
+    <div id="freqWrap"><p class="hint">Load ciphertext to see the distribution.</p></div>
+  </div>
+
+  <footer>
+    Operations: Add/Subtract/Multiply/Affine/Beaufort/XOR · Progressive alphabet 4A (with optional i² second step) ·
+    Two-alphabet progressive 4B (split by position parity, glyph parity, or value threshold) · Primitive-root stream ·
+    Reverse/Rotate/Rail-fence/Columnar · Atbash · Delta · Cumulative-sum.
+    4A models constraint 4's blank-padded single ring; 4B models two interleaved progressive ciphers selected by trigram direction.
+    All processing is local in the browser.
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+
+/* ---------- math helpers ---------- */
+const mod=(a,n)=>(((a%n)+n)%n);
+function egcd(a,b){ if(b===0) return [a,1,0]; const [g,x,y]=egcd(b,a%b); return [g,y,x-Math.floor(a/b)*y]; }
+function modInv(a,n){ a=mod(a,n); const [g,x]=egcd(a,n); return g===1?mod(x,n):null; }
+function modPow(b,e,n){ b=mod(b,n); let r=1; while(e>0){ if(e&1) r=mod(r*b,n); b=mod(b*b,n); e=Math.floor(e/2);} return r; }
+function parseNums(s){ const m=String(s).match(/-?\d+/g); return m?m.map(Number):[]; }
+function matInvMod(A,N){
+  const n=A.length;
+  const M=A.map((row,i)=>row.concat(Array.from({length:n},(_,j)=>j===i?1:0)));
+  for(let i=0;i<n;i++){
+    let pr=-1;
+    for(let r=i;r<n;r++){ if(modInv(M[r][i],N)!==null){ pr=r; break; } }
+    if(pr===-1) return null;
+    if(pr!==i){ [M[i],M[pr]]=[M[pr],M[i]]; }
+    const inv=modInv(M[i][i],N);
+    for(let c=0;c<2*n;c++) M[i][c]=mod(M[i][c]*inv,N);
+    for(let r=0;r<n;r++){
+      if(r===i) continue;
+      const f=M[r][i]; if(f===0) continue;
+      for(let c=0;c<2*n;c++) M[r][c]=mod(M[r][c]-f*M[i][c],N);
+    }
+  }
+  return M.map(row=>row.slice(n));
+}
+
+/* ---------- operation registry ---------- */
+const OPS={
+  add:      {name:"Add  (Vigenère)",        grp:"Modular",   p:[{n:"key",l:"Key — decimal list (repeats)",k:"text",d:"0",full:true}]},
+  sub:      {name:"Subtract",                grp:"Modular",   p:[{n:"key",l:"Key — decimal list (repeats)",k:"text",d:"0",full:true}]},
+  mul:      {name:"Multiply  (× inverse)",   grp:"Modular",   p:[{n:"key",l:"Key — decimal list (repeats)",k:"text",d:"1",full:true}]},
+  affine:   {name:"Affine  (decrypt k·p+φ)", grp:"Modular",   p:[{n:"k",l:"k  multiplier",k:"num",d:1},{n:"phi",l:"φ  offset",k:"num",d:0}]},
+  beaufort: {name:"Beaufort",                grp:"Modular",   p:[{n:"key",l:"Key — decimal list (repeats)",k:"text",d:"0",full:true}]},
+  xor:      {name:"XOR  (bitwise)",          grp:"Modular",   p:[{n:"key",l:"Key — decimal list (repeats)",k:"text",d:"0",full:true}]},
+  subtable: {name:"Substitute — table lookup",grp:"Modular",   p:[
+      {n:"table",l:"Permutation — N values, comma/space-separated (Polybius grid or keyed alphabet)",k:"text",d:"",full:true}]},
+  progressive:{name:"Progressive alphabet (4A)",grp:"Position", p:[{n:"start",l:"base  start shift",k:"num",d:0},{n:"step",l:"step  per position",k:"num",d:1},{n:"quad",l:"quad  i² term (step 2)",k:"num",d:0}]},
+  twoalpha: {name:"Two-alphabet progressive (4B)",grp:"Position",p:[
+      {n:"split",l:"Stream split rule",k:"sel",d:"parity",full:true,opts:[["parity","Position parity — strict alternation"],["vparity","Glyph value parity — even/odd"],["thr","Glyph value threshold"]]},
+      {n:"thr",l:"threshold (≥ → stream A)",k:"num",d:42},
+      {n:"baseA",l:"A · base",k:"num",d:0},{n:"stepA",l:"A · step",k:"num",d:1},
+      {n:"baseB",l:"B · base",k:"num",d:0},{n:"stepB",l:"B · step",k:"num",d:1}
+    ]},
+  primroot: {name:"Primitive-root stream",   grp:"Position",  p:[{n:"g",l:"g  primitive root of N",k:"num",d:2}]},
+  lfsr:     {name:"LFSR keystream — GF(N)",   grp:"Position",  p:[
+      {n:"taps",l:"Feedback taps — coefficient list, low order first",k:"text",d:"1 0 1",full:true},
+      {n:"seed",l:"Seed — register state, decimal list",k:"text",d:"1 2 3 4",full:true}]},
+  chainadd: {name:"Chain-addition keystream", grp:"Position",  p:[
+      {n:"seed",l:"Primer — decimal list",k:"text",d:"3 1 4 1 5",full:true},
+      {n:"lagA",l:"lag A  (positions back)",k:"num",d:1},{n:"lagB",l:"lag B  (positions back)",k:"num",d:2}]},
+  autokey:  {name:"Autokey  (plain / cipher)", grp:"Position",  p:[
+      {n:"primer",l:"Primer — initial key, decimal list",k:"text",d:"0",full:true},
+      {n:"mode",l:"Variant",k:"sel",d:"plain",full:true,opts:[
+          ["plain","Plaintext autokey — key extends with recovered plaintext"],
+          ["cipher","Ciphertext autokey — key extends with ciphertext"]]}]},
+  dynsub:   {name:"Dynamic substitution (XGAK)",grp:"Position",  p:[
+      {n:"table",l:"Initial table — permutation of 0..N-1",k:"text",d:"",full:true},
+      {n:"rule",l:"Update rule after each use",k:"sel",d:"swap-prev",full:true,opts:[
+          ["swap-prev","Swap used position with j-1 (wrap)"],
+          ["swap-next","Swap used position with j+1 (wrap)"],
+          ["mtf","Move-to-front — used position to index 0"],
+          ["mtb","Move-to-back — used position to index N-1"]]}]},
+  hill:     {name:"Hill cipher — linear block",grp:"Position",  p:[
+      {n:"matrix",l:"Matrix — flat n² values (n inferred from √length)",k:"text",d:"1 0 0 1",full:true}]},
+  fractionate:{name:"Fractionate — bifid / trifid",grp:"Transpose",p:[
+      {n:"period",l:"Period — symbols per block",k:"num",d:9},
+      {n:"depth",l:"Depth — coords per symbol (2 bifid · 3 trifid)",k:"num",d:3}]},
+  reverse:  {name:"Reverse order",           grp:"Transpose", p:[]},
+  rotate:   {name:"Rotate sequence",         grp:"Transpose", p:[{n:"n",l:"Shift indices by",k:"num",d:0}]},
+  railfence:{name:"Rail fence",              grp:"Transpose", p:[{n:"rails",l:"Rails",k:"num",d:3}]},
+  columnar: {name:"Columnar transposition",  grp:"Transpose", p:[{n:"w",l:"Columns",k:"num",d:4}]},
+  decimate: {name:"Decimate  (take every k-th)",grp:"Transpose",p:[
+      {n:"step",l:"Step k",k:"num",d:2},
+      {n:"offset",l:"Offset",k:"num",d:0}]},
+  atbash:   {name:"Atbash  (mirror alphabet)",grp:"Other",    p:[]},
+  delta:    {name:"Delta  (difference)",     grp:"Other",     p:[]},
+  cumsum:   {name:"Cumulative sum",          grp:"Other",     p:[]},
+};
+
+/* ---------- operation implementations ---------- */
+function applyOp(type,vals,P,N){
+  if(!vals.length) return {out:[],err:null};
+  const keylist=()=>{ const k=parseNums(P.key); return k.length?k:[0]; };
+  let out, err=null;
+  switch(type){
+    case "add":  { const K=keylist(); out=vals.map((v,i)=>mod(v+K[i%K.length],N)); break; }
+    case "sub":  { const K=keylist(); out=vals.map((v,i)=>mod(v-K[i%K.length],N)); break; }
+    case "beaufort":{ const K=keylist(); out=vals.map((v,i)=>mod(K[i%K.length]-v,N)); break; }
+    case "xor":  { const K=keylist(); out=vals.map((v,i)=>(v^K[i%K.length])>>>0); break; }
+    case "mul":  {
+      const K=keylist(); out=vals.map((v,i)=>{
+        const inv=modInv(K[i%K.length],N);
+        if(inv===null){ err="key not invertible mod N"; return v; }
+        return mod(v*inv,N);
+      }); break;
+    }
+    case "affine":{
+      const inv=modInv(Number(P.k)||0,N);
+      if(inv===null){ err="k not invertible mod N — pick k coprime to N"; out=vals.slice(); }
+      else out=vals.map(v=>mod((v-(Number(P.phi)||0))*inv,N));
+      break;
+    }
+    case "progressive":{
+      const s=Number(P.start)||0, st=Number(P.step)||0, q=Number(P.quad)||0;
+      out=vals.map((v,i)=>mod(v-(s+st*i+q*i*i),N)); break;
+    }
+    case "twoalpha":{
+      const sm=P.split||"parity", thr=Number(P.thr)||0;
+      const bA=Number(P.baseA)||0, sA=Number(P.stepA)||0;
+      const bB=Number(P.baseB)||0, sB=Number(P.stepB)||0;
+      let cA=0,cB=0;
+      out=vals.map((v,i)=>{
+        let streamA;
+        if(sm==="parity")       streamA=(i%2===0);
+        else if(sm==="vparity") streamA=(v%2===0);
+        else                    streamA=(v>=thr);
+        if(streamA){ const r=mod(v-(bA+sA*cA),N); cA++; return r; }
+        else       { const r=mod(v-(bB+sB*cB),N); cB++; return r; }
+      });
+      break;
+    }
+    case "primroot":{
+      const g=Number(P.g)||2;
+      out=vals.map((v,i)=>mod(v-modPow(g,i+1,N),N)); break;
+    }
+    case "reverse": out=vals.slice().reverse(); break;
+    case "rotate":  { const n=Number(P.n)||0, L=vals.length; out=vals.map((_,i)=>vals[mod(i+n,L)]); break; }
+    case "atbash":  out=vals.map(v=>mod(N-1-v,N)); break;
+    case "delta":   out=vals.map((v,i)=>i===0?mod(v,N):mod(v-vals[i-1],N)); break;
+    case "cumsum":  { out=[]; let acc=0; vals.forEach(v=>{acc=mod(acc+v,N);out.push(acc);}); break; }
+    case "railfence":{
+      const r=Math.max(2,Number(P.rails)||2), L=vals.length;
+      if(r>=L){ out=vals.slice(); break; }
+      const pat=[]; let row=0,dir=1;
+      for(let i=0;i<L;i++){ pat.push(row); row+=dir; if(row===0||row===r-1) dir=-dir; }
+      out=new Array(L); let idx=0;
+      for(let rr=0;rr<r;rr++) for(let i=0;i<L;i++) if(pat[i]===rr) out[i]=vals[idx++];
+      break;
+    }
+    case "columnar":{
+      const w=Math.max(2,Number(P.w)||2), L=vals.length;
+      if(w>=L){ out=vals.slice(); break; }
+      const rows=Math.ceil(L/w), shortCols=rows*w-L, fullCols=w-shortCols;
+      out=new Array(L); let idx=0;
+      for(let c=0;c<w;c++){
+        const colLen=(c<fullCols)?rows:rows-1;
+        for(let rr=0;rr<colLen;rr++) out[rr*w+c]=vals[idx++];
+      }
+      break;
+    }
+    case "lfsr":{
+      let reg=parseNums(P.seed); if(!reg.length) reg=[1];
+      const taps=parseNums(P.taps), L=reg.length;
+      reg=reg.slice();
+      out=vals.map(v=>{
+        const ks=mod(reg[0],N);
+        let fb=0; for(let j=0;j<L;j++) fb+=(taps[j]||0)*reg[j];
+        reg=reg.slice(1).concat([mod(fb,N)]);
+        return mod(v-ks,N);
+      });
+      break;
+    }
+    case "chainadd":{
+      let k=parseNums(P.seed); if(k.length<2) k=[1,1];
+      const a=Math.max(1,Number(P.lagA)||1), b=Math.max(1,Number(P.lagB)||2);
+      k=k.slice();
+      while(k.length<vals.length){
+        const n=k.length;
+        k.push(mod((n-a>=0?k[n-a]:0)+(n-b>=0?k[n-b]:0),N));
+      }
+      out=vals.map((v,i)=>mod(v-k[i],N));
+      break;
+    }
+    case "fractionate":{
+      const d=Math.max(2,Math.min(5,Number(P.depth)||3));
+      const p=Math.max(2,Number(P.period)||9);
+      const blk=p*d;
+      out=vals.slice();
+      for(let base=0;base+blk<=vals.length;base+=blk){
+        for(let c=0;c<d;c++) for(let s=0;s<p;s++)
+          out[base+s*d+c]=vals[base+c*p+s];
+      }
+      break;
+    }
+    case "subtable":{
+      const t=parseNums(P.table);
+      if(t.length!==N){ err="table length must equal N ("+N+", got "+t.length+")"; out=vals.slice(); break; }
+      const inv=new Array(N);
+      for(let i=0;i<t.length;i++){ const v=t[i]; if(v>=0&&v<N) inv[v]=i; }
+      out=vals.map(v=>(v>=0&&v<N&&inv[v]!==undefined)?inv[v]:v);
+      break;
+    }
+    case "autokey":{
+      const primer=parseNums(P.primer);
+      if(!primer.length){ err="primer required"; out=vals.slice(); break; }
+      const L=primer.length, mode=P.mode||"plain";
+      out=new Array(vals.length);
+      for(let i=0;i<vals.length;i++){
+        const k = i<L ? primer[i] : (mode==="cipher" ? vals[i-L] : out[i-L]);
+        out[i]=mod(vals[i]-k,N);
+      }
+      break;
+    }
+    case "dynsub":{
+      const t=parseNums(P.table);
+      if(t.length!==N){ err="table length must equal N ("+N+", got "+t.length+")"; out=vals.slice(); break; }
+      const tab=t.slice(), rule=P.rule||"swap-prev";
+      out=vals.map(v=>{
+        const j=tab.indexOf(v);
+        if(j<0) return v;
+        const p=j;
+        if(rule==="swap-prev"){ const k=(j-1+N)%N; [tab[j],tab[k]]=[tab[k],tab[j]]; }
+        else if(rule==="swap-next"){ const k=(j+1)%N; [tab[j],tab[k]]=[tab[k],tab[j]]; }
+        else if(rule==="mtf"){ const x=tab.splice(j,1)[0]; tab.unshift(x); }
+        else if(rule==="mtb"){ const x=tab.splice(j,1)[0]; tab.push(x); }
+        return p;
+      });
+      break;
+    }
+    case "hill":{
+      const flat=parseNums(P.matrix);
+      const n=Math.round(Math.sqrt(flat.length));
+      if(n*n!==flat.length || n<1){ err="matrix must be square (got "+flat.length+" values)"; out=vals.slice(); break; }
+      const A=[];
+      for(let i=0;i<n;i++) A.push(flat.slice(i*n,(i+1)*n).map(v=>mod(v,N)));
+      const Ainv=matInvMod(A,N);
+      if(!Ainv){ err="matrix not invertible mod N"; out=vals.slice(); break; }
+      out=vals.slice();
+      for(let s=0;s+n<=vals.length;s+=n){
+        for(let i=0;i<n;i++){
+          let sum=0;
+          for(let j=0;j<n;j++) sum+=Ainv[i][j]*vals[s+j];
+          out[s+i]=mod(sum,N);
+        }
+      }
+      break;
+    }
+    case "decimate":{
+      const k=Math.max(1,Number(P.step)||1);
+      const o=Math.max(0,Number(P.offset)||0);
+      out=[];
+      for(let i=o;i<vals.length;i+=k) out.push(vals[i]);
+      break;
+    }
+    default: out=vals.slice();
+  }
+  return {out,err};
+}
+
+/* ---------- state ---------- */
+let pipeline=[];                 // [{type, params:{}}]  -- active tab's pipeline
+const ST={ npMode:"dot", mapMode:"ascii" };
+
+/* per-tab state — pipelines, N, text, and mapMode are independent.
+   Trigram tab uses N=83 numeric alphabet; plaintext tab uses N=26 A-Z. */
+let activeTab="trigram";
+const TABS={
+  trigram:  { cipher:"", modN:"83", pipeline:[], mapMode:"ascii",
+              ph:"Trigram indices — values 0-82 (the 83-symbol alphabet). Any delimiter.\ne.g.  50 66 5 48 62 13 75 29 24 61 42 70 66 62 32" },
+  plaintext:{ cipher:"", modN:"26", pipeline:[], mapMode:"az0",
+              ph:"Classical ciphertext — A-Z letters only, case-insensitive. Non-letters ignored.\ne.g.  WKLV LV D WHVW PHVVDJH" }
+};
+
+/* tab-aware parser: trigram → parseNums, plaintext → A-Z to 0-25 */
+function parseInput(){
+  const s=$("cipher").value;
+  if(activeTab==="plaintext"){
+    return [...s.toUpperCase()].filter(c=>c>="A"&&c<="Z").map(c=>c.charCodeAt(0)-65);
+  }
+  return parseNums(s).filter(n=>n>=0);
+}
+
+function switchTab(name){
+  if(!TABS[name]||name===activeTab) return;
+  // save current tab state
+  const cur=TABS[activeTab];
+  cur.cipher  = $("cipher").value;
+  cur.modN    = $("modN").value;
+  cur.mapMode = ST.mapMode;
+  cur.pipeline= pipeline.slice();
+  // load new tab state
+  activeTab=name;
+  const nx=TABS[name];
+  $("cipher").value      = nx.cipher;
+  $("cipher").placeholder= nx.ph;
+  $("modN").value        = nx.modN;
+  $("mapMode").value     = nx.mapMode;
+  ST.mapMode             = nx.mapMode;
+  $("customWrap").style.display=(ST.mapMode==="custom")?"flex":"none";
+  pipeline=nx.pipeline;
+  // imports panel is trigram-only (data sets are 0-82 indices)
+  const impEl=document.querySelector(".imports");
+  if(impEl) impEl.style.display=(name==="trigram")?"":"none";
+  // tab button state
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===name));
+  renderStack();
+  $("scanWrap").innerHTML="";
+  compute();
+}
+
+function newStage(type){
+  const P={}; OPS[type].p.forEach(pp=>P[pp.n]=pp.d);
+  return {type,params:P};
+}
+
+/* ---------- pipeline DOM ---------- */
+function opSelectHTML(selected){
+  const groups={};
+  for(const [id,o] of Object.entries(OPS)){ (groups[o.grp]=groups[o.grp]||[]).push([id,o.name]); }
+  let h="";
+  for(const g of Object.keys(groups)){
+    h+='<optgroup label="'+g+'">';
+    for(const [id,nm] of groups[g]) h+='<option value="'+id+'"'+(id===selected?' selected':'')+'>'+nm+'</option>';
+    h+='</optgroup>';
+  }
+  return h;
+}
+function renderStack(){
+  const wrap=$("stack");
+  if(!pipeline.length){ wrap.innerHTML='<div class="emptystack">No operations yet — add one below, or use a scanner / the worked example.</div>'; return; }
+  wrap.innerHTML="";
+  pipeline.forEach((st,i)=>{
+    const o=OPS[st.type];
+    const div=document.createElement("div"); div.className="stage";
+    let params="";
+    o.p.forEach(pp=>{
+      const val=st.params[pp.n];
+      params+='<div class="pp'+(pp.full?' full':'')+'"><label class="field">'+pp.l+'</label>'
+        + (pp.k==="num"
+            ? '<input type="number" data-i="'+i+'" data-p="'+pp.n+'" value="'+val+'">'
+            : pp.k==="sel"
+            ? '<select data-i="'+i+'" data-p="'+pp.n+'">'+pp.opts.map(o=>'<option value="'+o[0]+'"'+(o[0]===val?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
+            : '<input type="text" data-i="'+i+'" data-p="'+pp.n+'" value="'+String(val).replace(/"/g,'&quot;')+'">')
+        + '</div>';
+    });
+    div.innerHTML=
+      '<div class="stagehead">'
+      + '<span class="num">'+(i+1)+'</span>'
+      + '<select data-type="'+i+'">'+opSelectHTML(st.type)+'</select>'
+      + '<button class="mini" data-up="'+i+'" title="move up">↑</button>'
+      + '<button class="mini" data-dn="'+i+'" title="move down">↓</button>'
+      + '<button class="mini x" data-rm="'+i+'" title="remove">✕</button>'
+      + '</div>'
+      + (params?'<div class="pparams">'+params+'</div>':'')
+      + '<div class="stagepreview" data-prev="'+i+'"></div>';
+    wrap.appendChild(div);
+  });
+  // wire
+  wrap.querySelectorAll("select[data-type]").forEach(s=>s.addEventListener("change",e=>{
+    pipeline[+e.target.dataset.type]=newStage(e.target.value); renderStack(); compute();
+  }));
+  wrap.querySelectorAll("[data-p]").forEach(inp=>{
+    const h=e=>{ pipeline[+e.target.dataset.i].params[e.target.dataset.p]=e.target.value; compute(); };
+    inp.addEventListener("input",h); inp.addEventListener("change",h);
+  });
+  wrap.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",e=>{
+    pipeline.splice(+e.currentTarget.dataset.rm,1); renderStack(); compute();
+  }));
+  wrap.querySelectorAll("[data-up]").forEach(b=>b.addEventListener("click",e=>{
+    const i=+e.currentTarget.dataset.up; if(i>0){ [pipeline[i-1],pipeline[i]]=[pipeline[i],pipeline[i-1]]; renderStack(); compute(); }
+  }));
+  wrap.querySelectorAll("[data-dn]").forEach(b=>b.addEventListener("click",e=>{
+    const i=+e.currentTarget.dataset.dn; if(i<pipeline.length-1){ [pipeline[i+1],pipeline[i]]=[pipeline[i],pipeline[i+1]]; renderStack(); compute(); }
+  }));
+}
+
+/* ---------- compute ---------- */
+function runPipeline(input,N){
+  let cur=input.slice(); const stageOut=[];
+  for(const st of pipeline){
+    const {out,err}=applyOp(st.type,cur,st.params,N);
+    cur=out; stageOut.push({out,err});
+  }
+  return {final:cur,stageOut};
+}
+
+/* ---------- char mapping ---------- */
+function mapValue(v,N){
+  const m=ST.mapMode;
+  if(m==="az0") return String.fromCharCode(65+mod(v,26));
+  if(m==="az1") return String.fromCharCode(65+mod(v-1,26));
+  if(m==="custom"){ const t=$("customMap").value; return (v>=0&&v<t.length)?t[v]:null; }
+  return (v>=0&&v<=0x10FFFF)?String.fromCharCode(v):null;   // ascii
+}
+function isPrintableChar(ch){ if(ch===null) return false; const c=ch.charCodeAt(0); return c>=32&&c<=126; }
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function renderText(vals,N){
+  if(!vals.length) return '<span class="empty">Awaiting ciphertext…</span>';
+  return vals.map(v=>{
+    const ch=mapValue(v,N);
+    if(ch===null) return '<span class="np">·</span>';
+    if(isPrintableChar(ch)){
+      const cls=/[A-Za-z]/.test(ch)?'lt':'pr';
+      return '<span class="'+cls+'">'+esc(ch)+'</span>';
+    }
+    if(ST.npMode==="hex") return '<span class="np">\\x'+v.toString(16).toUpperCase().padStart(2,"0")+'</span>';
+    if(ST.npMode==="raw") return '<span class="np">'+esc(ch)+'</span>';
+    return '<span class="np">·</span>';
+  }).join("");
+}
+function plainString(vals,N){
+  return vals.map(v=>{ const ch=mapValue(v,N); return ch===null?"\uFFFD":ch; }).join("");
+}
+
+/* ---------- scoring (English-likeness) ---------- */
+const ENG=[8.2,1.5,2.8,4.3,12.7,2.2,2.0,6.1,7.0,0.15,0.8,4.0,2.4,6.7,7.5,1.9,0.10,6.0,6.3,9.1,2.8,1.0,2.4,0.15,2.0,0.07];
+function engScore(vals,N){
+  if(!vals.length) return 0;
+  const txt=plainString(vals,N).toUpperCase();
+  const cnt=new Array(26).fill(0); let tot=0;
+  for(const ch of txt){ const c=ch.charCodeAt(0)-65; if(c>=0&&c<26){ cnt[c]++; tot++; } }
+  if(!tot) return 0;
+  let s=0; for(let i=0;i<26;i++) s+=(cnt[i]/tot)*ENG[i];
+  return s;
+}
+
+/* ---------- index of coincidence ---------- */
+function ioc(vals){
+  const n=vals.length; if(n<2) return 0;
+  const cnt={}; vals.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+  let s=0; for(const k in cnt) s+=cnt[k]*(cnt[k]-1);
+  return s/(n*(n-1));
+}
+
+/* ---------- diagnostics + main render ---------- */
+function compute(){
+  const N=Math.max(2,parseInt($("modN").value,10)||83);
+  const input=parseInput();
+
+  // input diagnostics
+  if(input.length){
+    const mn=Math.min(...input), mx=Math.max(...input);
+    const distinct=new Set(input).size;
+    let dbl=0; for(let i=1;i<input.length;i++) if(input[i]===input[i-1]) dbl++;
+    let c="";
+    c+=chip("glyphs",input.length);
+    c+=chip("distinct",distinct);
+    c+=chip("min/max",mn+" / "+mx);
+    c+=chip("adjacent doubles",dbl,dbl===0?"ok":"warn");
+    if(mx>=N) c+=chip("out of range","value ≥ N","warn");
+    $("inDiag").innerHTML=c;
+    // The "english≈0.0667" reference is the IoC of 26-letter English and is
+    // only meaningful in the A–Z (mod 26) plaintext mode. On the 83-symbol
+    // glyph alphabet it is misleading, so show a mode-appropriate target:
+    // monoalphabetic natural-language text has IoC ≈ english_26 · 26 / N.
+    const langRef = (N===26)
+      ? "  english≈0.0667"
+      : "  natural-lang≈"+(0.0667*26/N).toFixed(4);
+    $("iocReadout").textContent="IoC "+ioc(input).toFixed(4)+"  ·  uniform≈"+(1/N).toFixed(4)+langRef;
+  } else {
+    $("inDiag").innerHTML='<div class="chip"><span class="k">awaiting input</span></div>';
+    $("iocReadout").textContent="";
+  }
+
+  // pipeline
+  const {final,stageOut}=runPipeline(input,N);
+  pipeline.forEach((st,i)=>{
+    const el=document.querySelector('[data-prev="'+i+'"]'); if(!el) return;
+    const so=stageOut[i];
+    if(so.err){ el.className="stagepreview bad"; el.textContent="⚠ "+so.err; }
+    else{
+      el.className="stagepreview";
+      const head=so.out.slice(0,28).join(" ");
+      el.textContent="→ "+head+(so.out.length>28?" …":"")+"   ["+so.out.length+" values]";
+    }
+  });
+
+  // output
+  $("plain").innerHTML=renderText(final,N);
+  $("nums").innerHTML=final.length?final.join(" "):'<span class="empty">numeric result…</span>';
+  if(final.length){
+    const score=engScore(final,N);
+    let c="";
+    c+=chip("length",final.length);
+    c+=chip("IoC",ioc(final).toFixed(4));
+    c+=chip("english score",(score*100).toFixed(1),score>=4.5?"ok":(score<3?"warn":""));
+    $("outDiag").innerHTML=c;
+  } else $("outDiag").innerHTML="";
+
+  renderFreq(input);
+}
+function chip(k,v,cls){ return '<div class="chip '+(cls||"")+'"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+
+/* ---------- frequency panel ---------- */
+function renderFreq(input){
+  const w=$("freqWrap");
+  if(!input.length){ w.innerHTML='<p class="hint">Load ciphertext to see the distribution.</p>'; return; }
+  const cnt={}; input.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+  const rows=Object.entries(cnt).map(([k,v])=>[+k,v]).sort((a,b)=>b[1]-a[1]);
+  const max=rows[0][1];
+  let h='';
+  rows.slice(0,16).forEach(([sym,ct])=>{
+    h+='<div class="freqrow"><span class="sym">'+sym+'</span>'
+      +'<span class="fb" style="width:'+(ct/max*240).toFixed(0)+'px"></span>'
+      +'<span class="ct">'+ct+'</span></div>';
+  });
+  if(rows.length>16) h+='<p class="hint">… '+(rows.length-16)+' more symbols</p>';
+  w.innerHTML=h;
+}
+
+/* ---------- scanners ---------- */
+function runScan(kind){
+  const N=Math.max(2,parseInt($("modN").value,10)||83);
+  const input=parseInput();
+  const wrap=$("scanWrap");
+  if(!input.length){ wrap.innerHTML='<p class="hint">Load ciphertext first.</p>'; return; }
+  let results=[]; let summary="";
+
+  if(kind==="shift"){
+    for(let s=0;s<N;s++){
+      const out=input.map(v=>mod(v-s,N));
+      results.push({label:"shift "+s, op:"sub", params:{key:String(s)}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="affine"){
+    for(let k=1;k<N;k++){
+      const inv=modInv(k,N); if(inv===null) continue;
+      for(let phi=0;phi<N;phi++){
+        const out=input.map(v=>mod((v-phi)*inv,N));
+        results.push({label:"k="+k+" φ="+phi, op:"affine", params:{k,phi}, score:ioc(out), vals:out});
+      }
+    }
+  } else if(kind==="beaufort"){
+    for(let K=0;K<N;K++){
+      const out=input.map(v=>mod(K-v,N));
+      results.push({label:"K="+K, op:"beaufort", params:{key:String(K)}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="xor"){
+    for(let k=0;k<256;k++){
+      const out=input.map(v=>(v^k)>>>0);
+      results.push({label:"byte "+k+" (0x"+k.toString(16).toUpperCase().padStart(2,"0")+")",
+        op:"xor", params:{key:String(k)}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="primroot"){
+    const PR=[2,5,6,8,13,14,15,18,19,20,22,24,32,34,35,39,42,43,45,46,47,50,52,53,54,55,56,57,58,60,62,66,67,71,72,73,74,76,79,80];
+    const pool=(N===83)?PR:Array.from({length:N-1},(_,i)=>i+2);
+    pool.forEach(g=>{
+      const out=input.map((v,i)=>mod(v-modPow(g,i+1,N),N));
+      results.push({label:"g="+g, op:"primroot", params:{g}, score:ioc(out), vals:out});
+    });
+  } else if(kind==="progression"){
+    for(let st=0;st<N;st++){
+      const out=input.map((v,i)=>mod(v-st*i,N));
+      results.push({label:"step "+st, op:"progressive", params:{start:0,step:st,quad:0}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="quadprog"){
+    for(let st=0;st<N;st++) for(let q=0;q<N;q++){
+      const out=input.map((v,i)=>mod(v-st*i-q*i*i,N));
+      results.push({label:"step="+st+" quad="+q, op:"progressive", params:{start:0,step:st,quad:q}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="fracsweep"){
+    for(let period=2;period<=30;period++) for(const depth of [2,3]){
+      const blk=period*depth;
+      if(blk>input.length) continue;
+      const out=input.slice();
+      for(let base=0;base+blk<=input.length;base+=blk){
+        for(let c=0;c<depth;c++) for(let s=0;s<period;s++)
+          out[base+s*depth+c]=input[base+c*period+s];
+      }
+      results.push({label:"period="+period+" depth="+depth, op:"fractionate", params:{period,depth}, score:ioc(out), vals:out});
+    }
+  } else if(kind==="coset"){
+    for(let k=2;k<=16;k++){
+      if(Math.floor(input.length/k)<8) continue;
+      for(let off=0;off<k;off++){
+        const coset=[]; for(let i=off;i<input.length;i+=k) coset.push(input[i]);
+        results.push({label:"k="+k+" offset="+off, op:"decimate", params:{step:k,offset:off}, score:ioc(coset), vals:coset});
+      }
+    }
+  } else if(kind==="friedman"){
+    const maxK=Math.min(30, Math.floor(input.length/8));
+    let baseline=0;
+    for(let k=1;k<=maxK;k++){
+      const iocs=[];
+      for(let off=0;off<k;off++){
+        const coset=[]; for(let i=off;i<input.length;i+=k) coset.push(input[i]);
+        iocs.push(ioc(coset));
+      }
+      const mean=iocs.reduce((a,b)=>a+b,0)/iocs.length;
+      if(k===1) baseline=mean;  // k=1 coset == whole text; this is the no-period reference
+      const cosetStr=iocs.slice(0,8).map(v=>v.toFixed(3)).join(", ")+(iocs.length>8?" …":"");
+      results.push({k, label:"k="+k, score:mean, scoreText:mean.toFixed(4), preview:"per-coset IoC: "+cosetStr, diagnostic:true});
+    }
+    // The strongest-period pick MUST exclude k=1: at k=1 the single coset is the
+    // whole text, so its mean IoC always equals the baseline and would otherwise
+    // win on flat ciphertext, reporting a spurious "period of 1".
+    const best=results.filter(r=>r.k>=2).sort((a,b)=>b.score-a.score)[0];
+    if(best){
+      const langRef=(N===26)?", English ≈ 0.067":", natural-lang ≈ "+(0.0667*26/N).toFixed(4);
+      const lift=(best.score-baseline>=0?"+":"")+(best.score-baseline).toFixed(4);
+      summary='<p class="hint" style="margin:0 0 8px;">Strongest period candidate: '+best.label+' · mean IoC <strong style="color:var(--amber);">'+best.score.toFixed(4)+'</strong> (lift vs. k=1 baseline '+baseline.toFixed(4)+': '+lift+'; uniform ≈ '+(1/N).toFixed(4)+langRef+'). A flat curve (low lift across all k) suggests a progressive/running-key cipher; a sharp peak at one k suggests that key period.</p>';
+    }
+  } else if(kind==="kasiski"){
+    const found=[];
+    for(let n=3;n<=5;n++){
+      const m=new Map();
+      for(let i=0;i+n<=input.length;i++){
+        const key=input.slice(i,i+n).join(',');
+        if(!m.has(key)) m.set(key,[]);
+        m.get(key).push(i);
+      }
+      for(const [ngram,positions] of m){
+        if(positions.length<2) continue;
+        const distances=[];
+        for(let a=0;a<positions.length;a++) for(let b=a+1;b<positions.length;b++){
+          distances.push(positions[b]-positions[a]);
+        }
+        found.push({n,ngram,positions,distances});
+      }
+    }
+    found.sort((a,b)=>b.positions.length-a.positions.length);
+    const gcd2=(a,b)=>b===0?a:gcd2(b,Math.abs(a%b));
+    const allDistances=found.flatMap(f=>f.distances);
+    if(allDistances.length){
+      // Proper Kasiski analysis: a repeating-key period divides MANY repeat
+      // distances. Tally, for each candidate period p, how many distances are
+      // divisible by p. This is far more robust than GCD-of-all-distances,
+      // which collapses to 1 or 2 the moment a single chance-aligned 3-gram is
+      // pooled in with the genuine repeats.
+      const maxP=Math.min(30, Math.floor(input.length/2));
+      const tally=[];
+      for(let p=2;p<=maxP;p++){
+        let c=0; for(const dd of allDistances) if(dd%p===0) c++;
+        if(c) tally.push([p,c]);
+      }
+      tally.sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
+      const top=tally.slice(0,5).map(([p,c])=>p+'×('+c+'/'+allDistances.length+')').join(', ');
+      summary='<p class="hint" style="margin:0 0 8px;">'+allDistances.length+' repeat-pair distances. Candidate periods by divisibility count: <strong style="color:var(--amber);">'+top+'</strong>. A period dividing a large fraction of distances is the likely key length; if every period scores low, the repeats are probably chance / shared-section alignments rather than a fixed key.</p>';
+    } else {
+      summary='<p class="hint" style="margin:0 0 8px;">No repeated n-grams of length ≥ 3 found.</p>';
+    }
+    for(const f of found.slice(0,15)){
+      const g=f.distances.reduce((a,b)=>gcd2(a,b));
+      results.push({
+        label:f.n+"-gram ["+f.ngram.split(',').join(' ')+"]",
+        score:f.positions.length,
+        scoreText:f.positions.length+"×",
+        preview:"@ "+f.positions.slice(0,5).join(', ')+(f.positions.length>5?" …":"")+" · Δ "+f.distances.slice(0,5).join(', ')+" · gcdΔ "+g,
+        diagnostic:true
+      });
+    }
+  } else if(kind==="isomorph"){
+    const d=[]; for(let i=1;i<input.length;i++) d.push(mod(input[i]-input[i-1],N));
+    const minLen=6;
+    const m=new Map();
+    for(let i=0;i+minLen<=d.length;i++){
+      const key=d.slice(i,i+minLen).join(',');
+      if(!m.has(key)) m.set(key,[]);
+      m.get(key).push(i);
+    }
+    const matches=[];
+    for(const positions of m.values()){
+      if(positions.length<2) continue;
+      for(let a=0;a<positions.length;a++) for(let b=a+1;b<positions.length;b++){
+        const i=positions[a], j=positions[b];
+        let len=minLen;
+        while(i+len<d.length && j+len<d.length && d[i+len]===d[j+len]) len++;
+        matches.push({len,i,j,offset:j-i});
+      }
+    }
+    matches.sort((a,b)=>b.len-a.len);
+    const seen=new Set();
+    for(const mm of matches){
+      const key=mm.i+'/'+mm.j;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        label:"Δ-length "+mm.len,
+        score:mm.len,
+        scoreText:String(mm.len),
+        preview:"positions "+mm.i+" ↔ "+mm.j+" · offset "+mm.offset,
+        diagnostic:true
+      });
+      if(results.length>=20) break;
+    }
+    if(results.length){
+      summary='<p class="hint" style="margin:0 0 8px;">'+results.length+' difference-isomorph pair'+(results.length===1?'':'s')+' found (min window '+minLen+'). Equal Δ-sequences at constant offsets is the constraint-5.2 progressive-alphabet signature.</p>';
+    } else {
+      summary='<p class="hint" style="margin:0 0 8px;">No Δ-isomorphs of length ≥ '+minLen+' found.</p>';
+    }
+  }
+
+  const ordered = (kind==="friedman") ? results : results.slice().sort((a,b)=>b.score-a.score);
+  const showCount = (kind==="friedman"||kind==="kasiski"||kind==="isomorph") ? 30 : 16;
+  const top=ordered.slice(0,showCount);
+  const best=Math.max(0,...top.map(r=>r.score)) || 1;
+  let h=summary+'<table><thead><tr><th>Candidate</th><th>Score</th><th>Preview</th></tr></thead><tbody>';
+  top.forEach((r,idx)=>{
+    const isDiag=!!r.diagnostic;
+    const prev = (r.preview!==undefined) ? esc(r.preview) : esc(plainString(r.vals.slice(0,46),N));
+    const sd = (r.scoreText!==undefined) ? r.scoreText : (r.score*100).toFixed(1);
+    const barW = Math.max(0,Math.min(1, r.score/best))*44;
+    h+='<tr class="brow'+(isDiag?' diag':'')+'" data-idx="'+idx+'">'
+      +'<td class="key">'+r.label+'</td>'
+      +'<td class="score"><span class="bar" style="width:'+barW.toFixed(0)+'px"></span>'+sd+'</td>'
+      +'<td class="prev">'+prev+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  wrap.innerHTML=h;
+  wrap.querySelectorAll("tr.brow").forEach(tr=>{
+    tr.addEventListener("click",()=>{
+      const r=top[+tr.dataset.idx];
+      if(r.diagnostic || !r.op) return;
+      const st=newStage(r.op);
+      Object.assign(st.params,r.params);
+      pipeline.push(st); renderStack(); compute();
+      window.scrollTo({top:$("stack").offsetTop-80,behavior:"smooth"});
+    });
+  });
+}
+
+/* ---------- wiring ---------- */
+$("addSel").innerHTML=opSelectHTML("add");
+$("addBtn").addEventListener("click",()=>{ pipeline.push(newStage($("addSel").value)); renderStack(); compute(); });
+$("clrBtn").addEventListener("click",()=>{ $("cipher").value=""; pipeline.length=0; renderStack(); $("scanWrap").innerHTML=""; compute(); });
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+$("modN").addEventListener("input",compute);
+$("cipher").addEventListener("input",compute);
+$("customMap").addEventListener("input",compute);
+
+$("mapMode").addEventListener("change",e=>{
+  ST.mapMode=e.target.value;
+  $("customWrap").style.display=(ST.mapMode==="custom")?"flex":"none";
+  compute();
+});
+$("npMode").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+  ST.npMode=b.dataset.v;
+  $("npMode").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  compute();
+}));
+document.querySelectorAll("[data-scan]").forEach(b=>b.addEventListener("click",()=>runScan(b.dataset.scan)));
+$("copyBtn").addEventListener("click",()=>{
+  const N=Math.max(2,parseInt($("modN").value,10)||83);
+  const input=parseInput();
+  const {final}=runPipeline(input,N);
+  navigator.clipboard?.writeText(plainString(final,N)).then(()=>{
+    const b=$("copyBtn"),t=b.textContent; b.textContent="Copied"; setTimeout(()=>b.textContent=t,1100);
+  });
+});
+
+/* ---------- worked example ---------- */
+$("exBtn").addEventListener("click",()=>{
+  switchTab("trigram");
+  // encode "THEEYESAREWATCHING" with affine c=(7p+11) mod 83 over A=0..Z=25
+  const pt="THEEYESAREWATCHING", k=7, phi=11;
+  const ct=[...pt].map(ch=>mod(k*(ch.charCodeAt(0)-65)+phi,83));
+  $("cipher").value=ct.join(" ");
+  $("modN").value=83;
+  $("mapMode").value="az0"; ST.mapMode="az0"; $("customWrap").style.display="none";
+  pipeline.length=0; pipeline.push(newStage("affine"));
+  pipeline[0].params={k:7,phi:11};
+  renderStack(); compute();
+});
+
+/* ---------- importable data sets (WarFairy transcription, trigram index) ---------- */
+const DATA={E1:[50,66,5,48,62,13,75,29,24,61,42,70,66,62,32,14,81,8,15,78,2,29,13,49,1,80,82,40,63,81,21,19,0,40,51,65,26,14,21,70,47,44,48,42,19,48,13,47,19,49,72,31,5,24,3,43,59,67,33,49,41,60,21,26,30,5,25,20,71,11,74,56,4,74,19,71,4,51,41,43,80,72,54,63,79,81,15,16,44,31,30,12,33,57,28,13,64,43,48],W1:[80,66,5,48,62,13,75,29,24,61,42,70,66,62,32,14,81,8,15,78,2,29,13,49,1,29,11,30,52,81,21,19,0,25,26,54,20,14,21,70,47,44,48,42,19,48,13,47,19,49,44,26,59,77,64,43,79,28,72,64,1,30,73,23,67,6,33,25,64,81,68,46,17,36,13,17,21,68,13,9,46,67,57,34,62,82,15,10,73,62,2,11,65,72,37,44,10,43,68,62,9,34,18],E2:[36,66,5,48,62,13,75,29,24,61,42,70,66,62,32,14,81,8,15,78,2,29,13,49,1,69,76,52,9,48,66,80,22,64,57,40,49,78,3,16,56,19,47,40,80,6,13,64,29,49,64,63,6,49,31,13,16,10,45,24,26,77,10,60,81,61,34,54,70,21,15,4,66,77,42,37,30,22,0,11,41,72,57,20,23,57,65,41,23,18,72,42,5,3,26,78,8,5,54,45,77,25,64,61,16,44,54,51,20,63,25,11,26,45,53,60,38,34],W2:[76,66,5,49,75,54,69,46,32,1,42,60,26,48,50,80,32,24,55,61,47,12,21,12,49,54,34,25,36,15,56,55,20,9,8,62,13,82,9,44,29,60,53,82,42,80,5,43,71,3,80,77,47,78,34,25,62,18,10,49,62,64,52,81,11,66,62,13,47,17,52,70,26,23,32,31,64,23,35,32,50,6,1,25,8,37,47,43,26,76,65,68,80,17,7,45,63,14,53,63,60,16],E3:[63,66,5,49,75,54,2,60,29,40,78,47,60,75,67,71,60,2,65,7,47,14,45,74,59,41,80,13,60,13,81,22,35,50,40,39,2,59,48,31,76,2,80,75,1,56,67,11,21,8,40,65,45,75,55,39,60,42,13,3,22,57,2,6,58,9,70,1,58,56,63,68,25,79,7,20,19,64,2,66,73,30,71,16,12,30,65,37,20,13,22,63,18,46,64,59,41,81,82,22,78,36,47,17,4,6,17,5,36,79,63,1,64,69,15,43,4,58,56,31,14,64,58,18,44,78,69,1,0,46,20,71,73,25,35,8,24],W3:[34,66,5,49,75,54,23,74,11,13,28,26,19,48,67,57,37,60,34,28,74,10,17,32,11,18,19,43,19,81,42,4,62,9,46,49,32,51,76,58,4,43,47,17,67,79,21,32,44,16,30,37,26,28,41,68,57,34,51,10,69,70,8,6,46,43,18,39,47,43,15,13,33,30,35,62,37,0,37,5,38,55,37,13,40,25,9,21,11,64,5,79,42,68,11,71,11,48,3,67,61,40,22,14,35,50,61,39,11,2,66,49,51,53,17,73,36,75,74,54,24,30,54,70],E4:[27,66,5,49,75,54,2,60,29,40,2,55,9,15,59,18,68,3,36,5,47,77,44,38,1,18,28,76,4,34,60,63,58,80,17,54,79,75,48,54,55,19,62,64,14,47,51,70,75,5,11,47,45,58,68,69,79,25,38,45,73,47,68,50,34,45,78,26,79,57,4,56,22,60,18,75,43,60,59,67,63,42,49,33,40,65,79,77,7,3,26,62,31,78,26,57,69,40,4,23,26,13,67,42,38,72,11,39,65,60,25,6,80,66,68,77,59,78,19],W4:[77,66,5,49,75,54,2,60,29,40,2,55,9,15,59,18,68,3,36,5,47,60,21,80,1,72,55,16,82,35,57,19,1,66,18,27,39,17,74,81,39,14,78,0,25,65,43,66,64,38,81,23,24,50,57,30,71,75,26,68,54,57,56,50,71,73,14,21,8,32,26,63,5,37,19,43,66,47,53,34,66,23,73,31,54,38,77,67,11,63,79,6,22,21,51,69,74,21,5,17,67,37,29,21,60,14,82,44,30,4,20,42,35,1,31,54,46,20,40,30],E5:[33,66,5,49,75,54,2,60,29,40,2,55,9,15,59,18,68,3,36,5,47,33,21,59,44,18,28,76,59,34,60,63,79,27,12,54,5,49,48,54,55,52,62,72,69,10,57,22,58,48,67,53,7,34,32,30,31,19,26,8,34,46,7,30,71,55,34,75,54,9,6,60,5,23,25,45,42,80,25,12,22,76,20,51,62,21,40,9,41,10,44,73,8,33,70,73,6,31,21,72,5,40,61,51,42,66,64,74,61,25,63,42,24,41]};
+const IMP_ORDER=['E1','W1','E2','W2','E3','W3','E4','W4','E5'];
+function appendVals(arr){
+  if(!arr||!arr.length) return;
+  const cur=$("cipher").value.trim();
+  $("cipher").value = cur ? cur+"  "+arr.join(" ") : arr.join(" ");
+  compute();
+}
+function renderImports(){
+  const wrap=$("importWrap");
+  let h='';
+  IMP_ORDER.forEach(k=>{ if(DATA[k]) h+='<button class="imp" data-msg="'+k+'">'+k+'</button>'; });
+  h+='<span class="imp-sep"></span>'
+   + '<button class="imp side" data-all="A">+ All</button>'
+   + '<button class="imp side" data-all="E">+ All East</button>'
+   + '<button class="imp side" data-all="W">+ All West</button>'
+   + '<button class="imp clr" data-clr="1">Clear</button>';
+  wrap.innerHTML=h;
+  wrap.querySelectorAll('[data-msg]').forEach(b=>b.addEventListener('click',()=>appendVals(DATA[b.dataset.msg])));
+  wrap.querySelectorAll('[data-all]').forEach(b=>b.addEventListener('click',()=>{
+    const side=b.dataset.all;
+    const keys = side==='A' ? IMP_ORDER : IMP_ORDER.filter(k=>k[0]===side);
+    let combined=[];
+    keys.forEach(k=>{ if(DATA[k]) combined=combined.concat(DATA[k]); });
+    appendVals(combined);
+  }));
+  wrap.querySelector('[data-clr]').addEventListener('click',()=>{
+    $("cipher").value=""; compute();
+  });
+}
+
+/* ---------- color theme: Stone (light + dark) ---------- */
+const STONE={
+  light:{
+    "--bg":"#faf9f6","--panel":"#f1efe9","--panel-2":"#ebe9e2","--panel-3":"#dcd9cf",
+    "--border":"#d6d3c9","--border-bright":"#b8b4a7","--text":"#232220","--dim":"#6a6864","--faint":"#98958c",
+    "--amber":"#b45309","--teal":"#6e5a3a","--good":"#3f9a45","--bad":"#c0392b",
+    "--scanline":".05","--glow":"rgba(180,83,9,.03)","--vignette":"rgba(60,55,40,.05)"},
+  dark:{
+    "--bg":"#131210","--panel":"#1c1b18","--panel-2":"#232220","--panel-3":"#2c2a26",
+    "--border":"#2a2925","--border-bright":"#3d3a33","--text":"#e6e3dc","--dim":"#8c8980","--faint":"#5e5b53",
+    "--amber":"#d97706","--teal":"#c89a3b","--good":"#6cd86c","--bad":"#ff7a5c",
+    "--scanline":".4","--glow":"rgba(217,119,6,.05)","--vignette":"rgba(0,0,0,.6)"}
+};
+function applyMode(mode){
+  const t=STONE[mode]; if(!t) return;
+  for(const k in t) document.documentElement.style.setProperty(k,t[k]);
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===mode));
+  try{ localStorage.setItem("eye-wb-mode",mode); }catch(e){}
+}
+(function(){
+  const wrap=$("modeSeg");
+  wrap.innerHTML='<button data-mode="light">Light</button><button data-mode="dark">Dark</button>';
+  wrap.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>applyMode(b.dataset.mode)));
+  let initial="dark";
+  try{ const m=localStorage.getItem("eye-wb-mode"); if(m==="light"||m==="dark") initial=m; }catch(e){}
+  applyMode(initial);
+})();
+
+/* ---------- UI scale for high-DPI / 4K displays ---------- */
+let scaleMode="auto";
+function autoFactor(){
+  const w=window.innerWidth;
+  if(w<1700) return 1; if(w<2500) return 1.3; if(w<3400) return 1.6; return 2;
+}
+function applyScale(){
+  const f=(scaleMode==="auto")?autoFactor():(parseInt(scaleMode,10)/100);
+  document.querySelector(".shell").style.zoom=f;
+}
+$("scaleSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+  scaleMode=b.dataset.s;
+  $("scaleSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  applyScale();
+}));
+window.addEventListener("resize",()=>{ if(scaleMode==="auto") applyScale(); });
+applyScale();
+
+/* init */
+renderImports();
+renderStack();
+compute();
+</script>
+</body>
+</html>

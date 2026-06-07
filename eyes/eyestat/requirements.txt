@@ -1,0 +1,10 @@
+# EyeStat — Python dependencies (CPU baseline)
+# Install inside a venv:
+#   python3 -m venv ~/.venvs/eyestat
+#   source ~/.venvs/eyestat/bin/activate
+#   pip install -r requirements.txt
+#
+# For GPU acceleration, also install requirements-gpu.txt.
+
+numpy>=1.24
+scipy>=1.11

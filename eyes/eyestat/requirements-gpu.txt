@@ -1,0 +1,13 @@
+# EyeStat — GPU dependencies
+# Install ONLY if you have an Nvidia GPU and CUDA toolkit 12.8+ installed.
+#
+#   pip install -r requirements-gpu.txt
+#
+# Notes:
+#   - cupy-cuda12x bundles its own CUDA runtime libraries, so system CUDA
+#     >= 12.8 is recommended but not strictly required (PTX JIT fallback works).
+#   - For Blackwell (RTX 5070/5080/5090, sm_120) you need CuPy >= 13.4.
+#   - For older GPUs (Hopper/Ada/Ampere, sm_90 and below) any recent CuPy
+#     12.x release works fine — pin to >= 13.0 for general stability.
+
+cupy-cuda12x>=13.4

@@ -1,0 +1,883 @@
+# NOITA EYE-MESSAGE CRIB WORDLIST
+# Curated for Noita's cipher analysis. Loaded automatically by crib_attack.py
+# from the same directory.
+#
+# This list focuses on vocabulary the standard frequency dictionaries miss
+# or under-weight: Noita-specific lore, alchemy terminology, in-game text
+# fragments, Finnish mythology references, and eye/vision themed words.
+# Common dictionary words are already covered by freq_data.json.gz, so we
+# don't duplicate them here.
+#
+# Format: one word per line. Lines starting with # are comments. Blank lines
+# are ignored. Words are normalized to lowercase and deduplicated against
+# all other wordlist sources.
+
+# ============================================================================
+# CONFIRMED IN-GAME TEXT FRAGMENTS
+# Words from text that has been visually confirmed in Noita orb rooms,
+# altars, monoliths, and pillar inscriptions.
+# ============================================================================
+
+# From "Devoted seeker after true wisdom know this we are watching you"
+# (Mountain inscription, brick wall):
+devoted
+seeker
+true
+wisdom
+know
+watching
+this
+
+# From altar/monolith RUBEDO ETERNAL LIFE:
+rubedo
+eternal
+life
+
+# Other alchemical phases (likely also referenced):
+nigredo
+albedo
+citrinitas
+
+# From Holy Mountain altar "WHAT YOU DESERVE":
+what
+deserve
+deserves
+
+# From regen platform altar "REFRESHIMG" (sic, intentional misspelling):
+refreshing
+refreshimg
+
+# Generic message-style verbs likely in eye-message text:
+behold
+remember
+forget
+listen
+hear
+speak
+spoken
+silent
+silence
+greet
+welcome
+farewell
+heed
+beware
+warned
+warning
+
+# ============================================================================
+# NOITA-SPECIFIC FINNISH (lore terms, character names)
+# ============================================================================
+
+# Player character / titles:
+noita
+mina
+nolla
+
+# Three-Eye and related:
+kolmisilma
+kolmi
+silma
+kolmisilman
+koipi
+
+# The macguffin and key concepts:
+sampo
+emima
+
+# Finnish mythological enemies (Kalevala references):
+hiisi
+iku
+turso
+ikuturso
+sauvojenun
+sauvojen
+tuntija
+
+# Locations / structures:
+huoneet
+palapeli
+holy
+pyha
+mountain
+vuori
+
+# Items / spells (Finnish):
+sauva
+sauvat
+loitsu
+loitsut
+kuvanveistaja
+
+# ============================================================================
+# COMMON FINNISH (filling gaps the freq_data.json table may miss)
+# ============================================================================
+
+# Connectives / particles:
+ja
+tai
+mutta
+jos
+kun
+niin
+siten
+etta
+silti
+vaan
+sekä
+seka
+
+# Common verbs:
+on
+oli
+ovat
+olivat
+ole
+olen
+olet
+olemme
+olette
+ovat
+nahda
+nahnyt
+naki
+naet
+naen
+naemme
+naette
+nakevat
+tunsi
+tuntee
+tietaa
+tiedan
+tiedat
+tiedamme
+tiedatte
+tietavat
+
+# Pronouns:
+mina
+sina
+han
+me
+te
+he
+joka
+jotka
+mika
+joku
+
+# Question words:
+miten
+miksi
+milloin
+missa
+mista
+mihin
+kuka
+keta
+kuinka
+
+# ============================================================================
+# FINNISH NUMERALS AND ORDINALS
+# ============================================================================
+
+yksi
+kaksi
+kolme
+nelja
+viisi
+kuusi
+seitseman
+kahdeksan
+yhdeksan
+kymmenen
+sata
+tuhat
+miljoona
+
+ensimmainen
+toinen
+kolmas
+neljas
+viides
+kuudes
+seitsemas
+kahdeksas
+yhdeksas
+kymmenes
+viimeinen
+
+# ============================================================================
+# ALCHEMY AND HERMETIC VOCABULARY
+# Central to Noita's themes per Wikipedia, TVTropes, GBTimes coverage
+# ============================================================================
+
+alchemy
+alchemist
+alchemists
+alchemical
+philosopher
+philosophers
+stone
+transmutation
+transmute
+hermetic
+hermes
+mercury
+sulfur
+salt
+quicksilver
+elements
+quintessence
+prima
+materia
+arcanum
+elixir
+crucible
+calcination
+dissolution
+separation
+conjunction
+fermentation
+distillation
+coagulation
+
+# Magical / occult:
+magick
+magic
+magical
+occult
+esoteric
+arcane
+mystic
+mystical
+mysterious
+mystery
+mysteries
+oracle
+oracular
+prophecy
+prophet
+prophets
+sage
+seer
+ritual
+rituals
+incantation
+invocation
+summoning
+
+# ============================================================================
+# EYE / VISION / WATCHING THEME
+# The eye-message context strongly suggests vision-related vocabulary
+# ============================================================================
+
+eye
+eyes
+look
+looks
+looking
+see
+sees
+seeing
+seen
+seek
+seeks
+seeking
+sought
+gaze
+gazes
+gazing
+gazed
+behold
+beheld
+witness
+witnesses
+witnessed
+observe
+observes
+observed
+observer
+observers
+watcher
+watchers
+vision
+visions
+sight
+sights
+view
+views
+viewing
+glimpse
+glimpsed
+peek
+peeks
+stare
+stares
+stared
+glance
+glanced
+peer
+peers
+peering
+
+# Eye-related Finnish:
+silma
+silmat
+silmasta
+silmiin
+katsoa
+katsoo
+katsovat
+nakyma
+nakyy
+naet
+
+# ============================================================================
+# WORDS FROM ORB ROOM LORE TRANSLATIONS
+# (The Kalevala-themed creation myth that the orb glyphs decode to)
+# ============================================================================
+
+midsummer
+loon
+swamp
+tree
+trees
+water
+bird
+birds
+egg
+eggs
+laid
+shell
+yolk
+white
+nest
+crack
+cracked
+blood
+bled
+flow
+flowed
+flowing
+day
+days
+night
+nights
+seven
+hatched
+hatching
+born
+formed
+forming
+created
+creation
+creature
+creatures
+nature
+natures
+animals
+meadows
+meadow
+rivers
+river
+hills
+hill
+mountains
+mountain
+harmony
+satisfaction
+satisfied
+beginning
+ending
+
+# Elemental references from the same lore:
+cold
+ice
+frozen
+freezing
+heat
+warmth
+flame
+flames
+flaming
+fire
+burning
+wind
+breeze
+storm
+thunder
+lightning
+
+# Direction / cosmology:
+east
+west
+north
+south
+above
+below
+deep
+deeper
+high
+higher
+center
+edge
+beyond
+within
+without
+
+# ============================================================================
+# KALEVALA / FINNISH MYTHOLOGY (broader)
+# ============================================================================
+
+vainamoinen
+ilmarinen
+lemminkainen
+louhi
+joukahainen
+kullervo
+aino
+ukko
+tapio
+mielikki
+ahti
+vellamo
+pohjola
+kaleva
+suomi
+
+# ============================================================================
+# COSMIC / MYSTICAL / METAPHYSICAL
+# ============================================================================
+
+cosmic
+universe
+cosmos
+infinity
+infinite
+finite
+eternity
+eternal
+forever
+never
+always
+sometimes
+once
+twice
+thrice
+mortal
+immortal
+divine
+demonic
+celestial
+heavenly
+hellish
+abyssal
+ethereal
+spectral
+phantom
+phantoms
+ghost
+ghosts
+spirit
+spirits
+soul
+souls
+demon
+demons
+angel
+angels
+god
+gods
+goddess
+goddesses
+deity
+deities
+pantheon
+
+# Finnish:
+jumala
+jumalat
+jumaluus
+taivas
+helvetti
+sielu
+sielut
+henki
+henget
+demoni
+enkeli
+
+# ============================================================================
+# ORDINARY ENGLISH WORDS RELEVANT TO MESSAGE CONTEXT
+# Words plausibly in any cryptic message instruction
+# ============================================================================
+
+# Action / discovery:
+discover
+discovered
+discovers
+reveal
+revealed
+reveals
+reveals
+unveil
+unveiled
+hide
+hidden
+hides
+secret
+secrets
+unearth
+uncover
+uncovered
+
+# Knowledge / understanding:
+knowledge
+known
+unknown
+understand
+understanding
+truth
+truths
+lie
+lies
+fact
+facts
+real
+reality
+illusion
+illusions
+dream
+dreams
+nightmare
+
+# Quest / journey:
+quest
+journey
+journeys
+path
+paths
+road
+roads
+way
+ways
+trail
+trails
+gate
+gates
+gateway
+portal
+portals
+threshold
+crossing
+door
+doors
+key
+keys
+lock
+locks
+
+# Fate / time:
+fate
+destiny
+chance
+luck
+moment
+instant
+forever
+ago
+soon
+later
+before
+after
+during
+while
+when
+then
+now
+yesterday
+tomorrow
+today
+ancient
+modern
+past
+present
+future
+eternity
+
+# Conditions / states:
+alive
+dead
+living
+dying
+unborn
+born
+awake
+asleep
+dreaming
+mortal
+immortal
+broken
+intact
+whole
+half
+shattered
+restored
+lost
+found
+forgotten
+remembered
+
+# ============================================================================
+# COMPOUND PARTS BOOSTED FOR LORE
+# These add value to compound decomposition; many already in NOITA_LORE_PARTS
+# but worth listing for explicit visibility
+# ============================================================================
+
+work
+works
+labor
+toil
+craft
+crafts
+forge
+forged
+forging
+smith
+smiths
+build
+builds
+built
+made
+maker
+makers
+shape
+shaped
+shaper
+
+# Three / multiplicity references (Noita has MUCH three-themed lore):
+three
+triple
+trio
+trinity
+trigram
+trigrams
+triangle
+triangular
+triadic
+
+# Numbers in English (some may be missing from freq_data):
+zero
+one
+two
+four
+five
+six
+seven
+eight
+nine
+ten
+eleven
+twelve
+thirteen
+fourteen
+fifteen
+sixteen
+seventeen
+eighteen
+nineteen
+twenty
+thirty
+forty
+fifty
+sixty
+seventy
+eighty
+ninety
+hundred
+thousand
+million
+
+# Ordinals:
+first
+second
+third
+fourth
+fifth
+sixth
+seventh
+eighth
+ninth
+tenth
+eleventh
+twelfth
+thirteenth
+last
+final
+ultimate
+penultimate
+
+# ============================================================================
+# CIPHER / SCRIPT / SYMBOL VOCABULARY
+# Plausible if eye-message text is self-referential
+# ============================================================================
+
+cipher
+ciphers
+cipherkey
+code
+codes
+codex
+glyph
+glyphs
+rune
+runes
+sigil
+sigils
+symbol
+symbols
+script
+scripts
+inscription
+inscriptions
+inscribed
+engraving
+engraved
+carving
+carved
+tablet
+tablets
+parchment
+scroll
+scrolls
+text
+texts
+letter
+letters
+word
+words
+phrase
+phrases
+sentence
+sentences
+
+# ============================================================================
+# WANDS / SPELLS / GAME MECHANICS (English Noita terminology)
+# ============================================================================
+
+wand
+wands
+spell
+spells
+spellbook
+mana
+recharge
+cast
+casting
+caster
+projectile
+projectiles
+multicast
+modifier
+modifiers
+trigger
+timer
+draw
+deck
+slot
+slots
+capacity
+shuffle
+spark
+sparkbolt
+bolt
+bolts
+missile
+missiles
+arrow
+arrows
+arrowtrap
+bloom
+bloomshot
+threetimes
+
+# Materials:
+oil
+acid
+poison
+lava
+plasma
+brimstone
+liquid
+liquids
+gas
+gases
+solid
+
+# Status effects:
+burning
+freezing
+poisoned
+wet
+oily
+slimy
+charmed
+blinded
+polymorphed
+invisible
+regenerating
+
+# ============================================================================
+# JOURNAL-NAMED CANDIDATES (entry 073)
+# Already in JOURNAL_CANDIDATES const but listed here for unified loading
+# ============================================================================
+
+attempts
+assigns
+agreeable
+assumes
+attempt
+attract
+arrowtrap
+threetimes
+bloomshot
+
+# ============================================================================
+# POSSIBLE PHRASE FRAGMENTS (multi-word concatenations)
+# Petri may have used phrase-style PT; including some likely concatenations
+# ============================================================================
+
+watchingyou
+holymountain
+philosopherstone
+treeofknowledge
+endofeverything
+greatwork
+thework
+thegods
+trueknowledge
+weseeyou
+youaredeep
+seekafter
+afterlife
+beforetime
+timeends
+worldends
+firstday
+lastday
+greatest
+ancientone
+deepones
+deepone
+hiddenones
+forgottenones
+hereiam
+youarehere
+weareone
+oneofus
+ofthegods
+forthegods
+
+# END OF CURATED WORDLIST
