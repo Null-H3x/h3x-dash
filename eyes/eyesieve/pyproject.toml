@@ -1,0 +1,97 @@
+# pyproject.toml — phase 11 packaging
+#
+# Makes EyeSieve pip-installable while preserving the flat-file layout.
+# Install locally with:
+#
+#     pip install -e .
+#
+# Console scripts created:
+#
+#     eyesieve            unified dispatcher
+#     eyesieve-run        single-process runner
+#     eyesieve-mp         multiprocess runner
+#     eyesieve-report     HTML run report
+#     eyesieve-corpus-report   HTML corpus report
+#     eyesieve-reader     corpus content reader
+#     eyesieve-selftest   known-answer test suite (192 tests)
+#     eyesieve-preflight  pre-launch sanity sweep
+#
+# The flat-file layout means each module is also runnable as
+# ``python3 eyesieve_<name>.py``, which is the legacy invocation style
+# preserved for users who don't want to install the package.
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eyesieve"
+version = "1.0.1"
+description = "Hypothesis enumerator and sieve cascade for the Noita EYE puzzle"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Ben (Null-H3x)" },
+]
+keywords = ["cryptanalysis", "noita", "cipher", "puzzle"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+
+# All deps are stdlib. eyestat is referenced at runtime by the scoring
+# module (eyesieve_scoring) but is optional — preflight, selftest, and the
+# runner without scoring all function without it.
+
+[project.optional-dependencies]
+# No optional pip deps. Scoring requires the eyestat reference checkout
+# at /home/claude/eyestat_ref/eyestat (or configured via ScoringConfig).
+
+[project.scripts]
+eyesieve              = "eyesieve_cli:main"
+eyesieve-run          = "eyesieve_runner:main"
+eyesieve-mp           = "eyesieve_mprunner:main"
+eyesieve-report       = "eyesieve_run_report:main"
+eyesieve-corpus-report = "eyesieve_html_report:main"
+eyesieve-reader       = "eyesieve_reader:main"
+eyesieve-selftest     = "eyesieve_selftest:main"
+eyesieve-preflight    = "eyesieve_preflight:main"
+
+[project.urls]
+Repository = "https://github.com/Null-H3x/eyesieve"
+
+# Flat-file layout: each module is a top-level Python file.
+
+[tool.setuptools]
+py-modules = [
+    "eyesieve_ciphers",
+    "eyesieve_cli",
+    "eyesieve_corpus",
+    "eyesieve_enumerator",
+    "eyesieve_html_report",
+    "eyesieve_hypothesis",
+    "eyesieve_keyderiv",
+    "eyesieve_mprunner",
+    "eyesieve_permutations",
+    "eyesieve_preflight",
+    "eyesieve_reader",
+    "eyesieve_runner",
+    "eyesieve_run_report",
+    "eyesieve_scoring",
+    "eyesieve_selftest",
+    "eyesieve_sieve",
+    "eyesieve_sources",
+]
+
+[tool.setuptools.package-data]
+# Include the corpus data with the package
+"*" = ["noita_eye_data.json"]
