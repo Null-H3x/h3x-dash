@@ -1,0 +1,97 @@
+diff --git a/eye-cipher-workbench.html b/eye-cipher-workbench.html
+index 414d631..4f8d2fb 100644
+--- a/eye-cipher-workbench.html
++++ b/eye-cipher-workbench.html
+@@ -276,7 +276,7 @@ e.g.  50 66 5 48 62 13 75 29 24 61 42 70 66 62 32"></textarea>
+ 
+   <!-- SCANNERS -->
+   <div class="panel" style="margin-top:14px;">
+-    <p class="plabel"><span class="ix">04</span> Automated key scanners<span class="rt">scored vs. English letter frequency</span></p>
++    <p class="plabel"><span class="ix">04</span> Automated key scanners<span class="rt">candidates ranked by index of coincidence (IoC)</span></p>
+     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+       <button class="act" data-scan="shift">Shift · all N</button>
+       <button class="act" data-scan="affine">Affine · k×φ</button>
+@@ -757,7 +757,14 @@ function compute(){
+     c+=chip("adjacent doubles",dbl,dbl===0?"ok":"warn");
+     if(mx>=N) c+=chip("out of range","value ≥ N","warn");
+     $("inDiag").innerHTML=c;
+-    $("iocReadout").textContent="IoC "+ioc(input).toFixed(4)+"  ·  uniform≈"+(1/N).toFixed(4)+"  english≈0.0667";
++    // The "english≈0.0667" reference is the IoC of 26-letter English and is
++    // only meaningful in the A–Z (mod 26) plaintext mode. On the 83-symbol
++    // glyph alphabet it is misleading, so show a mode-appropriate target:
++    // monoalphabetic natural-language text has IoC ≈ english_26 · 26 / N.
++    const langRef = (N===26)
++      ? "  english≈0.0667"
++      : "  natural-lang≈"+(0.0667*26/N).toFixed(4);
++    $("iocReadout").textContent="IoC "+ioc(input).toFixed(4)+"  ·  uniform≈"+(1/N).toFixed(4)+langRef;
+   } else {
+     $("inDiag").innerHTML='<div class="chip"><span class="k">awaiting input</span></div>';
+     $("iocReadout").textContent="";
+@@ -879,6 +886,7 @@ function runScan(kind){
+     }
+   } else if(kind==="friedman"){
+     const maxK=Math.min(30, Math.floor(input.length/8));
++    let baseline=0;
+     for(let k=1;k<=maxK;k++){
+       const iocs=[];
+       for(let off=0;off<k;off++){
+@@ -886,12 +894,18 @@ function runScan(kind){
+         iocs.push(ioc(coset));
+       }
+       const mean=iocs.reduce((a,b)=>a+b,0)/iocs.length;
++      if(k===1) baseline=mean;  // k=1 coset == whole text; this is the no-period reference
+       const cosetStr=iocs.slice(0,8).map(v=>v.toFixed(3)).join(", ")+(iocs.length>8?" …":"");
+-      results.push({label:"k="+k, score:mean, scoreText:mean.toFixed(4), preview:"per-coset IoC: "+cosetStr, diagnostic:true});
++      results.push({k, label:"k="+k, score:mean, scoreText:mean.toFixed(4), preview:"per-coset IoC: "+cosetStr, diagnostic:true});
+     }
+-    const best=results.slice().sort((a,b)=>b.score-a.score)[0];
++    // The strongest-period pick MUST exclude k=1: at k=1 the single coset is the
++    // whole text, so its mean IoC always equals the baseline and would otherwise
++    // win on flat ciphertext, reporting a spurious "period of 1".
++    const best=results.filter(r=>r.k>=2).sort((a,b)=>b.score-a.score)[0];
+     if(best){
+-      summary='<p class="hint" style="margin:0 0 8px;">Strongest period candidate: '+best.label+' · mean IoC <strong style="color:var(--amber);">'+best.score.toFixed(4)+'</strong> (uniform ≈ '+(1/N).toFixed(4)+', English ≈ 0.067). A flat curve across all k suggests a progressive cipher; a sharp peak suggests a key period.</p>';
++      const langRef=(N===26)?", English ≈ 0.067":", natural-lang ≈ "+(0.0667*26/N).toFixed(4);
++      const lift=(best.score-baseline>=0?"+":"")+(best.score-baseline).toFixed(4);
++      summary='<p class="hint" style="margin:0 0 8px;">Strongest period candidate: '+best.label+' · mean IoC <strong style="color:var(--amber);">'+best.score.toFixed(4)+'</strong> (lift vs. k=1 baseline '+baseline.toFixed(4)+': '+lift+'; uniform ≈ '+(1/N).toFixed(4)+langRef+'). A flat curve (low lift across all k) suggests a progressive/running-key cipher; a sharp peak at one k suggests that key period.</p>';
+     }
+   } else if(kind==="kasiski"){
+     const found=[];
+@@ -912,20 +926,33 @@ function runScan(kind){
+       }
+     }
+     found.sort((a,b)=>b.positions.length-a.positions.length);
++    const gcd2=(a,b)=>b===0?a:gcd2(b,Math.abs(a%b));
+     const allDistances=found.flatMap(f=>f.distances);
+     if(allDistances.length){
+-      const gcd2=(a,b)=>b===0?a:gcd2(b,a%b);
+-      const gcdAll=allDistances.reduce((a,b)=>gcd2(a,b));
+-      summary='<p class="hint" style="margin:0 0 8px;">'+allDistances.length+' repeat-pair distances · GCD = <strong style="color:var(--amber);">'+gcdAll+'</strong>. If repeating-key, the period divides this GCD; a very large GCD usually means only aligned shared-section repeats were caught.</p>';
++      // Proper Kasiski analysis: a repeating-key period divides MANY repeat
++      // distances. Tally, for each candidate period p, how many distances are
++      // divisible by p. This is far more robust than GCD-of-all-distances,
++      // which collapses to 1 or 2 the moment a single chance-aligned 3-gram is
++      // pooled in with the genuine repeats.
++      const maxP=Math.min(30, Math.floor(input.length/2));
++      const tally=[];
++      for(let p=2;p<=maxP;p++){
++        let c=0; for(const dd of allDistances) if(dd%p===0) c++;
++        if(c) tally.push([p,c]);
++      }
++      tally.sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
++      const top=tally.slice(0,5).map(([p,c])=>p+'×('+c+'/'+allDistances.length+')').join(', ');
++      summary='<p class="hint" style="margin:0 0 8px;">'+allDistances.length+' repeat-pair distances. Candidate periods by divisibility count: <strong style="color:var(--amber);">'+top+'</strong>. A period dividing a large fraction of distances is the likely key length; if every period scores low, the repeats are probably chance / shared-section alignments rather than a fixed key.</p>';
+     } else {
+       summary='<p class="hint" style="margin:0 0 8px;">No repeated n-grams of length ≥ 3 found.</p>';
+     }
+     for(const f of found.slice(0,15)){
++      const g=f.distances.reduce((a,b)=>gcd2(a,b));
+       results.push({
+         label:f.n+"-gram ["+f.ngram.split(',').join(' ')+"]",
+         score:f.positions.length,
+         scoreText:f.positions.length+"×",
+-        preview:"@ "+f.positions.slice(0,5).join(', ')+(f.positions.length>5?" …":"")+" · Δ "+f.distances.slice(0,5).join(', '),
++        preview:"@ "+f.positions.slice(0,5).join(', ')+(f.positions.length>5?" …":"")+" · Δ "+f.distances.slice(0,5).join(', ')+" · gcdΔ "+g,
+         diagnostic:true
+       });
+     }
