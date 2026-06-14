@@ -276,19 +276,51 @@
       <span class="arr">›</span><span id="step-3">③ DEPLOY</span>
     </div>
     <div class="subtabs">
-      <button class="subtab active" data-tab="p-inv"   onclick="pTab('p-inv')"><span class="step">1</span>INVENTORY</button>
+      <button class="subtab active" data-tab="p-dash"  onclick="pTab('p-dash')">⌂ DASHBOARD</button>
+      <button class="subtab"        data-tab="p-inv"   onclick="pTab('p-inv')"><span class="step">1</span>INVENTORY</button>
       <button class="subtab"        data-tab="p-arm"   onclick="pTab('p-arm')"><span class="step">2</span>ARM</button>
       <button class="subtab"        data-tab="p-deploy"onclick="pTab('p-deploy')"><span class="step">3</span>DEPLOY</button>
     </div>
 
-    <!-- ─── 1. Inventory ─── -->
-    <section id="view-p-inv">
+    <!-- ─── Dashboard (landing) ─── -->
+    <section id="view-p-dash">
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">PRODUCTS</div><div class="stat-val cyan" id="ps-prod">7</div></div>
         <div class="stat-card"><div class="stat-label">INSTANCES ONLINE</div><div class="stat-val green" id="ps-on">—</div></div>
         <div class="stat-card"><div class="stat-label">INSTANCES TOTAL</div><div class="stat-val violet" id="ps-tot">—</div></div>
         <div class="stat-card"><div class="stat-label">ARMED</div><div class="stat-val orange" id="ps-armed">—</div></div>
       </div>
+
+      <div class="panel">
+        <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES</div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table">
+            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
+            <tbody id="deploy-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">◎</span> LOOT INFORMATION
+          <span class="text-muted" style="margin-left:auto;font-size:10px">expected loot + downstream routing per deployed device</span>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table">
+            <thead><tr><th>SOURCE</th><th>EXPECTED LOOT</th><th>ROUTES TO</th><th>STATE</th></tr></thead>
+            <tbody id="loot-tbody-p"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">▶</span> ACTIVITY / INSTALL LOG</div>
+        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events stream here //</span></div></div>
+      </div>
+    </section>
+
+    <!-- ─── 1. Inventory ─── -->
+    <section id="view-p-inv" class="hidden">
 
       <!-- Connect-to-add panel -->
       <div class="panel">
@@ -355,10 +387,15 @@
           </div>
         </div>
       </div>
+      <div class="text-muted mt-2" style="font-size:11px">
+        Selection carries to the <strong>Deploy</strong> tab, where you acknowledge the liability
+        statement and run the one-click install.
+      </div>
+    </section>
 
-      <!-- Liability statement + ack live HERE on the Arm tab, immediately
-           before the One-Click Install button, per operator's flow spec. -->
-      <div class="liability mt-2">
+    <!-- ─── 3. Deploy ─── (liability statement + one-click install ONLY) -->
+    <section id="view-p-deploy" class="hidden">
+      <div class="liability">
         <h4>⚠ DEPLOYMENT LIABILITY STATEMENT</h4>
         <p>
           Use of this module is authorized only when <em>at least one of the three scenarios below applies</em>
@@ -408,44 +445,15 @@
         </div>
 
         <label class="chk" style="margin-top:.5rem">
-          <input type="checkbox" id="arm-ack" onchange="armAckChanged()">
+          <input type="checkbox" id="dep-ack" onchange="depAckChanged()">
           <span>I acknowledge that at least one of Scenarios A–C above applies to my intended use, and I
           have verified my legal authority under the jurisdiction(s) applicable to this deployment.</span>
         </label>
       </div>
 
-      <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">③</span> ONE-CLICK INSTALL</div>
-        <div class="panel-body">
-          <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
-            Stages the selected payload at the H3x-Dash <strong>Command &amp; Control</strong> computer and
-            installs it onto the selected device via its native transport. The acknowledgement above is
-            required and is enforced server-side. After install, the page advances to the
-            <strong>Deploy</strong> tab to show the result.
-          </p>
-          <div class="flex gap-1 items-center">
-            <button class="btn btn-green btn-lg" id="btn-install" disabled onclick="armInstallNow()">⟳ ONE-CLICK INSTALL ▶</button>
-            <span class="text-muted" style="font-size:10px" id="install-status">acknowledge the statement above to enable</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── 3. Deploy ─── (post-install state ONLY) -->
-    <section id="view-p-deploy" class="hidden">
-      <div class="panel">
-        <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES</div>
-        <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
-            <tbody id="deploy-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">◎</span> DEPLOYMENT / INSTALL LOG</div>
-        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events stream here //</span></div></div>
+      <div class="flex gap-1 items-center mt-2">
+        <button class="btn btn-green btn-lg" id="btn-install" disabled onclick="depInstallNow()">⟳ ONE-CLICK INSTALL ▶</button>
+        <span class="text-muted" style="font-size:10px" id="install-status">select an instance + payload on the Arm tab, then acknowledge above</span>
       </div>
     </section>
   </div>
@@ -713,11 +721,11 @@ function switchSection(s){
   document.getElementById('nav-payload').classList.toggle('active', s==='payload');
   document.getElementById('nav-spectrum').classList.toggle('active', s==='spectrum');
   document.getElementById('topbar-title').innerHTML = s==='payload' ? '<span>❏</span> Payload — Hak5 Implants' : '<span>📡</span> Spectrum — WiFi Pineapple';
-  if(s==='spectrum') renderSTree();
+  if(s==='spectrum') renderSTree(); else pTab('p-dash');
 }
-function pTab(t){ ['p-inv','p-arm','p-deploy'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
+function pTab(t){ ['p-dash','p-inv','p-arm','p-deploy'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-payload .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
-  if(t==='p-arm'){ fillArmSelects(); armAckChanged(); } if(t==='p-deploy'){ renderArmed(); } }
+  if(t==='p-dash'){ renderArmed(); renderLootP(); } if(t==='p-arm'){ fillArmSelects(); } if(t==='p-deploy'){ depAckChanged(); } }
 function sTab(t){ ['s-inv','s-conn','s-fn','s-pcap'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-spectrum .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   if(t==='s-fn'){ renderAPs(); fillDeauthTarget(); } if(t==='s-pcap'){ renderPCAPs(); } if(t==='s-conn'){ fillApiDevices(); } }
@@ -832,51 +840,52 @@ function armRefresh(){
   const payloadName = document.getElementById('arm-payload').value;
   const pay = PAYLOADS.find(x=>x.name===payloadName);
   document.getElementById('arm-pay-meta').innerHTML = pay ? `Lang: <span class="text-cyan">${pay.lang}</span> · ATT&CK: <span class="text-muted">${pay.attack}</span> · Countermeasure: <span class="text-green">${pay.cm}</span>` : '<span class="text-muted">no payload selected</span>';
-  armAckChanged();
+  // Persist selection so the Deploy tab knows what to install.
+  SEL.inst = id; SEL.pay = payloadName;
 }
-/* Arm tab: One-Click Install is gated on both a complete selection AND the
-   liability ack on the Arm tab itself. The install fires directly; the page
-   then advances to the Deploy tab to show the post-install state and log. */
-function armAckChanged(){
-  const id  = document.getElementById('arm-inst') && document.getElementById('arm-inst').value;
-  const pay = document.getElementById('arm-payload') && document.getElementById('arm-payload').value;
-  const ack = document.getElementById('arm-ack') && document.getElementById('arm-ack').checked;
+
+/* Deploy tab: liability ack gates the One-Click Install. The install needs a
+   selection made on the Arm tab (SEL). On run, the install fires and we jump
+   to the Dashboard to show the streaming log + the new armed row. */
+let SEL = { inst:null, pay:null };
+function depAckChanged(){
+  const ack = document.getElementById('dep-ack') && document.getElementById('dep-ack').checked;
+  const inst = INSTANCES.find(i=>i.id===SEL.inst);
+  const ready = !!(inst && SEL.pay && ack);
   const btn = document.getElementById('btn-install');
-  if(btn) btn.disabled = !(id && pay && ack);
+  if(btn) btn.disabled = !ready;
   const s = document.getElementById('install-status');
   if(s){
-    s.textContent = !id      ? 'select an instance'
-                  : !pay     ? 'select a compatible payload'
+    s.textContent = !inst    ? 'select an instance + payload on the Arm tab first'
+                  : !SEL.pay ? 'select a compatible payload on the Arm tab'
                   : !ack     ? 'acknowledge the statement above to enable'
-                             : 'ready to install';
+                             : `ready to install ${SEL.pay} → ${inst.deviceId}`;
   }
 }
-function armInstallNow(){
-  const id  = document.getElementById('arm-inst').value;
-  const pay = document.getElementById('arm-payload').value;
-  const inst = INSTANCES.find(i=>i.id===id);
-  if(!inst){ plog('selected instance not found','t-err'); return; }
+function depInstallNow(){
+  const inst = INSTANCES.find(i=>i.id===SEL.inst);
+  if(!inst || !SEL.pay){ deplog('no Arm-tab selection — pick an instance + payload first','t-err'); return; }
   document.getElementById('btn-install').disabled = true;
-
-  // Auto-advance to the Deploy tab so the streaming install log is visible there.
-  pTab('p-deploy');
-  const tr = prod(inst.productId).transport;
+  const pay = SEL.pay, tr = prod(inst.productId).transport;
+  // Jump to the Dashboard so the streaming install log + armed row are visible.
+  pTab('p-dash');
   const steps = [
-    [`[ack]    liability acknowledged at ${ts()}`, 't-info'],
-    [`[c2]     stage payload ${pay} from /payloads/`, 't-info'],
-    [`[${tr}]    push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
-    [`[device] write to native slot (${tr==='ssh'?'/root/payload/':tr==='wifi'?'WiFi API slot':'inject.bin'})`, 't-info'],
+    [`[ack]     liability acknowledged at ${ts()}`, 't-info'],
+    [`[c2]      stage payload ${pay} from /payloads/`, 't-info'],
+    [`[${tr}]     push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
+    [`[device]  write to native slot (${tr==='ssh'?'/root/payload/':tr==='wifi'?'WiFi API slot':'inject.bin'})`, 't-info'],
     [`[install] ${inst.deviceId} ARMED with ${pay} — ready to plug in`, 't-ok'],
   ];
   steps.forEach((s,i)=>setTimeout(()=>deplog(s[0],s[1]), i*320));
   setTimeout(()=>{
     inst.armed = pay;
-    renderPTree(); renderArmed();
-    // Reset Arm tab so a follow-up install starts clean (ack-required again).
-    const ack = document.getElementById('arm-ack'); if(ack) ack.checked = false;
-    armAckChanged();
+    renderPTree(); renderArmed(); renderLootP();
+    const ack = document.getElementById('dep-ack'); if(ack) ack.checked = false;
+    depAckChanged();
   }, steps.length*320);
 }
+
+/* Dashboard: armed & deployed table + loot information */
 function renderArmed(){
   const armed = payloadInstances().filter(i=>i.armed);
   const tbody = document.getElementById('deploy-tbody');
@@ -898,11 +907,26 @@ function renderArmed(){
         <button class="btn btn-sm" onclick="armClear('${i.id}')">DISARM</button>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances yet — stage an install on the Arm tab</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances yet — Arm + Deploy a device</td></tr>';
 }
-function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); deplog('disarmed '+i.deviceId,'t-warn'); } }
-function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; i.targetNote=note; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); }
-function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; i.targetNote=''; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); }
+const LOOT_MAP = {
+  bunny:['NetNTLMv2 hashes','Credentials → hashcat'], turtle:['Responder / nmap loot','Credentials / Scan'],
+  shark:['nmap output','Scan → Enumerate'], 'omg-plug':['keylog / exfil','Credentials'],
+  'omg-adapter':['keylog / exfil','Credentials'], 'omg-unblocker':['keylog / exfil','Credentials'],
+  ducky:['reverse shell / payload output','MSF Sessions'],
+};
+function renderLootP(){
+  const tbody = document.getElementById('loot-tbody-p'); if(!tbody) return;
+  const rows = payloadInstances().filter(i=>i.armed);
+  tbody.innerHTML = rows.length ? rows.map(i=>{
+    const m = LOOT_MAP[i.productId] || ['loot','Loot'];
+    const state = i.deployed ? '<span class="badge badge-violet">awaiting pull</span>' : '<span class="badge badge-muted">armed (not deployed)</span>';
+    return `<tr><td class="text-cyan">${i.deviceId}</td><td class="text-muted">${m[0]}</td><td class="text-green" style="font-size:11px">${m[1]}</td><td>${state}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" class="text-muted" style="text-align:center;padding:1rem">no loot expected yet — arm + deploy a device. (loot pull lands in a later phase)</td></tr>';
+}
+function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); renderLootP(); deplog('disarmed '+i.deviceId,'t-warn'); } }
+function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; i.targetNote=note; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); renderLootP(); }
+function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; i.targetNote=''; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); renderLootP(); }
 
 /* ─── SPECTRUM ─── */
 function spectrumInstances(){ return INSTANCES.filter(i=>i.productId==='pineapple'); }
@@ -1028,7 +1052,7 @@ function toggleAck(){ document.getElementById('ack-btn').disabled = !document.ge
 function acceptAck(){ sessionStorage.setItem('hak5_ack','1'); const m=document.getElementById('liability-modal'); m.style.transition='opacity .3s'; m.style.opacity='0'; setTimeout(()=>m.style.display='none',300); }
 (function(){
   if(sessionStorage.getItem('hak5_ack')) document.getElementById('liability-modal').style.display='none';
-  fillAddProduct(); renderPTree(); renderSTree(); renderAPs(); fillDeauthTarget(); fillApiDevices(); renderPCAPs();
+  fillAddProduct(); renderPTree(); renderArmed(); renderLootP(); renderSTree(); renderAPs(); fillDeauthTarget(); fillApiDevices(); renderPCAPs();
   function tick(){ const el=document.getElementById('clock'); if(el) el.textContent=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'; }
   tick(); setInterval(tick,1000);
 })();
