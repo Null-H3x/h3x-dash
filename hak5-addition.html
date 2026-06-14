@@ -356,46 +356,13 @@
         </div>
       </div>
 
-      <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">③</span> ONE-CLICK INSTALL</div>
-        <div class="panel-body">
-          <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
-            Stages the selected payload at the H3x-Dash <strong>Command &amp; Control</strong> computer.
-            Clicking <strong>ONE-CLICK INSTALL</strong> jumps you to the <strong>Deploy</strong> tab,
-            where you acknowledge the liability statement and the installation actually executes.
-            Nothing is written to the device on this tab.
-          </p>
-          <button class="btn btn-green btn-lg" id="btn-install" onclick="armProceedToDeploy()">⟳ ONE-CLICK INSTALL ▶</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── 3. Deploy ─── -->
-    <section id="view-p-deploy" class="hidden">
-      <!-- Pending install (populated when user clicks ONE-CLICK INSTALL on Arm) -->
-      <div class="panel" id="pending-panel" style="display:none">
-        <div class="panel-header"><span class="accent">▶</span> PENDING INSTALLATION
-          <span class="text-muted" style="margin-left:auto;font-size:10px">staged from the Arm tab — acknowledge below to execute</span>
-        </div>
-        <div class="panel-body">
-          <div class="col-3">
-            <div class="pending-box"><div class="lbl">INSTANCE</div><div class="val" id="pi-inst">—</div></div>
-            <div class="pending-box"><div class="lbl">PAYLOAD</div><div class="val" id="pi-payload">—</div></div>
-            <div class="pending-box"><div class="lbl">TRANSPORT</div><div class="val" id="pi-transport">—</div></div>
-          </div>
-          <div class="flex gap-1 mt-2 items-center">
-            <button class="btn btn-green btn-lg" id="btn-execute" disabled onclick="execInstall()">⟳ EXECUTE INSTALLATION ▶</button>
-            <button class="btn btn-sm" onclick="cancelPending()">CANCEL</button>
-            <span class="text-muted ml-auto" style="font-size:10px" id="exec-status">acknowledge the statement below to enable</span>
-          </div>
-        </div>
-      </div>
-
+      <!-- Liability statement + ack live HERE on the Arm tab, immediately
+           before the One-Click Install button, per operator's flow spec. -->
       <div class="liability mt-2">
         <h4>⚠ DEPLOYMENT LIABILITY STATEMENT</h4>
         <p>
           Use of this module is authorized only when <em>at least one of the three scenarios below applies</em>
-          to the operator's intended use. These scenarios are alternatives — not joint requirements —
+          to the operator's intended use. The scenarios are alternatives — not joint requirements —
           but each carries its own conditions.
         </p>
 
@@ -441,13 +408,32 @@
         </div>
 
         <label class="chk" style="margin-top:.5rem">
-          <input type="checkbox" id="deploy-ack" onchange="ackChanged()">
+          <input type="checkbox" id="arm-ack" onchange="armAckChanged()">
           <span>I acknowledge that at least one of Scenarios A–C above applies to my intended use, and I
           have verified my legal authority under the jurisdiction(s) applicable to this deployment.</span>
         </label>
       </div>
 
       <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">③</span> ONE-CLICK INSTALL</div>
+        <div class="panel-body">
+          <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
+            Stages the selected payload at the H3x-Dash <strong>Command &amp; Control</strong> computer and
+            installs it onto the selected device via its native transport. The acknowledgement above is
+            required and is enforced server-side. After install, the page advances to the
+            <strong>Deploy</strong> tab to show the result.
+          </p>
+          <div class="flex gap-1 items-center">
+            <button class="btn btn-green btn-lg" id="btn-install" disabled onclick="armInstallNow()">⟳ ONE-CLICK INSTALL ▶</button>
+            <span class="text-muted" style="font-size:10px" id="install-status">acknowledge the statement above to enable</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 3. Deploy ─── (post-install state ONLY) -->
+    <section id="view-p-deploy" class="hidden">
+      <div class="panel">
         <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES</div>
         <div class="panel-body" style="padding:0">
           <table class="data-table">
@@ -459,7 +445,7 @@
 
       <div class="panel mt-2">
         <div class="panel-header"><span class="accent">◎</span> DEPLOYMENT / INSTALL LOG</div>
-        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events //</span></div></div>
+        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events stream here //</span></div></div>
       </div>
     </section>
   </div>
@@ -731,7 +717,7 @@ function switchSection(s){
 }
 function pTab(t){ ['p-inv','p-arm','p-deploy'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-payload .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
-  if(t==='p-arm'){ fillArmSelects(); } if(t==='p-deploy'){ renderPending(); renderArmed(); ackChanged(); } }
+  if(t==='p-arm'){ fillArmSelects(); armAckChanged(); } if(t==='p-deploy'){ renderArmed(); } }
 function sTab(t){ ['s-inv','s-conn','s-fn','s-pcap'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-spectrum .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   if(t==='s-fn'){ renderAPs(); fillDeauthTarget(); } if(t==='s-pcap'){ renderPCAPs(); } if(t==='s-conn'){ fillApiDevices(); } }
@@ -846,60 +832,49 @@ function armRefresh(){
   const payloadName = document.getElementById('arm-payload').value;
   const pay = PAYLOADS.find(x=>x.name===payloadName);
   document.getElementById('arm-pay-meta').innerHTML = pay ? `Lang: <span class="text-cyan">${pay.lang}</span> · ATT&CK: <span class="text-muted">${pay.attack}</span> · Countermeasure: <span class="text-green">${pay.cm}</span>` : '<span class="text-muted">no payload selected</span>';
+  armAckChanged();
 }
-/* Stage selection on Arm → auto-jump to Deploy with a pending install primed.
-   The install is NOT executed yet; that happens after the liability ack on
-   the Deploy tab. */
-let PENDING = null;
-function armProceedToDeploy(){
-  const id = document.getElementById('arm-inst').value;
-  const payloadName = document.getElementById('arm-payload').value;
-  if(!id || !payloadName){ plog('select an instance and a compatible payload first','t-err'); return; }
+/* Arm tab: One-Click Install is gated on both a complete selection AND the
+   liability ack on the Arm tab itself. The install fires directly; the page
+   then advances to the Deploy tab to show the post-install state and log. */
+function armAckChanged(){
+  const id  = document.getElementById('arm-inst') && document.getElementById('arm-inst').value;
+  const pay = document.getElementById('arm-payload') && document.getElementById('arm-payload').value;
+  const ack = document.getElementById('arm-ack') && document.getElementById('arm-ack').checked;
+  const btn = document.getElementById('btn-install');
+  if(btn) btn.disabled = !(id && pay && ack);
+  const s = document.getElementById('install-status');
+  if(s){
+    s.textContent = !id      ? 'select an instance'
+                  : !pay     ? 'select a compatible payload'
+                  : !ack     ? 'acknowledge the statement above to enable'
+                             : 'ready to install';
+  }
+}
+function armInstallNow(){
+  const id  = document.getElementById('arm-inst').value;
+  const pay = document.getElementById('arm-payload').value;
   const inst = INSTANCES.find(i=>i.id===id);
-  PENDING = { instanceId:id, deviceId:inst.deviceId, payload:payloadName, transport:prod(inst.productId).transport };
+  if(!inst){ plog('selected instance not found','t-err'); return; }
+  document.getElementById('btn-install').disabled = true;
+
+  // Auto-advance to the Deploy tab so the streaming install log is visible there.
   pTab('p-deploy');
-  // Reset the ack each time a new install is staged so it can't carry over silently.
-  const ack = document.getElementById('deploy-ack'); if(ack) ack.checked = false;
-  ackChanged();
-  plog(`staged install: ${payloadName} → ${inst.deviceId} (proceeding to Deploy tab for ack)`,'t-info');
-}
-function renderPending(){
-  const box = document.getElementById('pending-panel');
-  if(!box) return;
-  if(!PENDING){ box.style.display='none'; return; }
-  box.style.display='';
-  document.getElementById('pi-inst').textContent     = PENDING.deviceId;
-  document.getElementById('pi-payload').textContent  = PENDING.payload;
-  document.getElementById('pi-transport').textContent= PENDING.transport;
-}
-function ackChanged(){
-  const ack = document.getElementById('deploy-ack') && document.getElementById('deploy-ack').checked;
-  const btn = document.getElementById('btn-execute');
-  if(btn){ btn.disabled = !(ack && PENDING); }
-  const status = document.getElementById('exec-status');
-  if(status){ status.textContent = !PENDING ? 'no pending install — stage one from the Arm tab'
-                                 : !ack ? 'acknowledge the statement below to enable'
-                                       : 'ready to execute'; }
-  renderArmed();
-}
-function cancelPending(){ PENDING=null; renderPending(); ackChanged(); deplog('pending install cancelled','t-warn'); }
-function execInstall(){
-  if(!PENDING) return;
-  const inst = INSTANCES.find(i=>i.id===PENDING.instanceId); if(!inst){ deplog('pending instance no longer exists','t-err'); cancelPending(); return; }
-  const tr = PENDING.transport;
+  const tr = prod(inst.productId).transport;
   const steps = [
-    [`[ack] liability acknowledged at ${ts()}`, 't-info'],
-    [`[c2]  stage payload ${PENDING.payload} from /payloads/`, 't-info'],
-    [`[${tr}] push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
+    [`[ack]    liability acknowledged at ${ts()}`, 't-info'],
+    [`[c2]     stage payload ${pay} from /payloads/`, 't-info'],
+    [`[${tr}]    push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
     [`[device] write to native slot (${tr==='ssh'?'/root/payload/':tr==='wifi'?'WiFi API slot':'inject.bin'})`, 't-info'],
-    [`[install] ${inst.deviceId} ARMED with ${PENDING.payload} — ready to plug in`, 't-ok'],
+    [`[install] ${inst.deviceId} ARMED with ${pay} — ready to plug in`, 't-ok'],
   ];
-  document.getElementById('btn-execute').disabled = true;
   steps.forEach((s,i)=>setTimeout(()=>deplog(s[0],s[1]), i*320));
   setTimeout(()=>{
-    inst.armed = PENDING.payload;
-    PENDING = null;
-    renderPending(); renderPTree(); renderArmed(); ackChanged();
+    inst.armed = pay;
+    renderPTree(); renderArmed();
+    // Reset Arm tab so a follow-up install starts clean (ack-required again).
+    const ack = document.getElementById('arm-ack'); if(ack) ack.checked = false;
+    armAckChanged();
   }, steps.length*320);
 }
 function renderArmed(){
@@ -923,7 +898,7 @@ function renderArmed(){
         <button class="btn btn-sm" onclick="armClear('${i.id}')">DISARM</button>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances — stage an install on the Arm tab</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances yet — stage an install on the Arm tab</td></tr>';
 }
 function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); deplog('disarmed '+i.deviceId,'t-warn'); } }
 function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; i.targetNote=note; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); }
