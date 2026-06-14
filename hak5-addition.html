@@ -157,12 +157,30 @@
     .hidden { display: none !important; }
     ::-webkit-scrollbar { width: 4px; height: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+    /* Sidebar work-in-progress tag */
+    .wip { font-size: 9px; color: var(--orange); letter-spacing: .1em; margin-left: 4px; opacity: .85; }
+
     /* Liability box (deploy gate) */
     .liability { border: 1px solid var(--red); border-left: 4px solid var(--red); background: #1a0000; border-radius: 6px; padding: 1.1rem 1.25rem; }
     .liability h4 { font-family: var(--head); color: var(--red); letter-spacing: .12em; font-size: 14px; margin-bottom: .5rem; }
     .liability p { font-size: 11.5px; color: var(--text); line-height: 1.7; margin-bottom: .5rem; }
     .liability em { color: var(--orange); font-style: normal; }
     .liability ol { margin: .25rem 0 .5rem 1.25rem; font-size: 11.5px; color: var(--text); line-height: 1.7; }
+    .liability ul { margin: .25rem 0 .5rem 1.25rem; font-size: 11.5px; color: var(--text); line-height: 1.65; }
+
+    /* 3-scenario liability cards (lab / pentest / research) */
+    .scenarios { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; margin: .9rem 0 .5rem; }
+    .scenario { background: #0e0606; border: 1px solid var(--border2); border-left: 3px solid var(--orange); border-radius: 5px; padding: .8rem .9rem; }
+    .scenario h5 { font-family: var(--head); font-size: 12px; color: var(--orange); letter-spacing: .12em; margin-bottom: .35rem; }
+    .scenario .stag { font-size: 9px; color: var(--muted); letter-spacing: .15em; margin-bottom: .3rem; }
+    .scenario.lab     { border-left-color: var(--cyan);   } .scenario.lab     h5 { color: var(--cyan);   }
+    .scenario.pentest { border-left-color: var(--violet); } .scenario.pentest h5 { color: var(--violet); }
+    .scenario.research{ border-left-color: var(--green);  } .scenario.research h5 { color: var(--green);  }
+    .legal-fine { font-size: 10px; color: var(--muted); line-height: 1.65; border-top: 1px dashed var(--border2); padding-top: .55rem; margin-top: .55rem; }
+    .legal-fine strong { color: var(--orange); }
+    .pending-box { border: 1px solid var(--orange); border-left: 3px solid var(--orange); background: #140a00; border-radius: 6px; padding: .75rem 1rem; }
+    .pending-box .lbl { font-size: 9px; color: var(--muted); letter-spacing: .18em; }
+    .pending-box .val { font-size: 13px; color: var(--orange); font-family: var(--head); }
 
     /* Liability modal (entry gate) */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
@@ -218,13 +236,13 @@
     <div class="nav-link"><span class="nav-icon">◉</span> Scan</div>
     <div class="nav-link"><span class="nav-icon">⚙</span> Enumerate</div>
     <div class="nav-link"><span class="nav-icon">◇</span> Validate</div>
-    <div class="nav-link"><span class="nav-icon">⚡</span> Shell</div>
-    <div class="nav-link"><span class="nav-icon">🔑</span> Credentials</div>
-    <div class="nav-link"><span class="nav-icon">◎</span> Loot</div>
+    <div class="nav-link"><span class="nav-icon">⚡</span> Shell <span class="wip">(working)</span></div>
+    <div class="nav-link"><span class="nav-icon">🔑</span> Credentials <span class="wip">(working)</span></div>
+    <div class="nav-link"><span class="nav-icon">◎</span> Loot <span class="wip">(working)</span></div>
 
     <div class="nav-section" style="margin-top:.5rem">HAK5 / SPECTRUM &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
-    <div class="nav-link active" id="nav-payload" onclick="switchSection('payload')"><span class="nav-icon">❏</span> Payload</div>
-    <div class="nav-link" id="nav-spectrum" onclick="switchSection('spectrum')"><span class="nav-icon">📡</span> Spectrum</div>
+    <div class="nav-link active" id="nav-payload" onclick="switchSection('payload')"><span class="nav-icon">❏</span> Payload <span class="wip">(working)</span></div>
+    <div class="nav-link" id="nav-spectrum" onclick="switchSection('spectrum')"><span class="nav-icon">📡</span> Spectrum <span class="wip">(working)</span></div>
 
     <div class="nav-section" style="margin-top:.5rem">REFERENCE</div>
     <div class="nav-link"><span class="nav-icon">▦</span> MSF Modules</div>
@@ -342,63 +360,106 @@
         <div class="panel-header"><span class="accent">③</span> ONE-CLICK INSTALL</div>
         <div class="panel-body">
           <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
-            Stages the selected payload at the H3x-Dash <strong>Command &amp; Control</strong> computer and
-            installs it onto the selected device via its native transport (DuckyScript → <code>inject.bin</code>,
-            Bash Bunny / Shark Jack → SCP into payload slot, LAN Turtle → module enable, O.MG → WiFi API push).
-            The instance is then marked <strong>ARMED</strong> and progresses to the Deploy tab.
+            Stages the selected payload at the H3x-Dash <strong>Command &amp; Control</strong> computer.
+            Clicking <strong>ONE-CLICK INSTALL</strong> jumps you to the <strong>Deploy</strong> tab,
+            where you acknowledge the liability statement and the installation actually executes.
+            Nothing is written to the device on this tab.
           </p>
-          <button class="btn btn-green btn-lg" id="btn-install" onclick="armInstall()">⟳ INSTALL &amp; ARM ▶</button>
-        </div>
-      </div>
-
-      <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">◇</span> CURRENTLY ARMED INSTANCES</div>
-        <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>ARMED AT</th><th>STATUS</th><th style="width:140px">ACTIONS</th></tr></thead>
-            <tbody id="armed-tbody"></tbody>
-          </table>
+          <button class="btn btn-green btn-lg" id="btn-install" onclick="armProceedToDeploy()">⟳ ONE-CLICK INSTALL ▶</button>
         </div>
       </div>
     </section>
 
     <!-- ─── 3. Deploy ─── -->
     <section id="view-p-deploy" class="hidden">
-      <div class="liability">
+      <!-- Pending install (populated when user clicks ONE-CLICK INSTALL on Arm) -->
+      <div class="panel" id="pending-panel" style="display:none">
+        <div class="panel-header"><span class="accent">▶</span> PENDING INSTALLATION
+          <span class="text-muted" style="margin-left:auto;font-size:10px">staged from the Arm tab — acknowledge below to execute</span>
+        </div>
+        <div class="panel-body">
+          <div class="col-3">
+            <div class="pending-box"><div class="lbl">INSTANCE</div><div class="val" id="pi-inst">—</div></div>
+            <div class="pending-box"><div class="lbl">PAYLOAD</div><div class="val" id="pi-payload">—</div></div>
+            <div class="pending-box"><div class="lbl">TRANSPORT</div><div class="val" id="pi-transport">—</div></div>
+          </div>
+          <div class="flex gap-1 mt-2 items-center">
+            <button class="btn btn-green btn-lg" id="btn-execute" disabled onclick="execInstall()">⟳ EXECUTE INSTALLATION ▶</button>
+            <button class="btn btn-sm" onclick="cancelPending()">CANCEL</button>
+            <span class="text-muted ml-auto" style="font-size:10px" id="exec-status">acknowledge the statement below to enable</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="liability mt-2">
         <h4>⚠ DEPLOYMENT LIABILITY STATEMENT</h4>
         <p>
-          Plug an <strong>ARMED</strong> Hak5 device into the target network or workstation
-          <em>if and only if every condition below is true:</em>
+          Use of this module is authorized only when <em>at least one of the three scenarios below applies</em>
+          to the operator's intended use. These scenarios are alternatives — not joint requirements —
+          but each carries its own conditions.
         </p>
-        <ol>
-          <li>You are operating inside a <strong>controlled, isolated training range</strong> or a system you personally own.</li>
-          <li>You hold a <strong>current, signed authorization</strong> for this exact target (verbal/implied permission is insufficient).</li>
-          <li>The deployment window, target IPs/SSIDs, and acceptable outcomes are documented in the engagement scope.</li>
-          <li>You are <strong>physically present</strong> for the deployment and the device is recovered before the window closes.</li>
-          <li>RF-capable devices (O.MG, Pineapple, LAN Turtle 3G) will not emit outside the authorized RF perimeter.</li>
-        </ol>
-        <p style="margin-top:.5rem">
-          Unauthorized deployment violates <strong>18 U.S.C. § 1030 (CFAA)</strong> and equivalents.
-          The operator accepts sole responsibility.
-        </p>
+
+        <div class="scenarios">
+          <div class="scenario lab">
+            <div class="stag">SCENARIO A</div>
+            <h5>LAB / OWNED INFRASTRUCTURE</h5>
+            <ul>
+              <li>Operating inside a <strong>controlled, isolated training range</strong> or on systems you personally own (your name on the hardware / lease / service agreement).</li>
+              <li>The lab is <strong>segmented from production and public networks</strong>; no inadvertent traffic crosses the boundary.</li>
+              <li>RF-capable devices (O.MG, Pineapple, LAN Turtle 3G) <strong>stay inside the authorized RF perimeter</strong>.</li>
+            </ul>
+          </div>
+          <div class="scenario pentest">
+            <div class="stag">SCENARIO B</div>
+            <h5>CONTRACTED AUTHORIZED PENTEST</h5>
+            <ul>
+              <li>You hold a <strong>current, signed Rules of Engagement / penetration-testing agreement</strong> with the authorized system owner (verbal or implied permission is insufficient).</li>
+              <li>Target IPs / SSIDs / scope, the deployment window, and acceptable outcomes are <strong>documented in that agreement</strong>.</li>
+              <li>You are <strong>physically present</strong> for any device deployment and the device is recovered before the window closes.</li>
+            </ul>
+          </div>
+          <div class="scenario research">
+            <div class="stag">SCENARIO C</div>
+            <h5>SECURITY RESEARCH</h5>
+            <ul>
+              <li>Operating against a <strong>research lab, vulnerable-by-design platform</strong> (Metasploitable, HackTheBox, VulnHub, TryHackMe, etc.), or your own published-research target.</li>
+              <li>Findings will be <strong>disclosed responsibly</strong> per the platform's or vendor's policy.</li>
+              <li>No third-party data leaves the research environment.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="legal-fine">
+          <strong>Jurisdictional note.</strong> Computer-misuse statutes vary by country, state/province, and
+          locality — including but not limited to the U.S. federal Computer Fraud and Abuse Act
+          (<strong>18 U.S.C. § 1030</strong>) and state-level variants (e.g., CA Penal Code §502, NY Penal Law §156),
+          the UK Computer Misuse Act 1990, Canada's Criminal Code §342.1, Australia's Cybercrime Act 2001,
+          EU member-state implementations of the NIS2 / Cybercrime Directives, and equivalents elsewhere.
+          It is the operator's sole responsibility to ensure compliance with the laws applicable to
+          <em>(a)</em> the operator's physical location, <em>(b)</em> the target's location, and
+          <em>(c)</em> any RF emissions that may cross jurisdictional boundaries.
+        </div>
+
         <label class="chk" style="margin-top:.5rem">
-          <input type="checkbox" id="deploy-ack" onchange="renderArmed()"> <span>I acknowledge — all five conditions above are met for the deployment(s) I am about to mark below.</span>
+          <input type="checkbox" id="deploy-ack" onchange="ackChanged()">
+          <span>I acknowledge that at least one of Scenarios A–C above applies to my intended use, and I
+          have verified my legal authority under the jurisdiction(s) applicable to this deployment.</span>
         </label>
       </div>
 
       <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">▶</span> READY-TO-DEPLOY  (armed instances)</div>
+        <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES</div>
         <div class="panel-body" style="padding:0">
           <table class="data-table">
-            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>TARGET NOTE</th><th>STATE</th><th style="width:240px">ACTIONS</th></tr></thead>
+            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
             <tbody id="deploy-tbody"></tbody>
           </table>
         </div>
       </div>
 
       <div class="panel mt-2">
-        <div class="panel-header"><span class="accent">◎</span> DEPLOYMENT LOG</div>
-        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// deploy/recall events //</span></div></div>
+        <div class="panel-header"><span class="accent">◎</span> DEPLOYMENT / INSTALL LOG</div>
+        <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events //</span></div></div>
       </div>
     </section>
   </div>
@@ -670,7 +731,7 @@ function switchSection(s){
 }
 function pTab(t){ ['p-inv','p-arm','p-deploy'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-payload .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
-  if(t==='p-arm'){ fillArmSelects(); renderArmed(); } if(t==='p-deploy'){ renderArmed(); } }
+  if(t==='p-arm'){ fillArmSelects(); } if(t==='p-deploy'){ renderPending(); renderArmed(); ackChanged(); } }
 function sTab(t){ ['s-inv','s-conn','s-fn','s-pcap'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hidden', x!==t));
   document.querySelectorAll('#section-spectrum .subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   if(t==='s-fn'){ renderAPs(); fillDeauthTarget(); } if(t==='s-pcap'){ renderPCAPs(); } if(t==='s-conn'){ fillApiDevices(); } }
@@ -786,56 +847,87 @@ function armRefresh(){
   const pay = PAYLOADS.find(x=>x.name===payloadName);
   document.getElementById('arm-pay-meta').innerHTML = pay ? `Lang: <span class="text-cyan">${pay.lang}</span> · ATT&CK: <span class="text-muted">${pay.attack}</span> · Countermeasure: <span class="text-green">${pay.cm}</span>` : '<span class="text-muted">no payload selected</span>';
 }
-function armInstall(){
+/* Stage selection on Arm → auto-jump to Deploy with a pending install primed.
+   The install is NOT executed yet; that happens after the liability ack on
+   the Deploy tab. */
+let PENDING = null;
+function armProceedToDeploy(){
   const id = document.getElementById('arm-inst').value;
   const payloadName = document.getElementById('arm-payload').value;
+  if(!id || !payloadName){ plog('select an instance and a compatible payload first','t-err'); return; }
   const inst = INSTANCES.find(i=>i.id===id);
-  if(!inst || !payloadName){ plog('install failed: missing selection','t-err'); return; }
-  const transport = prod(inst.productId).transport;
+  PENDING = { instanceId:id, deviceId:inst.deviceId, payload:payloadName, transport:prod(inst.productId).transport };
+  pTab('p-deploy');
+  // Reset the ack each time a new install is staged so it can't carry over silently.
+  const ack = document.getElementById('deploy-ack'); if(ack) ack.checked = false;
+  ackChanged();
+  plog(`staged install: ${payloadName} → ${inst.deviceId} (proceeding to Deploy tab for ack)`,'t-info');
+}
+function renderPending(){
+  const box = document.getElementById('pending-panel');
+  if(!box) return;
+  if(!PENDING){ box.style.display='none'; return; }
+  box.style.display='';
+  document.getElementById('pi-inst').textContent     = PENDING.deviceId;
+  document.getElementById('pi-payload').textContent  = PENDING.payload;
+  document.getElementById('pi-transport').textContent= PENDING.transport;
+}
+function ackChanged(){
+  const ack = document.getElementById('deploy-ack') && document.getElementById('deploy-ack').checked;
+  const btn = document.getElementById('btn-execute');
+  if(btn){ btn.disabled = !(ack && PENDING); }
+  const status = document.getElementById('exec-status');
+  if(status){ status.textContent = !PENDING ? 'no pending install — stage one from the Arm tab'
+                                 : !ack ? 'acknowledge the statement below to enable'
+                                       : 'ready to execute'; }
+  renderArmed();
+}
+function cancelPending(){ PENDING=null; renderPending(); ackChanged(); deplog('pending install cancelled','t-warn'); }
+function execInstall(){
+  if(!PENDING) return;
+  const inst = INSTANCES.find(i=>i.id===PENDING.instanceId); if(!inst){ deplog('pending instance no longer exists','t-err'); cancelPending(); return; }
+  const tr = PENDING.transport;
   const steps = [
-    [`[c2] stage payload ${payloadName} from /payloads/`, 't-info'],
-    [`[${transport}] push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
-    [`[device] write to native slot (${transport==='ssh'?'/root/payload/':transport==='wifi'?'WiFi API slot':'inject.bin'})`, 't-info'],
-    [`[arm] ${inst.deviceId} ARMED with ${payloadName} — proceed to Deploy`, 't-ok'],
+    [`[ack] liability acknowledged at ${ts()}`, 't-info'],
+    [`[c2]  stage payload ${PENDING.payload} from /payloads/`, 't-info'],
+    [`[${tr}] push to ${inst.deviceId} (${inst.host}${inst.port?':'+inst.port:''})`, 't-info'],
+    [`[device] write to native slot (${tr==='ssh'?'/root/payload/':tr==='wifi'?'WiFi API slot':'inject.bin'})`, 't-info'],
+    [`[install] ${inst.deviceId} ARMED with ${PENDING.payload} — ready to plug in`, 't-ok'],
   ];
-  steps.forEach((s,i)=>setTimeout(()=>plog(s[0],s[1]), i*350));
-  setTimeout(()=>{ inst.armed = payloadName; renderPTree(); renderArmed(); }, steps.length*350);
+  document.getElementById('btn-execute').disabled = true;
+  steps.forEach((s,i)=>setTimeout(()=>deplog(s[0],s[1]), i*320));
+  setTimeout(()=>{
+    inst.armed = PENDING.payload;
+    PENDING = null;
+    renderPending(); renderPTree(); renderArmed(); ackChanged();
+  }, steps.length*320);
 }
 function renderArmed(){
   const armed = payloadInstances().filter(i=>i.armed);
-  const ack = document.getElementById('deploy-ack') && document.getElementById('deploy-ack').checked;
-  document.getElementById('armed-tbody').innerHTML = armed.length ? armed.map(i=>`
-    <tr>
+  const tbody = document.getElementById('deploy-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = armed.length ? armed.map(i=>{
+    const st = i.deployed
+      ? '<span class="badge badge-violet">DEPLOYED</span>'
+      : '<span class="badge badge-warning">ARMED · ready to plug in</span>';
+    return `<tr>
       <td class="text-cyan">${i.deviceId}</td>
       <td class="text-muted">${prod(i.productId).name}</td>
       <td><span class="badge badge-warning">${i.armed}</span></td>
-      <td class="text-muted">just now</td>
-      <td><span class="badge badge-warning">ARMED</span></td>
-      <td><button class="btn btn-red btn-sm" onclick="armClear('${i.id}')">DISARM</button></td>
-    </tr>`).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no instances armed — install one above</td></tr>';
-
-  const tbody = document.getElementById('deploy-tbody');
-  if(tbody){
-    tbody.innerHTML = armed.length ? armed.map(i=>{
-      const st = i.deployed?'<span class="badge badge-violet">DEPLOYED</span>':'<span class="badge badge-warning">ARMED · READY</span>';
-      return `<tr>
-        <td class="text-cyan">${i.deviceId}</td>
-        <td class="text-muted">${prod(i.productId).name}</td>
-        <td><span class="badge badge-warning">${i.armed}</span></td>
-        <td><input type="text" placeholder="target host / SSID / room…" style="width:100%" id="dn-${i.id}"></td>
-        <td>${st}</td>
-        <td class="flex gap-1">
-          ${i.deployed
-            ? `<button class="btn btn-green btn-sm" onclick="markReturned('${i.id}')">MARK RETURNED</button>`
-            : `<button class="btn btn-red btn-sm" ${ack?'':'disabled'} onclick="markDeployed('${i.id}')">MARK DEPLOYED</button>`}
-        </td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances — return to ARM</td></tr>';
-  }
+      <td><input type="text" placeholder="target host / SSID / room…" style="width:100%" id="dn-${i.id}" value="${i.targetNote||''}"></td>
+      <td>${st}</td>
+      <td class="flex gap-1">
+        ${i.deployed
+          ? `<button class="btn btn-green btn-sm" onclick="markReturned('${i.id}')">MARK RETURNED</button>`
+          : `<button class="btn btn-red btn-sm" onclick="markDeployed('${i.id}')">MARK DEPLOYED</button>`}
+        <button class="btn btn-sm" onclick="armClear('${i.id}')">DISARM</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances — stage an install on the Arm tab</td></tr>';
 }
-function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); plog('disarmed '+i.deviceId,'t-warn'); } }
-function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); }
-function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); }
+function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); deplog('disarmed '+i.deviceId,'t-warn'); } }
+function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; i.targetNote=note; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); }
+function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; i.targetNote=''; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); }
 
 /* ─── SPECTRUM ─── */
 function spectrumInstances(){ return INSTANCES.filter(i=>i.productId==='pineapple'); }
