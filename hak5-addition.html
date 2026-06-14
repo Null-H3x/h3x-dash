@@ -231,18 +231,19 @@
     <div class="logo-version">v3.x + HAK5</div>
   </div>
   <nav class="nav">
-    <div class="nav-section">OPERATIONS</div>
     <div class="nav-link"><span class="nav-icon">◈</span> Dashboard</div>
+
+    <div class="nav-section" style="margin-top:.5rem">ACCESS &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
+    <div class="nav-link active" id="nav-payload" onclick="switchSection('payload')"><span class="nav-icon">❏</span> Payload <span class="wip">(working)</span></div>
+    <div class="nav-link" id="nav-spectrum" onclick="switchSection('spectrum')"><span class="nav-icon">📡</span> Spectrum <span class="wip">(working)</span></div>
+
+    <div class="nav-section" style="margin-top:.5rem">OPERATIONS</div>
     <div class="nav-link"><span class="nav-icon">◉</span> Scan</div>
     <div class="nav-link"><span class="nav-icon">⚙</span> Enumerate</div>
     <div class="nav-link"><span class="nav-icon">◇</span> Validate</div>
     <div class="nav-link"><span class="nav-icon">⚡</span> Shell <span class="wip">(working)</span></div>
     <div class="nav-link"><span class="nav-icon">🔑</span> Credentials <span class="wip">(working)</span></div>
     <div class="nav-link"><span class="nav-icon">◎</span> Loot <span class="wip">(working)</span></div>
-
-    <div class="nav-section" style="margin-top:.5rem">HAK5 / SPECTRUM &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
-    <div class="nav-link active" id="nav-payload" onclick="switchSection('payload')"><span class="nav-icon">❏</span> Payload <span class="wip">(working)</span></div>
-    <div class="nav-link" id="nav-spectrum" onclick="switchSection('spectrum')"><span class="nav-icon">📡</span> Spectrum <span class="wip">(working)</span></div>
 
     <div class="nav-section" style="margin-top:.5rem">REFERENCE</div>
     <div class="nav-link"><span class="nav-icon">▦</span> MSF Modules</div>
@@ -292,10 +293,12 @@
       </div>
 
       <div class="panel">
-        <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES</div>
+        <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES
+          <span class="text-muted" style="margin-left:auto;font-size:10px">reverse shells land as MSF sessions in the Shell tab</span>
+        </div>
         <div class="panel-body" style="padding:0">
           <table class="data-table">
-            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
+            <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>CALLBACK</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
             <tbody id="deploy-tbody"></tbody>
           </table>
         </div>
@@ -681,15 +684,17 @@ let nextId = 100;
 
 const _OMG = ['omg-plug','omg-adapter','omg-unblocker'];
 const PAYLOADS = [
-  { name:'quickcreds.txt',      products:['bunny'],            lang:'bash+QUACK',      attack:'T1557',     cm:'Disable LLMNR/NBT-NS' },
-  { name:'exfil-docs.txt',      products:['bunny'],            lang:'bash+QUACK',      attack:'T1052',     cm:'USB mass-storage block' },
-  { name:'rev-shell-win.txt',   products:['ducky'].concat(_OMG), lang:'DuckyScript 3.0', attack:'T1059.001', cm:'Constrained PowerShell / AMSI' },
-  { name:'disable-defender.txt',products:['ducky'].concat(_OMG), lang:'DuckyScript 3.0', attack:'T1562.001', cm:'Tamper protection ON' },
-  { name:'nmap-sweep.sh',       products:['shark'],            lang:'bash',            attack:'T1046',     cm:'NAC / segmentation' },
-  { name:'autossh-foothold',    products:['turtle'],           lang:'module',          attack:'T1071',     cm:'Egress filtering' },
-  { name:'responder.module',    products:['turtle','bunny'],   lang:'module',          attack:'T1557',     cm:'Disable LLMNR/NBT-NS' },
-  { name:'keylog-exfil.txt',    products:_OMG,                 lang:'DuckyScript 3.0', attack:'T1056.001', cm:'Device control' },
+  { name:'quickcreds.txt',      products:['bunny'],            lang:'bash+QUACK',      attack:'T1557',     cm:'Disable LLMNR/NBT-NS', callback:'creds' },
+  { name:'exfil-docs.txt',      products:['bunny'],            lang:'bash+QUACK',      attack:'T1052',     cm:'USB mass-storage block', callback:'loot' },
+  { name:'rev-shell-win.txt',   products:['ducky'].concat(_OMG), lang:'DuckyScript 3.0', attack:'T1059.001', cm:'Constrained PowerShell / AMSI', callback:'reverse_shell' },
+  { name:'rev-shell-nix.txt',   products:['ducky'].concat(_OMG), lang:'DuckyScript 3.0', attack:'T1059.004', cm:'Shell allow-listing', callback:'reverse_shell' },
+  { name:'disable-defender.txt',products:['ducky'].concat(_OMG), lang:'DuckyScript 3.0', attack:'T1562.001', cm:'Tamper protection ON', callback:'none' },
+  { name:'nmap-sweep.sh',       products:['shark'],            lang:'bash',            attack:'T1046',     cm:'NAC / segmentation', callback:'loot' },
+  { name:'autossh-foothold',    products:['turtle'],           lang:'module',          attack:'T1071',     cm:'Egress filtering', callback:'reverse_ssh' },
+  { name:'responder.module',    products:['turtle','bunny'],   lang:'module',          attack:'T1557',     cm:'Disable LLMNR/NBT-NS', callback:'creds' },
+  { name:'keylog-exfil.txt',    products:_OMG,                 lang:'DuckyScript 3.0', attack:'T1056.001', cm:'Device control', callback:'loot' },
 ];
+function payloadCB(name){ const p=PAYLOADS.find(x=>x.name===name); return p?p.callback:'none'; }
 const APS = [
   { ssid:'RANGE-LAB-7', bssid:'C2:9F:DB:11:04:7A', band:'5G',  ch:36,  enc:'WPA2', clients:6,  hs:true },
   { ssid:'RANGE-OPS',   bssid:'A0:63:91:2C:88:1E', band:'2.4', ch:6,   enc:'WPA2', clients:11, hs:true },
@@ -898,6 +903,7 @@ function renderArmed(){
       <td class="text-cyan">${i.deviceId}</td>
       <td class="text-muted">${prod(i.productId).name}</td>
       <td><span class="badge badge-warning">${i.armed}</span></td>
+      <td>${cbCell(i)}</td>
       <td><input type="text" placeholder="target host / SSID / room…" style="width:100%" id="dn-${i.id}" value="${i.targetNote||''}"></td>
       <td>${st}</td>
       <td class="flex gap-1">
@@ -907,7 +913,19 @@ function renderArmed(){
         <button class="btn btn-sm" onclick="armClear('${i.id}')">DISARM</button>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1rem">no armed instances yet — Arm + Deploy a device</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:1rem">no armed instances yet — Arm + Deploy a device</td></tr>';
+}
+function cbCell(i){
+  const cb = payloadCB(i.armed);
+  if(!cb || cb==='none') return '<span class="text-muted">none</span>';
+  if(cb==='reverse_shell'){
+    return i.landed
+      ? `<span class="badge badge-green">LANDED</span> <span class="text-green" style="font-size:10px">session ${i.sid} → Shell</span>`
+      : `<span class="badge badge-warning">reverse_shell</span> <span class="text-muted" style="font-size:10px">${i.deployed?'waiting':'handler armed'}</span>`;
+  }
+  if(cb==='reverse_ssh') return '<span class="badge badge-info">reverse_ssh</span> <span class="text-muted" style="font-size:10px">pivot (next phase)</span>';
+  const dest = cb==='creds'?'Credentials':'Loot / Hashcat';
+  return `<span class="badge badge-info">${cb}</span> <span class="text-muted" style="font-size:10px">→ ${dest}</span>`;
 }
 const LOOT_MAP = {
   bunny:['NetNTLMv2 hashes','Credentials → hashcat'], turtle:['Responder / nmap loot','Credentials / Scan'],
@@ -924,9 +942,19 @@ function renderLootP(){
     return `<tr><td class="text-cyan">${i.deviceId}</td><td class="text-muted">${m[0]}</td><td class="text-green" style="font-size:11px">${m[1]}</td><td>${state}</td></tr>`;
   }).join('') : '<tr><td colspan="4" class="text-muted" style="text-align:center;padding:1rem">no loot expected yet — arm + deploy a device. (loot pull lands in a later phase)</td></tr>';
 }
-function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; renderPTree(); renderArmed(); renderLootP(); deplog('disarmed '+i.deviceId,'t-warn'); } }
-function markDeployed(id){ const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)'; i.deployed=true; i.targetNote=note; deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn'); renderArmed(); renderLootP(); }
-function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; i.targetNote=''; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); renderLootP(); }
+function armClear(id){ const i = INSTANCES.find(x=>x.id===id); if(i){ i.armed=null; i.deployed=false; i.landed=false; i.sid=null; renderPTree(); renderArmed(); renderLootP(); deplog('disarmed '+i.deviceId,'t-warn'); } }
+function markDeployed(id){
+  const i=INSTANCES.find(x=>x.id===id); const note=(document.getElementById('dn-'+id)||{}).value||'(no target note)';
+  i.deployed=true; i.targetNote=note;
+  deplog(`[deploy] ${i.deviceId} (${i.armed}) → target: ${note}`, 't-warn');
+  // Simulate a reverse_shell callback landing as an MSF session shortly after deploy.
+  if(payloadCB(i.armed)==='reverse_shell'){
+    deplog(`[handler] waiting for callback on 172.16.10.5:4444 …`, 't-info');
+    setTimeout(()=>{ i.landed=true; i.sid=(2+Math.floor(Math.random()*7)); deplog(`[callback] ${i.deviceId} → session ${i.sid} opened, routed to Shell tab`, 't-ok'); renderArmed(); }, 2500);
+  }
+  renderArmed(); renderLootP();
+}
+function markReturned(id){ const i=INSTANCES.find(x=>x.id===id); i.deployed=false; i.armed=null; i.targetNote=''; i.landed=false; i.sid=null; deplog(`[recall] ${i.deviceId} returned — disarmed`, 't-ok'); renderPTree(); renderArmed(); renderLootP(); }
 
 /* ─── SPECTRUM ─── */
 function spectrumInstances(){ return INSTANCES.filter(i=>i.productId==='pineapple'); }
