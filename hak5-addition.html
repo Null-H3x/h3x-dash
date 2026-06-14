@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<!--
+  ─────────────────────────────────────────────────────────────────────────────
+  H3x-Dash · HAK5 ADDITION — STANDALONE REVIEW MOCKUP
+  ─────────────────────────────────────────────────────────────────────────────
+  This is a SELF-CONTAINED review artifact. Open it directly in a browser — no
+  Flask, no backend, no network required (air-gap friendly). All device data,
+  loot, and actions are MOCK fixtures so the operator can review layout, theme,
+  and interaction flow before any backend wiring is built.
+
+  It deliberately reuses the exact design tokens, sidebar, topbar, and component
+  classes from templates/base.html so the proposed "Physical / RF" addition
+  renders identically to the rest of H3x-Dash. When approved, this single file
+  splits into:
+      templates/implants.html   (extends base.html, {% block content %})
+      templates/wireless.html   (extends base.html, {% block content %})
+      static/implants.js        (the JS below, talking to real /api endpoints)
+      modules/implant_engine.py (device connectors: SSH / REST / WiFi)
+
+  Fonts are referenced from Google Fonts with full system fallbacks so this
+  review file still renders on an offline range. On the real range, self-host
+  the two fonts under /static/fonts.
+  ─────────────────────────────────────────────────────────────────────────────
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>H3x-Dash — Hak5 Addition (Review)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Color tokens (mirrors base.html) ─────────────────────────────────── */
+    :root {
+      --bg:       #0d0d12;
+      --surface:  #13131a;
+      --surface2: #1a1a24;
+      --border:   #1e1e2e;
+      --border2:  #2a2a3e;
+      --cyan:     #0ff0fc;
+      --violet:   #9b30ff;
+      --green:    #39ff14;
+      --red:      #ff4444;
+      --orange:   #ff8c00;
+      --text:     #c8d6e0;
+      --muted:    #4a5060;
+      --mono:     "Share Tech Mono", "Courier New", monospace;
+      --head:     "Rajdhani", "Segoe UI", sans-serif;
+    }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 220px; min-width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      height: 100vh; overflow-y: auto;
+    }
+    .sidebar-logo { padding: 1.25rem 1rem 1rem; border-bottom: 1px solid var(--border); }
+    .logo-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px; border: 1.5px solid var(--cyan);
+      border-radius: 6px; position: relative; margin-bottom: 10px;
+    }
+    .logo-icon::before {
+      content: ''; position: absolute; inset: 4px;
+      border: 1px solid var(--violet); border-radius: 3px;
+    }
+    .logo-hex { font-family: var(--head); font-size: 17px; font-weight: 700; color: var(--green); position: relative; z-index: 1; }
+    .logo-name { font-family: var(--head); font-size: 22px; font-weight: 700; color: #fff; letter-spacing: .06em; line-height: 1; }
+    .logo-name span { color: var(--cyan); }
+    .logo-sub { font-size: 9px; color: var(--violet); letter-spacing: .2em; margin-top: 3px; }
+    .logo-version {
+      display: inline-block; margin-top: 6px; padding: 1px 7px; font-size: 9px;
+      letter-spacing: .12em; color: var(--green); border: 1px solid var(--border2);
+      border-radius: 3px; background: rgba(57,255,20,.05);
+    }
+
+    .nav { flex: 1; padding: 1rem 0; }
+    .nav-section { font-size: 9px; color: var(--muted); letter-spacing: .25em; padding: .5rem 1rem .25rem; }
+    .nav-link {
+      display: flex; align-items: center; gap: 10px; padding: .55rem 1rem;
+      color: var(--muted); text-decoration: none; font-size: 12px; letter-spacing: .05em;
+      border-left: 2px solid transparent; transition: color .15s, border-color .15s, background .15s;
+    }
+    .nav-link:hover { color: var(--cyan); background: rgba(15,240,252,.04); }
+    .nav-link.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(15,240,252,.06); }
+    .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+    .msf-badge { margin: auto 1rem 1rem; padding: .5rem .75rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 10px; }
+    .msf-badge .badge-label { color: var(--muted); letter-spacing: .15em; }
+    .msf-badge .badge-val { color: var(--green); margin-top: 2px; }
+    .msf-badge .badge-val.disconnected { color: var(--red); }
+
+    /* ── Main area ────────────────────────────────────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .topbar {
+      display: flex; align-items: center; gap: 1rem; padding: .75rem 1.5rem;
+      background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .topbar-title { font-family: var(--head); font-size: 18px; font-weight: 500; color: #fff; letter-spacing: .05em; }
+    .topbar-title span { color: var(--cyan); }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 1rem; }
+    .demo-ribbon {
+      font-size: 9px; letter-spacing: .2em; color: var(--orange);
+      border: 1px solid var(--orange); background: #140a00;
+      padding: 2px 8px; border-radius: 3px;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px rgba(57,255,20,.2); display: inline-block; }
+    .status-dot.red { background: var(--red); box-shadow: 0 0 0 2px rgba(255,68,68,.2); }
+    .status-dot.orange { background: var(--orange); box-shadow: 0 0 0 2px rgba(255,140,0,.2); }
+    .status-dot.pulse { animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    .content { flex: 1; overflow-y: auto; padding: 1.5rem; }
+
+    /* ── Cards / panels ───────────────────────────────────────────────────── */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .panel-header {
+      display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border); font-size: 10px; color: var(--muted); letter-spacing: .2em;
+    }
+    .panel-header .accent { color: var(--cyan); }
+    .panel-body { padding: 1rem; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 4px; }
+    .stat-label { font-size: 9px; color: var(--muted); letter-spacing: .2em; }
+    .stat-val { font-family: var(--head); font-size: 32px; font-weight: 700; line-height: 1; color: #fff; }
+    .stat-val.cyan { color: var(--cyan); } .stat-val.violet { color: var(--violet); }
+    .stat-val.green { color: var(--green); } .stat-val.red { color: var(--red); } .stat-val.orange { color: var(--orange); }
+
+    /* ── Forms / buttons ──────────────────────────────────────────────────── */
+    input[type=text], select, textarea {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--cyan); font-family: var(--mono); font-size: 12px; padding: .5rem .75rem;
+      width: 100%; outline: none; transition: border-color .15s;
+    }
+    input[type=text]:focus, select:focus, textarea:focus { border-color: var(--cyan); }
+    select option { background: var(--surface); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem; padding: .45rem 1rem; border-radius: 4px;
+      border: 1px solid var(--border2); background: transparent; color: var(--text);
+      font-family: var(--mono); font-size: 11px; letter-spacing: .05em; cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s; white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface2); }
+    .btn-cyan { border-color: var(--cyan); color: var(--cyan); }
+    .btn-cyan:hover { background: rgba(15,240,252,.08); }
+    .btn-green { border-color: var(--green); color: var(--green); }
+    .btn-green:hover { background: rgba(57,255,20,.08); }
+    .btn-red { border-color: var(--red); color: var(--red); }
+    .btn-red:hover { background: rgba(255,68,68,.08); }
+    .btn-violet { border-color: var(--violet); color: var(--violet); }
+    .btn-violet:hover { background: rgba(155,48,255,.08); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-sm { padding: .25rem .6rem; font-size: 10px; }
+
+    /* ── Sub-tabs (new component) ─────────────────────────────────────────── */
+    .subtabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .subtab {
+      padding: .45rem 1rem; border: 1px solid var(--border2); border-radius: 4px;
+      background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px;
+      letter-spacing: .08em; cursor: pointer; transition: all .15s;
+    }
+    .subtab:hover { color: var(--cyan); border-color: var(--cyan); }
+    .subtab.active { color: var(--bg); background: var(--cyan); border-color: var(--cyan); font-weight: 700; }
+
+    /* ── Terminal ─────────────────────────────────────────────────────────── */
+    .terminal {
+      background: #080810; border: 1px solid var(--border); border-left: 3px solid var(--green);
+      border-radius: 6px; padding: .75rem 1rem; font-size: 11px; color: var(--green);
+      overflow-y: auto; max-height: 280px; white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+    }
+    .terminal .t-err { color: var(--red); } .terminal .t-warn { color: var(--orange); }
+    .terminal .t-info { color: var(--cyan); } .terminal .t-dim { color: var(--muted); }
+    .terminal .t-ok { color: var(--green); }
+
+    /* ── Tables ───────────────────────────────────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .data-table th { padding: .4rem .75rem; text-align: left; color: var(--muted); font-size: 9px; letter-spacing: .2em; border-bottom: 1px solid var(--border); font-weight: 400; }
+    .data-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border2); vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tbody tr { cursor: pointer; }
+    .data-table tbody tr:hover td { background: rgba(15,240,252,.04); }
+    .data-table tr.selected td { background: rgba(155,48,255,.08); }
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
+    .badge { display: inline-block; font-size: 9px; padding: 1px 7px; border-radius: 3px; letter-spacing: .12em; border: 1px solid; }
+    .badge-danger { color: var(--red); border-color: var(--red); background: #1a0000; }
+    .badge-warning { color: var(--orange); border-color: var(--orange); background: #140a00; }
+    .badge-info { color: var(--cyan); border-color: var(--cyan); background: #001418; }
+    .badge-green { color: var(--green); border-color: var(--green); background: #001400; }
+    .badge-violet { color: var(--violet); border-color: var(--violet); background: #0e0018; }
+    .badge-muted { color: var(--muted); border-color: var(--border2); background: var(--surface2); }
+
+    /* ── Utilities ────────────────────────────────────────────────────────── */
+    .mt-1 { margin-top: .5rem; } .mt-2 { margin-top: 1rem; } .mt-3 { margin-top: 1.5rem; }
+    .flex { display: flex; } .gap-1 { gap: .5rem; } .gap-2 { gap: 1rem; }
+    .items-center { align-items: center; } .ml-auto { margin-left: auto; }
+    .text-muted { color: var(--muted); } .text-cyan { color: var(--cyan); }
+    .text-green { color: var(--green); } .text-red { color: var(--red); }
+    .text-violet { color: var(--violet); } .text-orange { color: var(--orange); }
+    .mono { font-family: var(--mono); }
+    .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .col-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    .hidden { display: none !important; }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── Device detail drawer (new component) ─────────────────────────────── */
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 800; display: none; }
+    .drawer-overlay.open { display: block; }
+    .drawer {
+      position: fixed; top: 0; right: -480px; width: 460px; max-width: 92vw; height: 100vh;
+      background: var(--surface); border-left: 1px solid var(--border2); z-index: 900;
+      transition: right .25s ease; overflow-y: auto; box-shadow: -8px 0 24px rgba(0,0,0,.5);
+    }
+    .drawer.open { right: 0; }
+    .drawer-head { padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border); border-top: 3px solid var(--violet); position: sticky; top: 0; background: var(--surface); }
+    .drawer-title { font-family: var(--head); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .05em; }
+    .drawer-close { position: absolute; top: 1rem; right: 1.1rem; color: var(--muted); cursor: pointer; font-size: 18px; background: none; border: none; }
+    .drawer-close:hover { color: var(--red); }
+    .drawer-body { padding: 1.25rem; }
+    .kv { display: grid; grid-template-columns: 110px 1fr; gap: .4rem .75rem; font-size: 12px; margin-bottom: 1rem; }
+    .kv dt { color: var(--muted); font-size: 10px; letter-spacing: .15em; padding-top: 2px; }
+    .kv dd { color: var(--text); }
+    .cap-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; margin-bottom: .75rem; }
+    .cap-block h4 { font-family: var(--head); font-size: 12px; letter-spacing: .15em; color: var(--cyan); margin-bottom: .4rem; font-weight: 700; }
+    .cap-block.def h4 { color: var(--green); }
+    .cap-block p { font-size: 11px; color: var(--muted); line-height: 1.65; }
+
+    /* ── Liability modal (mirrors base.html, trimmed for review) ───────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border2); border-top: 3px solid var(--red); border-radius: 8px; width: 100%; max-width: 560px; }
+    .modal-head { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .modal-title { font-family: var(--head); font-size: 20px; font-weight: 700; color: var(--red); letter-spacing: .08em; }
+    .modal-sub { font-size: 10px; color: var(--muted); letter-spacing: .2em; margin-top: .25rem; }
+    .modal-body { padding: 1.25rem 1.5rem; font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .modal-body em { color: var(--orange); font-style: normal; }
+    .ack-row { display: flex; align-items: flex-start; gap: .6rem; margin-top: 1rem; cursor: pointer; }
+    .ack-row input { width: auto; margin-top: 3px; accent-color: var(--cyan); }
+    .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: .75rem; }
+    .btn-ack { flex: 1; padding: .65rem; border-radius: 4px; border: 1px solid var(--green); background: rgba(57,255,20,.06); color: var(--green); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+    .btn-ack:disabled { opacity: .3; cursor: not-allowed; border-color: var(--border2); color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<!-- ── Liability / Authorization Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="liability-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">⚠ AUTHORIZED USE ONLY</div>
+      <div class="modal-sub">// HAK5 PHYSICAL / RF MODULE // LIABILITY STATEMENT //</div>
+    </div>
+    <div class="modal-body">
+      The Physical / RF module deploys real keystroke-injection, network-implant, and
+      rogue-AP hardware against real systems. It is authorized for use in
+      <em>controlled, isolated, authorized training ranges only</em>. RF emissions
+      (WiFi Pineapple, O.MG, LAN Turtle 3G) can bypass wired network controls — confirm
+      range isolation before arming any device.
+      <label class="ack-row">
+        <input type="checkbox" id="ack-checkbox" onchange="toggleAck()">
+        <span>I am operating within an authorized, isolated training range and accept full
+        responsibility for all physical and RF operations conducted with this module.</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ack" id="ack-btn" disabled onclick="acceptAck()">✓ ACKNOWLEDGE &amp; PROCEED</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><span class="logo-hex">H3</span></div>
+    <div class="logo-name"><span>H3x</span>-Dash</div>
+    <div class="logo-sub">// PENETRATION FRAMEWORK //</div>
+    <div class="logo-version">v3.x + HAK5</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section">OPERATIONS</div>
+    <a href="#" class="nav-link"><span class="nav-icon">◈</span> Dashboard</a>
+    <a href="#" class="nav-link"><span class="nav-icon">◉</span> Scan</a>
+    <a href="#" class="nav-link"><span class="nav-icon">⚙</span> Enumerate</a>
+    <a href="#" class="nav-link"><span class="nav-icon">◇</span> Validate</a>
+    <a href="#" class="nav-link"><span class="nav-icon">⚡</span> Shell</a>
+    <a href="#" class="nav-link"><span class="nav-icon">🔑</span> Credentials</a>
+    <a href="#" class="nav-link"><span class="nav-icon">◎</span> Loot</a>
+
+    <div class="nav-section" style="margin-top:.5rem">PHYSICAL / RF &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
+    <a href="#" class="nav-link active"><span class="nav-icon">⌗</span> Implants</a>
+    <a href="#" class="nav-link" onclick="switchTab('wireless');return false;"><span class="nav-icon">📡</span> Wireless</a>
+    <a href="#" class="nav-link" onclick="switchTab('payloads');return false;"><span class="nav-icon">❏</span> Payloads</a>
+
+    <div class="nav-section" style="margin-top:.5rem">REFERENCE</div>
+    <a href="#" class="nav-link"><span class="nav-icon">▦</span> MSF Modules</a>
+  </nav>
+
+  <div class="msf-badge">
+    <div class="badge-label">HAK5 C2</div>
+    <div class="badge-val" id="c2-badge-val">● LOCAL (4 / 8 online)</div>
+  </div>
+</aside>
+
+<!-- ── Main ─────────────────────────────────────────────────────────────── -->
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-title"><span>⌗</span> Physical / RF — Hak5 Module</div>
+    <div class="topbar-right">
+      <span class="demo-ribbon">REVIEW MOCKUP · MOCK DATA</span>
+      <span class="text-muted" id="clock" style="font-size:11px;letter-spacing:.08em"></span>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- Sub-tab switcher -->
+    <div class="subtabs">
+      <button class="subtab active" data-tab="inventory" onclick="switchTab('inventory')">⌗ INVENTORY</button>
+      <button class="subtab" data-tab="payloads" onclick="switchTab('payloads')">❏ PAYLOAD LIBRARY</button>
+      <button class="subtab" data-tab="loot" onclick="switchTab('loot')">◎ LOOT INGESTION</button>
+      <button class="subtab" data-tab="wireless" onclick="switchTab('wireless')">📡 WIRELESS (PINEAPPLE)</button>
+    </div>
+
+    <!-- ════════════ VIEW: INVENTORY ════════════ -->
+    <section id="view-inventory">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">DEVICES ONLINE</div><div class="stat-val green" id="stat-online">4</div></div>
+        <div class="stat-card"><div class="stat-label">DEVICES TOTAL</div><div class="stat-val cyan" id="stat-total">8</div></div>
+        <div class="stat-card"><div class="stat-label">PAYLOADS STAGED</div><div class="stat-val violet" id="stat-staged">11</div></div>
+        <div class="stat-card"><div class="stat-label">LOOT ITEMS</div><div class="stat-val orange" id="stat-loot">7</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="accent">⌗</span> DEVICE INVENTORY
+          <span class="text-muted" style="margin-left:auto;font-size:10px">click a row for detail · capability tier drives available actions</span>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:60px">STATUS</th>
+                <th>DEVICE</th>
+                <th>TRANSPORT</th>
+                <th>CAPABILITY</th>
+                <th>ATT&CK</th>
+                <th>CONTROL</th>
+                <th style="width:220px">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-tbody"><!-- rendered by JS --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">▶</span> CONTROL-PLANE LOG</div>
+        <div class="panel-body">
+          <div class="terminal" id="inv-terminal"><span class="t-dim">// mock control plane — actions append here //</span>
+<span class="t-info">[hak5] connector registry loaded — 8 devices, 3 transports (ssh / rest / wifi)</span>
+<span class="t-ok">[c2]   local Cloud C2 reachable — 4 devices checked in</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════ VIEW: PAYLOAD LIBRARY ════════════ -->
+    <section id="view-payloads" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="accent">❏</span> PAYLOAD LIBRARY
+          <span class="text-muted" style="margin-left:auto;font-size:10px">pre-staged · offline · tagged by device + ATT&CK + countermeasure</span>
+        </div>
+        <div class="panel-body">
+          <div class="flex gap-1 mt-1" style="margin-bottom:1rem">
+            <input type="text" id="payload-search" placeholder="filter payloads…  e.g. quickcreds / responder / reverse" oninput="renderPayloads()">
+            <button class="btn btn-violet">+ IMPORT .TXT</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>PAYLOAD</th><th>DEVICE</th><th>LANG</th><th>ATT&CK</th><th>COUNTERMEASURE</th><th style="width:160px">ACTIONS</th></tr>
+            </thead>
+            <tbody id="payload-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════ VIEW: LOOT INGESTION ════════════ -->
+    <section id="view-loot" class="hidden">
+      <div class="col-2">
+        <div class="panel">
+          <div class="panel-header"><span class="accent">◎</span> INGESTED LOOT</div>
+          <div class="panel-body" style="padding:0">
+            <table class="data-table">
+              <thead><tr><th>SOURCE</th><th>TYPE</th><th>SUMMARY</th><th>ROUTE</th></tr></thead>
+              <tbody id="loot-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="accent">▶</span> INGEST PIPELINE</div>
+          <div class="panel-body">
+            <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
+              Loot pulled from implants is normalized into H3x-Dash's existing data model and
+              routed downstream automatically:
+            </p>
+            <div class="terminal" id="loot-terminal"><span class="t-dim">// click "SIMULATE INGEST" to watch the pipeline //</span></div>
+            <div class="flex gap-1 mt-2">
+              <button class="btn btn-green" onclick="simulateIngest()">▶ SIMULATE INGEST</button>
+              <button class="btn btn-cyan" onclick="document.getElementById('loot-terminal').innerHTML='<span class=&quot;t-dim&quot;>// cleared //</span>'">CLEAR</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════ VIEW: WIRELESS (PINEAPPLE) ════════════ -->
+    <section id="view-wireless" class="hidden">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">APS SEEN (2.4 / 5G)</div><div class="stat-val cyan" id="w-aps">23</div></div>
+        <div class="stat-card"><div class="stat-label">CLIENTS</div><div class="stat-val violet" id="w-clients">41</div></div>
+        <div class="stat-card"><div class="stat-label">HANDSHAKES</div><div class="stat-val green" id="w-hs">6</div></div>
+        <div class="stat-card"><div class="stat-label">PORTAL CREDS</div><div class="stat-val red" id="w-creds">3</div></div>
+      </div>
+
+      <div class="col-2">
+        <div class="panel">
+          <div class="panel-header"><span class="accent">📡</span> WIFI PINEAPPLE VII <span class="badge badge-green" style="margin-left:.5rem">DUAL-BAND</span></div>
+          <div class="panel-body">
+            <dl class="kv">
+              <dt>TRANSPORT</dt><dd class="text-cyan">REST API + SSH (172.16.42.1)</dd>
+              <dt>RADIOS</dt><dd>2.4 GHz onboard · 5 GHz adapter</dd>
+              <dt>STATUS</dt><dd><span class="status-dot pulse"></span> <span class="text-green">PineAP active — recon running</span></dd>
+              <dt>ATT&CK</dt><dd class="text-muted">T1557 · T1040 · T1110</dd>
+            </dl>
+            <div class="flex gap-1" style="flex-wrap:wrap">
+              <button class="btn btn-cyan btn-sm" onclick="wlog('recon scan dispatched (2.4 + 5 GHz)')">RECON SWEEP</button>
+              <button class="btn btn-violet btn-sm" onclick="wlog('PineAP evil-portal campaign armed')">EVIL PORTAL</button>
+              <button class="btn btn-orange btn-sm" onclick="wlog('handshake capture filter set')" style="border-color:var(--orange);color:var(--orange)">CAPTURE HS</button>
+              <button class="btn btn-green btn-sm" onclick="wlog('6 handshakes exported → /loot/handshakes → hashcat queue')">EXPORT → HASHCAT</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="accent">▶</span> PINEAPPLE FEED</div>
+          <div class="panel-body">
+            <div class="terminal" id="w-terminal" style="max-height:180px"><span class="t-dim">// REST API feed (mock) //</span>
+<span class="t-info">[pineap] survey: 23 APs (14×2.4 / 9×5G), 41 clients</span>
+<span class="t-warn">[pineap] WPA2 handshake captured — SSID "RANGE-LAB-7"</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">📡</span> RECON — ACCESS POINTS</div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table">
+            <thead><tr><th>SSID</th><th>BSSID</th><th>BAND</th><th>CH</th><th>ENC</th><th>CLIENTS</th><th>HANDSHAKE</th></tr></thead>
+            <tbody id="ap-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ── Device detail drawer ─────────────────────────────────────────────── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    <div class="drawer-title" id="d-title">Device</div>
+    <div class="text-muted" id="d-tagline" style="font-size:10px;letter-spacing:.15em;margin-top:.25rem"></div>
+  </div>
+  <div class="drawer-body" id="drawer-body"><!-- rendered by JS --></div>
+</aside>
+
+<script>
+/* ───────────────────────────────────────────────────────────────────────────
+   MOCK FIXTURES — replace with /api responses when backend connectors land.
+   Capability tier: 'full' (remote deploy+fire+loot) | 'managed' (ssh load+loot,
+   physical fire) | 'author' (offline authoring/encoding only).
+   ─────────────────────────────────────────────────────────────────────────── */
+const DEVICES = [
+  { id:'ducky', name:'USB Rubber Ducky', online:false, transport:'USB flash only',
+    cap:'HID injection', capBadge:'badge-danger', tier:'author',
+    attack:'T1200 · T1059', disguise:'USB thumb drive',
+    desc:'DuckyScript 3.0 keystroke injection. Registers as a HID keyboard and types payloads at machine speed. New gen adds onboard storage (keyboard + disk combo) and keystroke-reflection exfil.',
+    role:'Dashboard role: author / encode DuckyScript to inject.bin, track inventory & checkout. No remote control — physical insert only.',
+    defense:'USB device-control / HID allow-listing (GPO, BeamGun, USBGuard). Screen-lock discipline. BadUSB awareness training.',
+    actions:['author','encode'] },
+
+  { id:'bunny', name:'Bash Bunny Mark II', online:true, transport:'SSH (arming) 172.16.64.1',
+    cap:'HID + USB-Eth + storage', capBadge:'badge-danger', tier:'managed',
+    attack:'T1200 · T1557 · T1056', disguise:'USB stick',
+    desc:'Full Debian Linux on a USB stick. ATTACKMODE switches between HID keyboard, USB gigabit Ethernet (RNDIS/ECM), mass storage, serial. Mark II adds BLE. Signature attack: QuickCreds (Responder over rogue USB-NIC vs a LOCKED host).',
+    role:'Dashboard role: load payloads + pull loot over SSH (arming mode). Firing is via the physical 3-position slot switch.',
+    defense:'Disable LLMNR/NBT-NS, deny new USB network adapters, lock-screen creds hardening, device control.',
+    actions:['deploy','loot'] },
+
+  { id:'shark', name:'Shark Jack', online:true, transport:'SSH (arming) 172.16.24.1',
+    cap:'Network recon / exploit', capBadge:'badge-warning', tier:'managed',
+    attack:'T1200 · T1046', disguise:'Ethernet plug',
+    desc:'Pocket network attack tool with fold-out Ethernet + battery. Two-position switch: ATTACK (fires payload — default nmap sweep) and ARMING (config over USB-C). Bash payloads, drop-and-go internal recon.',
+    role:'Dashboard role: deploy payloads + pull nmap loot over SSH → feeds Scan model. Fire via physical switch.',
+    defense:'802.1X / NAC on switchports, port security (sticky MAC), disable unused jacks, rogue-device alerting.',
+    actions:['deploy','loot'] },
+
+  { id:'turtle', name:'LAN Turtle', online:true, transport:'SSH / Cloud C2',
+    cap:'Persistent implant', capBadge:'badge-violet', tier:'full',
+    attack:'T1200 · T1557 · T1071', disguise:'USB-Ethernet adapter',
+    desc:'Covert persistent network implant in a USB-to-Ethernet adapter body. Module system: autossh (reverse SSH), responder, nmap-scan, dns-spoof, meterpreter, ptunnel. 3G variant adds out-of-band cellular C2.',
+    role:'Dashboard role: full remote — enable modules, fire autossh foothold, pull loot, live status via Cloud C2.',
+    defense:'802.1X, NAC posture checks, MAC inventory/anomaly detection, egress filtering, disable USB-NIC class.',
+    actions:['deploy','fire','loot'] },
+
+  { id:'omg-plug', name:'O.MG Plug', online:true, transport:'WiFi web/WS API',
+    cap:'HID + keylog + WiFi', capBadge:'badge-danger', tier:'full',
+    attack:'T1200 · T1056.001', disguise:'USB wall charger',
+    desc:'Implant in a power-adapter body. DuckyScript 3.0 injection + hardware keylogging + WiFi C2 (AP + station). Web UI / WS API, remote trigger, exfil over WiFi, geofencing & self-destruct.',
+    role:'Dashboard role: full remote over WiFi API — push payload, trigger, pull keylog/exfil.',
+    defense:'USB device control, no untrusted chargers/cables, RF monitoring on range, physical inspection.',
+    actions:['deploy','fire','loot'] },
+
+  { id:'omg-adapter', name:'O.MG Adapter', online:false, transport:'WiFi web/WS API',
+    cap:'HID + keylog', capBadge:'badge-danger', tier:'full',
+    attack:'T1200 · T1056.001', disguise:'USB-A/C adapter nub',
+    desc:'Turns ANY ordinary cable into an O.MG implant. Same injection + keylog + WiFi C2 feature set as the line, with maximum deniability — the malicious part is the tiny adapter, not the cable.',
+    role:'Dashboard role: full remote over WiFi API — push payload, trigger, pull keylog/exfil.',
+    defense:'Cable/adapter provenance control, USB device control, RF sweep, supply-chain awareness.',
+    actions:['deploy','fire','loot'] },
+
+  { id:'omg-unblocker', name:'O.MG UnBlocker', online:true, transport:'WiFi web/WS API',
+    cap:'HID + keylog (decoy)', capBadge:'badge-danger', tier:'full',
+    attack:'T1200 · T1056.001', disguise:'USB "data blocker" / condom',
+    desc:'Shaped like a USB data-blocker — the exact device security-aware people use to charge safely — but is itself a full offensive implant. Premier supply-chain / "found device" social-engineering training prop.',
+    role:'Dashboard role: full remote over WiFi API. Excellent for blue-team "do not trust security-branded hardware" lessons.',
+    defense:'Procurement controls, never use found/borrowed accessories, RF monitoring, awareness training.',
+    actions:['deploy','fire','loot'] },
+
+  { id:'pineapple', name:'WiFi Pineapple VII', online:true, transport:'REST API + SSH 172.16.42.1',
+    cap:'Rogue AP / WiFi audit', capBadge:'badge-violet', tier:'full',
+    attack:'T1557 · T1040 · T1110', disguise:'(overt audit platform)',
+    desc:'Dual-band rogue-AP & WiFi audit platform (5 GHz adapter adds the second band). PineAP suite: evil twin, deauth, captive/evil portals, recon survey, WPA handshake / PMKID capture. REST API + SSH, Cloud C2 manageable.',
+    role:'Dashboard role: full remote via REST — recon, campaigns, handshake export → hashcat. See the Wireless tab.',
+    defense:'WPA3/802.1X-EAP, PMF (802.11w), rogue-AP detection (WIDS), client-side server-cert validation, user training on captive portals.',
+    actions:['recon','fire','loot'] },
+];
+
+const PAYLOADS = [
+  { name:'quickcreds.txt', device:'Bash Bunny', lang:'bash+QUACK', attack:'T1557', cm:'Disable LLMNR/NBT-NS' },
+  { name:'exfil-docs.txt', device:'Bash Bunny', lang:'bash+QUACK', attack:'T1052', cm:'USB mass-storage block' },
+  { name:'rev-shell-win.txt', device:'USB Rubber Ducky', lang:'DuckyScript 3.0', attack:'T1059.001', cm:'Constrained PowerShell / AMSI' },
+  { name:'disable-defender.txt', device:'USB Rubber Ducky', lang:'DuckyScript 3.0', attack:'T1562.001', cm:'Tamper protection ON' },
+  { name:'nmap-sweep.sh', device:'Shark Jack', lang:'bash', attack:'T1046', cm:'NAC / segmentation' },
+  { name:'loot-grab.sh', device:'Shark Jack', lang:'bash', attack:'T1046', cm:'Port security' },
+  { name:'autossh-foothold', device:'LAN Turtle', lang:'module', attack:'T1071', cm:'Egress filtering' },
+  { name:'responder.module', device:'LAN Turtle', lang:'module', attack:'T1557', cm:'Disable LLMNR/NBT-NS' },
+  { name:'keylog-exfil.txt', device:'O.MG Plug', lang:'DuckyScript 3.0', attack:'T1056.001', cm:'Device control' },
+  { name:'omg-rev-https.txt', device:'O.MG UnBlocker', lang:'DuckyScript 3.0', attack:'T1059', cm:'Untrusted-accessory policy' },
+  { name:'evil-portal-creds', device:'WiFi Pineapple VII', lang:'campaign', attack:'T1557', cm:'802.1X-EAP / user training' },
+];
+
+const LOOT = [
+  { src:'Bash Bunny', type:'NetNTLMv2', sum:'CORP\\jdoe — hash captured (locked host)', route:'→ Credentials → hashcat' },
+  { src:'Bash Bunny', type:'NetNTLMv2', sum:'CORP\\svc-backup — hash captured', route:'→ Credentials → hashcat' },
+  { src:'Shark Jack', type:'nmap', sum:'10.10.50.0/24 — 12 hosts, 38 open ports', route:'→ Scan → Enumerate' },
+  { src:'LAN Turtle', type:'nmap', sum:'10.10.60.0/24 — 7 hosts', route:'→ Scan → Enumerate' },
+  { src:'O.MG Plug', type:'keylog', sum:'1,204 keystrokes — clipboard + creds', route:'→ Credentials' },
+  { src:'WiFi Pineapple', type:'WPA handshake', sum:'SSID "RANGE-LAB-7" — full 4-way', route:'→ Loot → hashcat' },
+  { src:'WiFi Pineapple', type:'portal creds', sum:'3 captured (evil portal)', route:'→ Credentials' },
+];
+
+const APS = [
+  { ssid:'RANGE-LAB-7', bssid:'C2:9F:DB:11:04:7A', band:'5G', ch:36, enc:'WPA2', clients:6, hs:true },
+  { ssid:'RANGE-OPS', bssid:'A0:63:91:2C:88:1E', band:'2.4', ch:6, enc:'WPA2', clients:11, hs:true },
+  { ssid:'TRAINEE-BYOD', bssid:'F4:EC:38:5B:22:90', band:'2.4', ch:11, enc:'WPA2', clients:9, hs:false },
+  { ssid:'IOT-SEGMENT', bssid:'DC:A6:32:77:01:3B', band:'2.4', ch:1, enc:'WPA2', clients:14, hs:false },
+  { ssid:'RANGE-5G-LAB', bssid:'B8:27:EB:44:9C:05', band:'5G', ch:149, enc:'WPA3', clients:1, hs:false },
+  { ssid:'(hidden)', bssid:'00:11:22:33:44:55', band:'5G', ch:44, enc:'WPA2', clients:0, hs:false },
+];
+
+/* ── Renderers ──────────────────────────────────────────────────────────── */
+function tierBadge(t){
+  if(t==='full') return '<span class="badge badge-green">FULL REMOTE</span>';
+  if(t==='managed') return '<span class="badge badge-warning">SSH MANAGED</span>';
+  return '<span class="badge badge-muted">AUTHOR ONLY</span>';
+}
+function actionBtns(d){
+  const map = {
+    deploy:`<button class="btn btn-violet btn-sm" onclick="event.stopPropagation();act('${d.id}','deploy')">DEPLOY</button>`,
+    fire:`<button class="btn btn-red btn-sm" onclick="event.stopPropagation();act('${d.id}','fire')">FIRE</button>`,
+    loot:`<button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();act('${d.id}','loot')">PULL LOOT</button>`,
+    recon:`<button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();act('${d.id}','recon')">RECON</button>`,
+    author:`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();act('${d.id}','author')">AUTHOR</button>`,
+    encode:`<button class="btn btn-violet btn-sm" onclick="event.stopPropagation();act('${d.id}','encode')">ENCODE</button>`,
+  };
+  return d.actions.map(a=>map[a]).join(' ');
+}
+function renderInventory(){
+  document.getElementById('inventory-tbody').innerHTML = DEVICES.map(d=>`
+    <tr onclick="openDrawer('${d.id}')">
+      <td><span class="status-dot ${d.online?'pulse':'red'}"></span></td>
+      <td class="text-cyan">${d.name}<div class="text-muted" style="font-size:10px">${d.disguise}</div></td>
+      <td class="text-muted">${d.transport}</td>
+      <td><span class="badge ${d.capBadge}">${d.cap}</span></td>
+      <td class="text-muted" style="font-size:11px">${d.attack}</td>
+      <td>${tierBadge(d.tier)}</td>
+      <td>${actionBtns(d)}</td>
+    </tr>`).join('');
+  const online = DEVICES.filter(d=>d.online).length;
+  document.getElementById('stat-online').textContent = online;
+  document.getElementById('stat-total').textContent = DEVICES.length;
+  document.getElementById('c2-badge-val').textContent = `● LOCAL (${online} / ${DEVICES.length} online)`;
+}
+function renderPayloads(){
+  const q = (document.getElementById('payload-search').value||'').toLowerCase();
+  const rows = PAYLOADS.filter(p=>!q || (p.name+p.device+p.attack).toLowerCase().includes(q));
+  document.getElementById('payload-tbody').innerHTML = rows.map(p=>`
+    <tr>
+      <td class="text-cyan">${p.name}</td>
+      <td class="text-muted">${p.device}</td>
+      <td><span class="badge badge-info">${p.lang}</span></td>
+      <td class="text-muted">${p.attack}</td>
+      <td class="text-green" style="font-size:11px">${p.cm}</td>
+      <td>
+        <button class="btn btn-violet btn-sm" onclick="ilog('staged ${p.name} → device slot')">STAGE</button>
+        <button class="btn btn-cyan btn-sm">VIEW</button>
+      </td>
+    </tr>`).join('');
+}
+function renderLoot(){
+  document.getElementById('loot-tbody').innerHTML = LOOT.map(l=>`
+    <tr>
+      <td class="text-cyan">${l.src}</td>
+      <td><span class="badge badge-warning">${l.type}</span></td>
+      <td class="text-muted">${l.sum}</td>
+      <td class="text-green" style="font-size:11px">${l.route}</td>
+    </tr>`).join('');
+}
+function renderAPs(){
+  document.getElementById('ap-tbody').innerHTML = APS.map(a=>`
+    <tr>
+      <td class="text-cyan">${a.ssid}</td>
+      <td class="text-muted mono">${a.bssid}</td>
+      <td><span class="badge ${a.band==='5G'?'badge-violet':'badge-info'}">${a.band}</span></td>
+      <td>${a.ch}</td>
+      <td><span class="badge ${a.enc==='WPA3'?'badge-green':'badge-warning'}">${a.enc}</span></td>
+      <td>${a.clients}</td>
+      <td>${a.hs?'<span class="badge badge-green">CAPTURED</span>':'<span class="text-muted">—</span>'}</td>
+    </tr>`).join('');
+}
+
+/* ── Drawer ─────────────────────────────────────────────────────────────── */
+function openDrawer(id){
+  const d = DEVICES.find(x=>x.id===id); if(!d) return;
+  document.getElementById('d-title').textContent = d.name;
+  document.getElementById('d-tagline').textContent = '// '+d.disguise.toUpperCase()+' //';
+  document.getElementById('drawer-body').innerHTML = `
+    <dl class="kv">
+      <dt>STATUS</dt><dd><span class="status-dot ${d.online?'pulse':'red'}"></span> ${d.online?'<span class="text-green">ONLINE</span>':'<span class="text-red">OFFLINE</span>'}</dd>
+      <dt>TRANSPORT</dt><dd class="text-cyan">${d.transport}</dd>
+      <dt>CAPABILITY</dt><dd><span class="badge ${d.capBadge}">${d.cap}</span></dd>
+      <dt>CONTROL</dt><dd>${tierBadge(d.tier)}</dd>
+      <dt>ATT&CK</dt><dd class="text-muted">${d.attack}</dd>
+    </dl>
+    <div class="cap-block"><h4>OFFENSIVE PROFILE</h4><p>${d.desc}</p></div>
+    <div class="cap-block"><h4>DASHBOARD ROLE</h4><p>${d.role}</p></div>
+    <div class="cap-block def"><h4>BLUE-TEAM COUNTERMEASURE</h4><p>${d.defense}</p></div>
+    <div class="flex gap-1" style="flex-wrap:wrap;margin-top:1rem">${actionBtns(d)}</div>
+  `;
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+function switchTab(tab){
+  ['inventory','payloads','loot','wireless'].forEach(t=>{
+    document.getElementById('view-'+t).classList.toggle('hidden', t!==tab);
+  });
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+}
+
+/* ── Mock actions / logging ─────────────────────────────────────────────── */
+function ts(){ return new Date().toISOString().slice(11,19); }
+function logTo(elId, cls, msg){
+  const el = document.getElementById(elId);
+  el.innerHTML += `\n<span class="${cls}">[${ts()}] ${msg}</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+function ilog(m){ logTo('inv-terminal','t-ok',m); }
+function wlog(m){ logTo('w-terminal','t-info',m); }
+function act(id, action){
+  const d = DEVICES.find(x=>x.id===id);
+  const verbs = {
+    deploy:['t-info',`pushing payload to ${d.name} (${d.transport})…`],
+    fire:['t-warn',`FIRING payload on ${d.name} — watch MSF sessions for callback`],
+    loot:['t-ok',`pulling loot from ${d.name} → normalize → route downstream`],
+    recon:['t-info',`recon sweep dispatched on ${d.name}`],
+    author:['t-info',`opening DuckyScript 3.0 editor for ${d.name}`],
+    encode:['t-info',`encoding inject.bin for ${d.name}`],
+  };
+  const [cls,msg] = verbs[action] || ['t-dim',action];
+  switchTab('inventory');
+  ilog(msg);
+}
+function simulateIngest(){
+  const steps = [
+    ['t-info','[shark-jack] scp /root/loot/nmap.xml → ./loot/implants/'],
+    ['t-ok','[parse] 12 hosts / 38 ports → merged into Scan model'],
+    ['t-info','[bash-bunny] scp /root/loot/quickcreds/*.txt → ./loot/implants/'],
+    ['t-warn','[parse] 2 NetNTLMv2 hashes → Credentials + hashcat queue'],
+    ['t-info','[pineapple] REST GET /api/handshakes → ./loot/handshakes/'],
+    ['t-ok','[route] 6 handshakes → hashcat (offline, range GPU)'],
+    ['t-ok','[done] 7 loot items ingested, 0 errors'],
+  ];
+  const el = document.getElementById('loot-terminal');
+  el.innerHTML = '<span class="t-dim">// ingest pipeline (mock) //</span>';
+  steps.forEach((s,i)=> setTimeout(()=>logTo('loot-terminal',s[0],s[1]), i*450));
+}
+
+/* ── Liability modal ────────────────────────────────────────────────────── */
+function toggleAck(){ document.getElementById('ack-btn').disabled = !document.getElementById('ack-checkbox').checked; }
+function acceptAck(){
+  sessionStorage.setItem('hak5_ack','1');
+  const m = document.getElementById('liability-modal');
+  m.style.transition='opacity .3s'; m.style.opacity='0';
+  setTimeout(()=>m.style.display='none',300);
+}
+
+/* ── Boot ───────────────────────────────────────────────────────────────── */
+(function(){
+  if(sessionStorage.getItem('hak5_ack')) document.getElementById('liability-modal').style.display='none';
+  renderInventory(); renderPayloads(); renderLoot(); renderAPs();
+  function tick(){ const el=document.getElementById('clock'); if(el) el.textContent = new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'; }
+  tick(); setInterval(tick,1000);
+})();
+</script>
+</body>
+</html>
