@@ -1,205 +1,119 @@
 <!DOCTYPE html>
 <!--
   ─────────────────────────────────────────────────────────────────────────────
-  H3x-Dash · HAK5 ADDITION — STANDALONE REVIEW MOCKUP
+  H3x-Dash · HAK5 / SPECTRUM — STANDALONE REVIEW MOCKUP  (rev 2)
   ─────────────────────────────────────────────────────────────────────────────
-  This is a SELF-CONTAINED review artifact. Open it directly in a browser — no
-  Flask, no backend, no network required (air-gap friendly). All device data,
-  loot, and actions are MOCK fixtures so the operator can review layout, theme,
-  and interaction flow before any backend wiring is built.
+  Self-contained review artifact. Open directly in a browser — no Flask, no
+  backend, no network (air-gap friendly). All data are MOCK fixtures.
 
-  It deliberately reuses the exact design tokens, sidebar, topbar, and component
-  classes from templates/base.html so the proposed "Physical / RF" addition
-  renders identically to the rest of H3x-Dash. When approved, this single file
-  splits into:
-      templates/implants.html   (extends base.html, {% block content %})
-      templates/wireless.html   (extends base.html, {% block content %})
-      static/implants.js        (the JS below, talking to real /api endpoints)
-      modules/implant_engine.py (device connectors: SSH / REST / WiFi)
+  rev 2 changes (operator feedback):
+    1. Section renamed PHYSICAL / RF  ->  HAK5 / SPECTRUM
+    2. Device Inventory is now a +/- TREE: product node -> instances, with
+       per-instance rename (e.g. two Bash Bunnies: "yours" and "soldier's")
+    3. Payload Library gains a "compatible product" filter
+    4. Loot Ingestion gains a CONNECT VALIDATION gate (callback verified first)
+    5. Wireless: Evil Portal is configurable + Deauth Credential Harvest added
 
-  Fonts are referenced from Google Fonts with full system fallbacks so this
-  review file still renders on an offline range. On the real range, self-host
-  the two fonts under /static/fonts.
+  The real build mirrors this 1:1 against live APIs:
+    templates/implants.html   static/implants.js   modules/implant_engine.py
   ─────────────────────────────────────────────────────────────────────────────
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>H3x-Dash — Hak5 Addition (Review)</title>
+  <title>H3x-Dash — Hak5 / Spectrum (Review)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* ── Reset ────────────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    /* ── Color tokens (mirrors base.html) ─────────────────────────────────── */
     :root {
-      --bg:       #0d0d12;
-      --surface:  #13131a;
-      --surface2: #1a1a24;
-      --border:   #1e1e2e;
-      --border2:  #2a2a3e;
-      --cyan:     #0ff0fc;
-      --violet:   #9b30ff;
-      --green:    #39ff14;
-      --red:      #ff4444;
-      --orange:   #ff8c00;
-      --text:     #c8d6e0;
-      --muted:    #4a5060;
-      --mono:     "Share Tech Mono", "Courier New", monospace;
-      --head:     "Rajdhani", "Segoe UI", sans-serif;
+      --bg:#0d0d12; --surface:#13131a; --surface2:#1a1a24; --border:#1e1e2e; --border2:#2a2a3e;
+      --cyan:#0ff0fc; --violet:#9b30ff; --green:#39ff14; --red:#ff4444; --orange:#ff8c00;
+      --text:#c8d6e0; --muted:#4a5060;
+      --mono:"Share Tech Mono","Courier New",monospace; --head:"Rajdhani","Segoe UI",sans-serif;
     }
-
     html, body { height: 100%; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 13px;
-      display: flex;
-      overflow: hidden;
-    }
+    body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; display: flex; overflow: hidden; }
 
-    /* ── Sidebar ──────────────────────────────────────────────────────────── */
-    .sidebar {
-      width: 220px; min-width: 220px;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      height: 100vh; overflow-y: auto;
-    }
+    /* Sidebar */
+    .sidebar { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
     .sidebar-logo { padding: 1.25rem 1rem 1rem; border-bottom: 1px solid var(--border); }
-    .logo-icon {
-      display: flex; align-items: center; justify-content: center;
-      width: 42px; height: 42px; border: 1.5px solid var(--cyan);
-      border-radius: 6px; position: relative; margin-bottom: 10px;
-    }
-    .logo-icon::before {
-      content: ''; position: absolute; inset: 4px;
-      border: 1px solid var(--violet); border-radius: 3px;
-    }
+    .logo-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1.5px solid var(--cyan); border-radius: 6px; position: relative; margin-bottom: 10px; }
+    .logo-icon::before { content: ''; position: absolute; inset: 4px; border: 1px solid var(--violet); border-radius: 3px; }
     .logo-hex { font-family: var(--head); font-size: 17px; font-weight: 700; color: var(--green); position: relative; z-index: 1; }
     .logo-name { font-family: var(--head); font-size: 22px; font-weight: 700; color: #fff; letter-spacing: .06em; line-height: 1; }
     .logo-name span { color: var(--cyan); }
     .logo-sub { font-size: 9px; color: var(--violet); letter-spacing: .2em; margin-top: 3px; }
-    .logo-version {
-      display: inline-block; margin-top: 6px; padding: 1px 7px; font-size: 9px;
-      letter-spacing: .12em; color: var(--green); border: 1px solid var(--border2);
-      border-radius: 3px; background: rgba(57,255,20,.05);
-    }
-
+    .logo-version { display: inline-block; margin-top: 6px; padding: 1px 7px; font-size: 9px; letter-spacing: .12em; color: var(--green); border: 1px solid var(--border2); border-radius: 3px; background: rgba(57,255,20,.05); }
     .nav { flex: 1; padding: 1rem 0; }
     .nav-section { font-size: 9px; color: var(--muted); letter-spacing: .25em; padding: .5rem 1rem .25rem; }
-    .nav-link {
-      display: flex; align-items: center; gap: 10px; padding: .55rem 1rem;
-      color: var(--muted); text-decoration: none; font-size: 12px; letter-spacing: .05em;
-      border-left: 2px solid transparent; transition: color .15s, border-color .15s, background .15s;
-    }
+    .nav-link { display: flex; align-items: center; gap: 10px; padding: .55rem 1rem; color: var(--muted); text-decoration: none; font-size: 12px; letter-spacing: .05em; border-left: 2px solid transparent; transition: color .15s, border-color .15s, background .15s; }
     .nav-link:hover { color: var(--cyan); background: rgba(15,240,252,.04); }
     .nav-link.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(15,240,252,.06); }
     .nav-icon { width: 16px; text-align: center; font-size: 14px; }
-
     .msf-badge { margin: auto 1rem 1rem; padding: .5rem .75rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 10px; }
     .msf-badge .badge-label { color: var(--muted); letter-spacing: .15em; }
     .msf-badge .badge-val { color: var(--green); margin-top: 2px; }
-    .msf-badge .badge-val.disconnected { color: var(--red); }
 
-    /* ── Main area ────────────────────────────────────────────────────────── */
+    /* Main */
     .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .topbar {
-      display: flex; align-items: center; gap: 1rem; padding: .75rem 1.5rem;
-      background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
-    }
+    .topbar { display: flex; align-items: center; gap: 1rem; padding: .75rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .topbar-title { font-family: var(--head); font-size: 18px; font-weight: 500; color: #fff; letter-spacing: .05em; }
     .topbar-title span { color: var(--cyan); }
     .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 1rem; }
-    .demo-ribbon {
-      font-size: 9px; letter-spacing: .2em; color: var(--orange);
-      border: 1px solid var(--orange); background: #140a00;
-      padding: 2px 8px; border-radius: 3px;
-    }
+    .demo-ribbon { font-size: 9px; letter-spacing: .2em; color: var(--orange); border: 1px solid var(--orange); background: #140a00; padding: 2px 8px; border-radius: 3px; }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px rgba(57,255,20,.2); display: inline-block; }
     .status-dot.red { background: var(--red); box-shadow: 0 0 0 2px rgba(255,68,68,.2); }
     .status-dot.orange { background: var(--orange); box-shadow: 0 0 0 2px rgba(255,140,0,.2); }
     .status-dot.pulse { animation: pulse 1.8s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-
     .content { flex: 1; overflow-y: auto; padding: 1.5rem; }
 
-    /* ── Cards / panels ───────────────────────────────────────────────────── */
+    /* Panels / cards */
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-    .panel-header {
-      display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem;
-      border-bottom: 1px solid var(--border); font-size: 10px; color: var(--muted); letter-spacing: .2em;
-    }
+    .panel-header { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--muted); letter-spacing: .2em; }
     .panel-header .accent { color: var(--cyan); }
     .panel-body { padding: 1rem; }
-
     .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
     .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 4px; }
     .stat-label { font-size: 9px; color: var(--muted); letter-spacing: .2em; }
     .stat-val { font-family: var(--head); font-size: 32px; font-weight: 700; line-height: 1; color: #fff; }
-    .stat-val.cyan { color: var(--cyan); } .stat-val.violet { color: var(--violet); }
-    .stat-val.green { color: var(--green); } .stat-val.red { color: var(--red); } .stat-val.orange { color: var(--orange); }
+    .stat-val.cyan { color: var(--cyan); } .stat-val.violet { color: var(--violet); } .stat-val.green { color: var(--green); } .stat-val.red { color: var(--red); } .stat-val.orange { color: var(--orange); }
 
-    /* ── Forms / buttons ──────────────────────────────────────────────────── */
-    input[type=text], select, textarea {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
-      color: var(--cyan); font-family: var(--mono); font-size: 12px; padding: .5rem .75rem;
-      width: 100%; outline: none; transition: border-color .15s;
-    }
-    input[type=text]:focus, select:focus, textarea:focus { border-color: var(--cyan); }
+    /* Forms / buttons */
+    input[type=text], input[type=number], select, textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--cyan); font-family: var(--mono); font-size: 12px; padding: .5rem .75rem; width: 100%; outline: none; transition: border-color .15s; }
+    input:focus, select:focus, textarea:focus { border-color: var(--cyan); }
     select option { background: var(--surface); }
-
-    .btn {
-      display: inline-flex; align-items: center; gap: .5rem; padding: .45rem 1rem; border-radius: 4px;
-      border: 1px solid var(--border2); background: transparent; color: var(--text);
-      font-family: var(--mono); font-size: 11px; letter-spacing: .05em; cursor: pointer;
-      transition: border-color .15s, color .15s, background .15s; white-space: nowrap;
-    }
+    label.fld { font-size: 9px; color: var(--muted); letter-spacing: .2em; display: block; margin-bottom: 4px; }
+    .form-row { margin-bottom: .9rem; }
+    .btn { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem 1rem; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--text); font-family: var(--mono); font-size: 11px; letter-spacing: .05em; cursor: pointer; transition: border-color .15s, color .15s, background .15s; white-space: nowrap; }
     .btn:hover { background: var(--surface2); }
-    .btn-cyan { border-color: var(--cyan); color: var(--cyan); }
-    .btn-cyan:hover { background: rgba(15,240,252,.08); }
-    .btn-green { border-color: var(--green); color: var(--green); }
-    .btn-green:hover { background: rgba(57,255,20,.08); }
-    .btn-red { border-color: var(--red); color: var(--red); }
-    .btn-red:hover { background: rgba(255,68,68,.08); }
-    .btn-violet { border-color: var(--violet); color: var(--violet); }
-    .btn-violet:hover { background: rgba(155,48,255,.08); }
+    .btn-cyan { border-color: var(--cyan); color: var(--cyan); } .btn-cyan:hover { background: rgba(15,240,252,.08); }
+    .btn-green { border-color: var(--green); color: var(--green); } .btn-green:hover { background: rgba(57,255,20,.08); }
+    .btn-red { border-color: var(--red); color: var(--red); } .btn-red:hover { background: rgba(255,68,68,.08); }
+    .btn-violet { border-color: var(--violet); color: var(--violet); } .btn-violet:hover { background: rgba(155,48,255,.08); }
+    .btn-orange { border-color: var(--orange); color: var(--orange); } .btn-orange:hover { background: rgba(255,140,0,.08); }
     .btn:disabled { opacity: .35; cursor: not-allowed; }
     .btn-sm { padding: .25rem .6rem; font-size: 10px; }
 
-    /* ── Sub-tabs (new component) ─────────────────────────────────────────── */
+    /* Sub-tabs */
     .subtabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
-    .subtab {
-      padding: .45rem 1rem; border: 1px solid var(--border2); border-radius: 4px;
-      background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px;
-      letter-spacing: .08em; cursor: pointer; transition: all .15s;
-    }
+    .subtab { padding: .45rem 1rem; border: 1px solid var(--border2); border-radius: 4px; background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; cursor: pointer; transition: all .15s; }
     .subtab:hover { color: var(--cyan); border-color: var(--cyan); }
     .subtab.active { color: var(--bg); background: var(--cyan); border-color: var(--cyan); font-weight: 700; }
 
-    /* ── Terminal ─────────────────────────────────────────────────────────── */
-    .terminal {
-      background: #080810; border: 1px solid var(--border); border-left: 3px solid var(--green);
-      border-radius: 6px; padding: .75rem 1rem; font-size: 11px; color: var(--green);
-      overflow-y: auto; max-height: 280px; white-space: pre-wrap; word-break: break-all; line-height: 1.6;
-    }
-    .terminal .t-err { color: var(--red); } .terminal .t-warn { color: var(--orange); }
-    .terminal .t-info { color: var(--cyan); } .terminal .t-dim { color: var(--muted); }
-    .terminal .t-ok { color: var(--green); }
+    /* Terminal */
+    .terminal { background: #080810; border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 6px; padding: .75rem 1rem; font-size: 11px; color: var(--green); overflow-y: auto; max-height: 280px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+    .terminal .t-err { color: var(--red); } .terminal .t-warn { color: var(--orange); } .terminal .t-info { color: var(--cyan); } .terminal .t-dim { color: var(--muted); } .terminal .t-ok { color: var(--green); }
 
-    /* ── Tables ───────────────────────────────────────────────────────────── */
+    /* Tables */
     .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .data-table th { padding: .4rem .75rem; text-align: left; color: var(--muted); font-size: 9px; letter-spacing: .2em; border-bottom: 1px solid var(--border); font-weight: 400; }
     .data-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border2); vertical-align: middle; }
     .data-table tr:last-child td { border-bottom: none; }
-    .data-table tbody tr { cursor: pointer; }
-    .data-table tbody tr:hover td { background: rgba(15,240,252,.04); }
-    .data-table tr.selected td { background: rgba(155,48,255,.08); }
 
-    /* ── Badges ───────────────────────────────────────────────────────────── */
+    /* Badges */
     .badge { display: inline-block; font-size: 9px; padding: 1px 7px; border-radius: 3px; letter-spacing: .12em; border: 1px solid; }
     .badge-danger { color: var(--red); border-color: var(--red); background: #1a0000; }
     .badge-warning { color: var(--orange); border-color: var(--orange); background: #140a00; }
@@ -208,45 +122,43 @@
     .badge-violet { color: var(--violet); border-color: var(--violet); background: #0e0018; }
     .badge-muted { color: var(--muted); border-color: var(--border2); background: var(--surface2); }
 
-    /* ── Utilities ────────────────────────────────────────────────────────── */
+    /* Utilities */
     .mt-1 { margin-top: .5rem; } .mt-2 { margin-top: 1rem; } .mt-3 { margin-top: 1.5rem; }
     .flex { display: flex; } .gap-1 { gap: .5rem; } .gap-2 { gap: 1rem; }
     .items-center { align-items: center; } .ml-auto { margin-left: auto; }
-    .text-muted { color: var(--muted); } .text-cyan { color: var(--cyan); }
-    .text-green { color: var(--green); } .text-red { color: var(--red); }
-    .text-violet { color: var(--violet); } .text-orange { color: var(--orange); }
+    .text-muted { color: var(--muted); } .text-cyan { color: var(--cyan); } .text-green { color: var(--green); } .text-red { color: var(--red); } .text-violet { color: var(--violet); } .text-orange { color: var(--orange); }
     .mono { font-family: var(--mono); }
     .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .col-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
     .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    /* ── Inventory TREE (rev 2) ─────────────────────────────────────────── */
+    .tree { font-size: 12px; }
+    .tree-product { border-bottom: 1px solid var(--border); }
+    .tree-prod-row { display: flex; align-items: center; gap: .6rem; padding: .6rem .9rem; cursor: pointer; user-select: none; }
+    .tree-prod-row:hover { background: rgba(15,240,252,.04); }
+    .tree-toggle { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border2); border-radius: 3px; color: var(--cyan); font-size: 13px; flex-shrink: 0; }
+    .tree-prod-name { color: #fff; font-family: var(--head); font-size: 14px; letter-spacing: .03em; }
+    .tree-prod-meta { color: var(--muted); font-size: 10px; }
+    .tree-children { background: #0a0a10; border-top: 1px dashed var(--border2); }
+    .tree-children.collapsed { display: none; }
+    .tree-inst { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem .5rem 2.6rem; border-bottom: 1px solid var(--border2); }
+    .tree-inst:last-child { border-bottom: none; }
+    .tree-inst:hover { background: rgba(155,48,255,.05); }
+    .inst-id { color: var(--cyan); font-weight: 700; min-width: 150px; cursor: text; border: 1px solid transparent; border-radius: 3px; padding: 1px 5px; }
+    .inst-id:hover { border-color: var(--border2); }
+    .inst-id-input { min-width: 150px; background: var(--surface2); border: 1px solid var(--cyan); border-radius: 3px; color: var(--cyan); font-family: var(--mono); font-size: 12px; padding: 1px 5px; }
+    .tree-addrow { padding: .45rem .9rem .55rem 2.6rem; }
+    .pill { font-size: 9px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--border2); color: var(--muted); letter-spacing: .1em; }
 
-    /* ── Device detail drawer (new component) ─────────────────────────────── */
-    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 800; display: none; }
-    .drawer-overlay.open { display: block; }
-    .drawer {
-      position: fixed; top: 0; right: -480px; width: 460px; max-width: 92vw; height: 100vh;
-      background: var(--surface); border-left: 1px solid var(--border2); z-index: 900;
-      transition: right .25s ease; overflow-y: auto; box-shadow: -8px 0 24px rgba(0,0,0,.5);
-    }
-    .drawer.open { right: 0; }
-    .drawer-head { padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border); border-top: 3px solid var(--violet); position: sticky; top: 0; background: var(--surface); }
-    .drawer-title { font-family: var(--head); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .05em; }
-    .drawer-close { position: absolute; top: 1rem; right: 1.1rem; color: var(--muted); cursor: pointer; font-size: 18px; background: none; border: none; }
-    .drawer-close:hover { color: var(--red); }
-    .drawer-body { padding: 1.25rem; }
-    .kv { display: grid; grid-template-columns: 110px 1fr; gap: .4rem .75rem; font-size: 12px; margin-bottom: 1rem; }
-    .kv dt { color: var(--muted); font-size: 10px; letter-spacing: .15em; padding-top: 2px; }
-    .kv dd { color: var(--text); }
-    .cap-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; margin-bottom: .75rem; }
-    .cap-block h4 { font-family: var(--head); font-size: 12px; letter-spacing: .15em; color: var(--cyan); margin-bottom: .4rem; font-weight: 700; }
-    .cap-block.def h4 { color: var(--green); }
-    .cap-block p { font-size: 11px; color: var(--muted); line-height: 1.65; }
+    /* Wireless config forms */
+    .cfg { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+    .chk { display: inline-flex; align-items: center; gap: .35rem; font-size: 11px; color: var(--text); margin-right: 1rem; cursor: pointer; }
+    .chk input { width: auto; accent-color: var(--cyan); }
+    .switch-lbl { font-size: 11px; color: var(--text); }
 
-    /* ── Liability modal (mirrors base.html, trimmed for review) ───────────── */
+    /* Liability modal */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
     .modal-box { background: var(--surface); border: 1px solid var(--border2); border-top: 3px solid var(--red); border-radius: 8px; width: 100%; max-width: 560px; }
     .modal-head { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
@@ -263,16 +175,16 @@
 </head>
 <body>
 
-<!-- ── Liability / Authorization Modal ──────────────────────────────────── -->
+<!-- Liability modal -->
 <div class="modal-overlay" id="liability-modal">
   <div class="modal-box">
     <div class="modal-head">
       <div class="modal-title">⚠ AUTHORIZED USE ONLY</div>
-      <div class="modal-sub">// HAK5 PHYSICAL / RF MODULE // LIABILITY STATEMENT //</div>
+      <div class="modal-sub">// HAK5 / SPECTRUM MODULE // LIABILITY STATEMENT //</div>
     </div>
     <div class="modal-body">
-      The Physical / RF module deploys real keystroke-injection, network-implant, and
-      rogue-AP hardware against real systems. It is authorized for use in
+      The Hak5 / Spectrum module deploys real keystroke-injection, network-implant, and
+      rogue-AP / RF hardware against real systems. Authorized for use in
       <em>controlled, isolated, authorized training ranges only</em>. RF emissions
       (WiFi Pineapple, O.MG, LAN Turtle 3G) can bypass wired network controls — confirm
       range isolation before arming any device.
@@ -288,7 +200,7 @@
   </div>
 </div>
 
-<!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+<!-- Sidebar -->
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-icon"><span class="logo-hex">H3</span></div>
@@ -296,7 +208,6 @@
     <div class="logo-sub">// PENETRATION FRAMEWORK //</div>
     <div class="logo-version">v3.x + HAK5</div>
   </div>
-
   <nav class="nav">
     <div class="nav-section">OPERATIONS</div>
     <a href="#" class="nav-link"><span class="nav-icon">◈</span> Dashboard</a>
@@ -307,25 +218,25 @@
     <a href="#" class="nav-link"><span class="nav-icon">🔑</span> Credentials</a>
     <a href="#" class="nav-link"><span class="nav-icon">◎</span> Loot</a>
 
-    <div class="nav-section" style="margin-top:.5rem">PHYSICAL / RF &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
-    <a href="#" class="nav-link active"><span class="nav-icon">⌗</span> Implants</a>
-    <a href="#" class="nav-link" onclick="switchTab('wireless');return false;"><span class="nav-icon">📡</span> Wireless</a>
+    <div class="nav-section" style="margin-top:.5rem">HAK5 / SPECTRUM &nbsp;<span class="badge badge-green" style="font-size:8px">NEW</span></div>
+    <a href="#" class="nav-link active" onclick="switchTab('inventory');return false;"><span class="nav-icon">⌗</span> Implants</a>
     <a href="#" class="nav-link" onclick="switchTab('payloads');return false;"><span class="nav-icon">❏</span> Payloads</a>
+    <a href="#" class="nav-link" onclick="switchTab('loot');return false;"><span class="nav-icon">◎</span> Loot Ingest</a>
+    <a href="#" class="nav-link" onclick="switchTab('wireless');return false;"><span class="nav-icon">📡</span> Spectrum</a>
 
     <div class="nav-section" style="margin-top:.5rem">REFERENCE</div>
     <a href="#" class="nav-link"><span class="nav-icon">▦</span> MSF Modules</a>
   </nav>
-
   <div class="msf-badge">
     <div class="badge-label">HAK5 C2</div>
-    <div class="badge-val" id="c2-badge-val">● LOCAL (4 / 8 online)</div>
+    <div class="badge-val" id="c2-badge-val">● LOCAL</div>
   </div>
 </aside>
 
-<!-- ── Main ─────────────────────────────────────────────────────────────── -->
+<!-- Main -->
 <div class="main">
   <header class="topbar">
-    <div class="topbar-title"><span>⌗</span> Physical / RF — Hak5 Module</div>
+    <div class="topbar-title"><span>⌗</span> Hak5 / Spectrum</div>
     <div class="topbar-right">
       <span class="demo-ribbon">REVIEW MOCKUP · MOCK DATA</span>
       <span class="text-muted" id="clock" style="font-size:11px;letter-spacing:.08em"></span>
@@ -333,44 +244,29 @@
   </header>
 
   <div class="content">
-
-    <!-- Sub-tab switcher -->
     <div class="subtabs">
       <button class="subtab active" data-tab="inventory" onclick="switchTab('inventory')">⌗ INVENTORY</button>
       <button class="subtab" data-tab="payloads" onclick="switchTab('payloads')">❏ PAYLOAD LIBRARY</button>
       <button class="subtab" data-tab="loot" onclick="switchTab('loot')">◎ LOOT INGESTION</button>
-      <button class="subtab" data-tab="wireless" onclick="switchTab('wireless')">📡 WIRELESS (PINEAPPLE)</button>
+      <button class="subtab" data-tab="wireless" onclick="switchTab('wireless')">📡 SPECTRUM (PINEAPPLE)</button>
     </div>
 
-    <!-- ════════════ VIEW: INVENTORY ════════════ -->
+    <!-- ════════════ INVENTORY (TREE) ════════════ -->
     <section id="view-inventory">
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-label">DEVICES ONLINE</div><div class="stat-val green" id="stat-online">4</div></div>
-        <div class="stat-card"><div class="stat-label">DEVICES TOTAL</div><div class="stat-val cyan" id="stat-total">8</div></div>
-        <div class="stat-card"><div class="stat-label">PAYLOADS STAGED</div><div class="stat-val violet" id="stat-staged">11</div></div>
+        <div class="stat-card"><div class="stat-label">PRODUCTS</div><div class="stat-val cyan" id="stat-products">8</div></div>
+        <div class="stat-card"><div class="stat-label">INSTANCES ONLINE</div><div class="stat-val green" id="stat-online">0</div></div>
+        <div class="stat-card"><div class="stat-label">INSTANCES TOTAL</div><div class="stat-val violet" id="stat-total">0</div></div>
         <div class="stat-card"><div class="stat-label">LOOT ITEMS</div><div class="stat-val orange" id="stat-loot">7</div></div>
       </div>
 
       <div class="panel">
         <div class="panel-header">
-          <span class="accent">⌗</span> DEVICE INVENTORY
-          <span class="text-muted" style="margin-left:auto;font-size:10px">click a row for detail · capability tier drives available actions</span>
+          <span class="accent">⌗</span> DEVICE INVENTORY — TREE
+          <span class="text-muted" style="margin-left:auto;font-size:10px">click ＋/－ to expand a product · click an instance ID to rename</span>
         </div>
         <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width:60px">STATUS</th>
-                <th>DEVICE</th>
-                <th>TRANSPORT</th>
-                <th>CAPABILITY</th>
-                <th>ATT&CK</th>
-                <th>CONTROL</th>
-                <th style="width:220px">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody id="inventory-tbody"><!-- rendered by JS --></tbody>
-          </table>
+          <div class="tree" id="tree"><!-- rendered by JS --></div>
         </div>
       </div>
 
@@ -378,35 +274,34 @@
         <div class="panel-header"><span class="accent">▶</span> CONTROL-PLANE LOG</div>
         <div class="panel-body">
           <div class="terminal" id="inv-terminal"><span class="t-dim">// mock control plane — actions append here //</span>
-<span class="t-info">[hak5] connector registry loaded — 8 devices, 3 transports (ssh / rest / wifi)</span>
-<span class="t-ok">[c2]   local Cloud C2 reachable — 4 devices checked in</span></div>
+<span class="t-info">[hak5] connector registry loaded — 8 products, 3 transports (ssh / rest / wifi)</span></div>
         </div>
       </div>
     </section>
 
-    <!-- ════════════ VIEW: PAYLOAD LIBRARY ════════════ -->
+    <!-- ════════════ PAYLOAD LIBRARY ════════════ -->
     <section id="view-payloads" class="hidden">
       <div class="panel">
         <div class="panel-header">
           <span class="accent">❏</span> PAYLOAD LIBRARY
-          <span class="text-muted" style="margin-left:auto;font-size:10px">pre-staged · offline · tagged by device + ATT&CK + countermeasure</span>
+          <span class="text-muted" style="margin-left:auto;font-size:10px">pre-staged · offline · build target for a later phase</span>
         </div>
         <div class="panel-body">
-          <div class="flex gap-1 mt-1" style="margin-bottom:1rem">
-            <input type="text" id="payload-search" placeholder="filter payloads…  e.g. quickcreds / responder / reverse" oninput="renderPayloads()">
-            <button class="btn btn-violet">+ IMPORT .TXT</button>
+          <div class="flex gap-1" style="margin-bottom:1rem">
+            <div style="flex:2"><label class="fld">SEARCH</label>
+              <input type="text" id="payload-search" placeholder="filter… e.g. quickcreds / responder / reverse" oninput="renderPayloads()"></div>
+            <div style="flex:1"><label class="fld">COMPATIBLE PRODUCT</label>
+              <select id="payload-product" onchange="renderPayloads()"></select></div>
           </div>
           <table class="data-table">
-            <thead>
-              <tr><th>PAYLOAD</th><th>DEVICE</th><th>LANG</th><th>ATT&CK</th><th>COUNTERMEASURE</th><th style="width:160px">ACTIONS</th></tr>
-            </thead>
+            <thead><tr><th>PAYLOAD</th><th>COMPATIBLE</th><th>LANG</th><th>ATT&CK</th><th>COUNTERMEASURE</th><th style="width:150px">ACTIONS</th></tr></thead>
             <tbody id="payload-tbody"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ════════════ VIEW: LOOT INGESTION ════════════ -->
+    <!-- ════════════ LOOT INGESTION ════════════ -->
     <section id="view-loot" class="hidden">
       <div class="col-2">
         <div class="panel">
@@ -419,23 +314,26 @@
           </div>
         </div>
         <div class="panel">
-          <div class="panel-header"><span class="accent">▶</span> INGEST PIPELINE</div>
+          <div class="panel-header"><span class="accent">▶</span> INGEST PIPELINE
+            <span class="text-muted" style="margin-left:auto;font-size:10px">connect-validate gates ingest</span>
+          </div>
           <div class="panel-body">
             <p class="text-muted" style="font-size:11px;line-height:1.7;margin-bottom:.75rem">
-              Loot pulled from implants is normalized into H3x-Dash's existing data model and
-              routed downstream automatically:
+              Step 1 validates the callback to each online source (reachability + handshake) before
+              any pull. Ingest stays disabled until validation passes — no blind pulls.
             </p>
-            <div class="terminal" id="loot-terminal"><span class="t-dim">// click "SIMULATE INGEST" to watch the pipeline //</span></div>
-            <div class="flex gap-1 mt-2">
-              <button class="btn btn-green" onclick="simulateIngest()">▶ SIMULATE INGEST</button>
-              <button class="btn btn-cyan" onclick="document.getElementById('loot-terminal').innerHTML='<span class=&quot;t-dim&quot;>// cleared //</span>'">CLEAR</button>
+            <div class="flex gap-1" style="margin-bottom:.75rem">
+              <button class="btn btn-cyan" id="btn-validate" onclick="validateConnections()">① VALIDATE CONNECT</button>
+              <button class="btn btn-green" id="btn-ingest" disabled onclick="simulateIngest()">② RUN INGEST ▶</button>
+              <button class="btn" onclick="clearLootTerm()">CLEAR</button>
             </div>
+            <div class="terminal" id="loot-terminal"><span class="t-dim">// click VALIDATE CONNECT to verify callbacks //</span></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ════════════ VIEW: WIRELESS (PINEAPPLE) ════════════ -->
+    <!-- ════════════ SPECTRUM / WIRELESS ════════════ -->
     <section id="view-wireless" class="hidden">
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">APS SEEN (2.4 / 5G)</div><div class="stat-val cyan" id="w-aps">23</div></div>
@@ -444,30 +342,84 @@
         <div class="stat-card"><div class="stat-label">PORTAL CREDS</div><div class="stat-val red" id="w-creds">3</div></div>
       </div>
 
-      <div class="col-2">
+      <div class="panel">
+        <div class="panel-header"><span class="accent">📡</span> WIFI PINEAPPLE VII <span class="badge badge-green" style="margin-left:.5rem">DUAL-BAND</span>
+          <span class="text-muted" style="margin-left:auto;font-size:10px"><span class="status-dot pulse"></span> PineAP active · REST 172.16.42.1:1471</span>
+        </div>
+        <div class="panel-body">
+          <div class="flex gap-1" style="flex-wrap:wrap">
+            <button class="btn btn-cyan btn-sm" onclick="wlog('recon scan dispatched (2.4 + 5 GHz)')">RECON SWEEP</button>
+            <button class="btn btn-green btn-sm" onclick="wlog('6 handshakes exported → /loot/handshakes → hashcat queue')">EXPORT → HASHCAT</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-2 mt-2">
+        <!-- Evil Portal config -->
         <div class="panel">
-          <div class="panel-header"><span class="accent">📡</span> WIFI PINEAPPLE VII <span class="badge badge-green" style="margin-left:.5rem">DUAL-BAND</span></div>
+          <div class="panel-header"><span class="accent">🎣</span> EVIL PORTAL — CONFIGURABLE</div>
           <div class="panel-body">
-            <dl class="kv">
-              <dt>TRANSPORT</dt><dd class="text-cyan">REST API + SSH (172.16.42.1)</dd>
-              <dt>RADIOS</dt><dd>2.4 GHz onboard · 5 GHz adapter</dd>
-              <dt>STATUS</dt><dd><span class="status-dot pulse"></span> <span class="text-green">PineAP active — recon running</span></dd>
-              <dt>ATT&CK</dt><dd class="text-muted">T1557 · T1040 · T1110</dd>
-            </dl>
-            <div class="flex gap-1" style="flex-wrap:wrap">
-              <button class="btn btn-cyan btn-sm" onclick="wlog('recon scan dispatched (2.4 + 5 GHz)')">RECON SWEEP</button>
-              <button class="btn btn-violet btn-sm" onclick="wlog('PineAP evil-portal campaign armed')">EVIL PORTAL</button>
-              <button class="btn btn-orange btn-sm" onclick="wlog('handshake capture filter set')" style="border-color:var(--orange);color:var(--orange)">CAPTURE HS</button>
-              <button class="btn btn-green btn-sm" onclick="wlog('6 handshakes exported → /loot/handshakes → hashcat queue')">EXPORT → HASHCAT</button>
+            <div class="cfg">
+              <div class="form-row"><label class="fld">PORTAL SSID (open AP)</label>
+                <input type="text" id="ep-ssid" value="RANGE-GUEST-WIFI"></div>
+              <div class="col-2">
+                <div class="form-row"><label class="fld">PORTAL TEMPLATE</label>
+                  <select id="ep-template">
+                    <option>Generic Login</option><option>Google</option><option>Microsoft 365</option>
+                    <option>Corporate VPN</option><option>Hotel / Captive</option><option>Custom (upload)</option>
+                  </select></div>
+                <div class="form-row"><label class="fld">POST-CAPTURE REDIRECT</label>
+                  <input type="text" id="ep-redirect" value="https://intranet.range.local"></div>
+              </div>
+              <div class="form-row"><label class="fld">CAPTURE FIELDS</label>
+                <div>
+                  <label class="chk"><input type="checkbox" checked> username</label>
+                  <label class="chk"><input type="checkbox" checked> password</label>
+                  <label class="chk"><input type="checkbox"> email</label>
+                  <label class="chk"><input type="checkbox"> MFA / OTP</label>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="chk"><input type="checkbox" id="ep-cleartext" checked> <span class="switch-lbl">Log cleartext submissions to loot</span></label>
+                <label class="chk"><input type="checkbox" id="ep-https"> <span class="switch-lbl">Serve portal over HTTPS (self-signed)</span></label>
+              </div>
+              <div class="flex gap-1 mt-1">
+                <button class="btn btn-violet" onclick="launchPortal()">ARM EVIL PORTAL ▶</button>
+                <button class="btn btn-red btn-sm" onclick="wlog('evil portal stopped')">STOP</button>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- Deauth Credential Harvest -->
         <div class="panel">
-          <div class="panel-header"><span class="accent">▶</span> PINEAPPLE FEED</div>
+          <div class="panel-header"><span class="accent">💥</span> DEAUTH CREDENTIAL HARVEST</div>
           <div class="panel-body">
-            <div class="terminal" id="w-terminal" style="max-height:180px"><span class="t-dim">// REST API feed (mock) //</span>
-<span class="t-info">[pineap] survey: 23 APs (14×2.4 / 9×5G), 41 clients</span>
-<span class="t-warn">[pineap] WPA2 handshake captured — SSID "RANGE-LAB-7"</span></div>
+            <div class="cfg">
+              <div class="col-2">
+                <div class="form-row"><label class="fld">TARGET AP (BSSID)</label>
+                  <select id="dh-target"></select></div>
+                <div class="form-row"><label class="fld">CLIENT</label>
+                  <select id="dh-client"><option value="ff:ff:ff:ff:ff:ff">Broadcast (all clients)</option><option>aa:bb:cc:11:22:33</option></select></div>
+              </div>
+              <div class="col-3">
+                <div class="form-row"><label class="fld">BAND</label>
+                  <select id="dh-band"><option>auto</option><option>2.4 GHz</option><option>5 GHz</option></select></div>
+                <div class="form-row"><label class="fld">BURSTS</label>
+                  <input type="number" id="dh-bursts" value="5" min="1" max="64"></div>
+                <div class="form-row"><label class="fld">CAPTURE</label>
+                  <select id="dh-capture"><option>WPA handshake</option><option>PMKID</option><option>Both</option></select></div>
+              </div>
+              <p class="text-muted" style="font-size:10px;line-height:1.6;margin-bottom:.6rem">
+                Deauthenticates the client to force a reconnect, captures the WPA 4-way handshake
+                (and/or PMKID), and routes it straight to the hashcat queue. Pairs with Evil Portal
+                to herd disconnected clients onto the rogue AP.
+              </p>
+              <div class="flex gap-1">
+                <button class="btn btn-orange" onclick="launchDeauth()">▶ START HARVEST</button>
+                <button class="btn btn-red btn-sm" onclick="wlog('deauth harvest stopped')">STOP</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -481,284 +433,246 @@
           </table>
         </div>
       </div>
-    </section>
 
+      <div class="panel mt-2">
+        <div class="panel-header"><span class="accent">▶</span> SPECTRUM FEED</div>
+        <div class="panel-body">
+          <div class="terminal" id="w-terminal" style="max-height:200px"><span class="t-dim">// REST API feed (mock) //</span>
+<span class="t-info">[pineap] survey: 23 APs (14×2.4 / 9×5G), 41 clients</span></div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
-<!-- ── Device detail drawer ─────────────────────────────────────────────── -->
-<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
-<aside class="drawer" id="drawer">
-  <div class="drawer-head">
-    <button class="drawer-close" onclick="closeDrawer()">✕</button>
-    <div class="drawer-title" id="d-title">Device</div>
-    <div class="text-muted" id="d-tagline" style="font-size:10px;letter-spacing:.15em;margin-top:.25rem"></div>
-  </div>
-  <div class="drawer-body" id="drawer-body"><!-- rendered by JS --></div>
-</aside>
-
 <script>
-/* ───────────────────────────────────────────────────────────────────────────
-   MOCK FIXTURES — replace with /api responses when backend connectors land.
-   Capability tier: 'full' (remote deploy+fire+loot) | 'managed' (ssh load+loot,
-   physical fire) | 'author' (offline authoring/encoding only).
-   ─────────────────────────────────────────────────────────────────────────── */
-const DEVICES = [
-  { id:'ducky', name:'USB Rubber Ducky', online:false, transport:'USB flash only',
-    cap:'HID injection', capBadge:'badge-danger', tier:'author',
-    attack:'T1200 · T1059', disguise:'USB thumb drive',
-    desc:'DuckyScript 3.0 keystroke injection. Registers as a HID keyboard and types payloads at machine speed. New gen adds onboard storage (keyboard + disk combo) and keystroke-reflection exfil.',
-    role:'Dashboard role: author / encode DuckyScript to inject.bin, track inventory & checkout. No remote control — physical insert only.',
-    defense:'USB device-control / HID allow-listing (GPO, BeamGun, USBGuard). Screen-lock discipline. BadUSB awareness training.',
-    actions:['author','encode'] },
-
-  { id:'bunny', name:'Bash Bunny Mark II', online:true, transport:'SSH (arming) 172.16.64.1',
-    cap:'HID + USB-Eth + storage', capBadge:'badge-danger', tier:'managed',
-    attack:'T1200 · T1557 · T1056', disguise:'USB stick',
-    desc:'Full Debian Linux on a USB stick. ATTACKMODE switches between HID keyboard, USB gigabit Ethernet (RNDIS/ECM), mass storage, serial. Mark II adds BLE. Signature attack: QuickCreds (Responder over rogue USB-NIC vs a LOCKED host).',
-    role:'Dashboard role: load payloads + pull loot over SSH (arming mode). Firing is via the physical 3-position slot switch.',
-    defense:'Disable LLMNR/NBT-NS, deny new USB network adapters, lock-screen creds hardening, device control.',
-    actions:['deploy','loot'] },
-
-  { id:'shark', name:'Shark Jack', online:true, transport:'SSH (arming) 172.16.24.1',
-    cap:'Network recon / exploit', capBadge:'badge-warning', tier:'managed',
-    attack:'T1200 · T1046', disguise:'Ethernet plug',
-    desc:'Pocket network attack tool with fold-out Ethernet + battery. Two-position switch: ATTACK (fires payload — default nmap sweep) and ARMING (config over USB-C). Bash payloads, drop-and-go internal recon.',
-    role:'Dashboard role: deploy payloads + pull nmap loot over SSH → feeds Scan model. Fire via physical switch.',
-    defense:'802.1X / NAC on switchports, port security (sticky MAC), disable unused jacks, rogue-device alerting.',
-    actions:['deploy','loot'] },
-
-  { id:'turtle', name:'LAN Turtle', online:true, transport:'SSH / Cloud C2',
-    cap:'Persistent implant', capBadge:'badge-violet', tier:'full',
-    attack:'T1200 · T1557 · T1071', disguise:'USB-Ethernet adapter',
-    desc:'Covert persistent network implant in a USB-to-Ethernet adapter body. Module system: autossh (reverse SSH), responder, nmap-scan, dns-spoof, meterpreter, ptunnel. 3G variant adds out-of-band cellular C2.',
-    role:'Dashboard role: full remote — enable modules, fire autossh foothold, pull loot, live status via Cloud C2.',
-    defense:'802.1X, NAC posture checks, MAC inventory/anomaly detection, egress filtering, disable USB-NIC class.',
-    actions:['deploy','fire','loot'] },
-
-  { id:'omg-plug', name:'O.MG Plug', online:true, transport:'WiFi web/WS API',
-    cap:'HID + keylog + WiFi', capBadge:'badge-danger', tier:'full',
-    attack:'T1200 · T1056.001', disguise:'USB wall charger',
-    desc:'Implant in a power-adapter body. DuckyScript 3.0 injection + hardware keylogging + WiFi C2 (AP + station). Web UI / WS API, remote trigger, exfil over WiFi, geofencing & self-destruct.',
-    role:'Dashboard role: full remote over WiFi API — push payload, trigger, pull keylog/exfil.',
-    defense:'USB device control, no untrusted chargers/cables, RF monitoring on range, physical inspection.',
-    actions:['deploy','fire','loot'] },
-
-  { id:'omg-adapter', name:'O.MG Adapter', online:false, transport:'WiFi web/WS API',
-    cap:'HID + keylog', capBadge:'badge-danger', tier:'full',
-    attack:'T1200 · T1056.001', disguise:'USB-A/C adapter nub',
-    desc:'Turns ANY ordinary cable into an O.MG implant. Same injection + keylog + WiFi C2 feature set as the line, with maximum deniability — the malicious part is the tiny adapter, not the cable.',
-    role:'Dashboard role: full remote over WiFi API — push payload, trigger, pull keylog/exfil.',
-    defense:'Cable/adapter provenance control, USB device control, RF sweep, supply-chain awareness.',
-    actions:['deploy','fire','loot'] },
-
-  { id:'omg-unblocker', name:'O.MG UnBlocker', online:true, transport:'WiFi web/WS API',
-    cap:'HID + keylog (decoy)', capBadge:'badge-danger', tier:'full',
-    attack:'T1200 · T1056.001', disguise:'USB "data blocker" / condom',
-    desc:'Shaped like a USB data-blocker — the exact device security-aware people use to charge safely — but is itself a full offensive implant. Premier supply-chain / "found device" social-engineering training prop.',
-    role:'Dashboard role: full remote over WiFi API. Excellent for blue-team "do not trust security-branded hardware" lessons.',
-    defense:'Procurement controls, never use found/borrowed accessories, RF monitoring, awareness training.',
-    actions:['deploy','fire','loot'] },
-
-  { id:'pineapple', name:'WiFi Pineapple VII', online:true, transport:'REST API + SSH 172.16.42.1',
-    cap:'Rogue AP / WiFi audit', capBadge:'badge-violet', tier:'full',
-    attack:'T1557 · T1040 · T1110', disguise:'(overt audit platform)',
-    desc:'Dual-band rogue-AP & WiFi audit platform (5 GHz adapter adds the second band). PineAP suite: evil twin, deauth, captive/evil portals, recon survey, WPA handshake / PMKID capture. REST API + SSH, Cloud C2 manageable.',
-    role:'Dashboard role: full remote via REST — recon, campaigns, handshake export → hashcat. See the Wireless tab.',
-    defense:'WPA3/802.1X-EAP, PMF (802.11w), rogue-AP detection (WIDS), client-side server-cert validation, user training on captive portals.',
-    actions:['recon','fire','loot'] },
+/* ── Catalog + instances (mock; real build = /api/implants/*) ───────────── */
+const PRODUCTS = [
+  { id:'ducky',         name:'USB Rubber Ducky', transport:'USB flash only', cap:'HID injection',           capBadge:'badge-danger',  tier:'author' },
+  { id:'bunny',         name:'Bash Bunny',       transport:'SSH (arming)',   cap:'HID + USB-Eth + storage',  capBadge:'badge-danger',  tier:'managed' },
+  { id:'shark',         name:'Shark Jack',       transport:'SSH (arming)',   cap:'Network recon / exploit',  capBadge:'badge-warning', tier:'managed' },
+  { id:'turtle',        name:'LAN Turtle',       transport:'SSH / Cloud C2', cap:'Persistent implant',       capBadge:'badge-violet',  tier:'full' },
+  { id:'omg-plug',      name:'O.MG Plug',        transport:'WiFi web/WS API',cap:'HID + keylog + WiFi',      capBadge:'badge-danger',  tier:'full' },
+  { id:'omg-adapter',   name:'O.MG Adapter',     transport:'WiFi web/WS API',cap:'HID + keylog',             capBadge:'badge-danger',  tier:'full' },
+  { id:'omg-unblocker', name:'O.MG UnBlocker',   transport:'WiFi web/WS API',cap:'HID + keylog (decoy)',     capBadge:'badge-danger',  tier:'full' },
+  { id:'pineapple',     name:'WiFi Pineapple VII',transport:'REST API + SSH',cap:'Rogue AP / WiFi audit',    capBadge:'badge-violet',  tier:'full' },
 ];
+let INSTANCES = [
+  { id:'i1', productId:'bunny',        deviceId:'bunny-keller',     host:'172.16.64.1', online:true },
+  { id:'i2', productId:'bunny',        deviceId:'bunny-sgt-reyes',  host:'172.16.64.1', online:false },
+  { id:'i3', productId:'ducky',        deviceId:'ducky-keller-01',  host:'(usb)',       online:false },
+  { id:'i4', productId:'shark',        deviceId:'shark-01',         host:'172.16.24.1', online:true },
+  { id:'i5', productId:'turtle',       deviceId:'turtle-rack-a',    host:'172.16.84.1', online:true },
+  { id:'i6', productId:'omg-plug',     deviceId:'omg-plug-01',      host:'192.168.4.1', online:true },
+  { id:'i7', productId:'omg-adapter',  deviceId:'omg-adapter-01',   host:'192.168.4.1', online:false },
+  { id:'i8', productId:'omg-unblocker',deviceId:'omg-unblock-01',   host:'192.168.4.1', online:true },
+  { id:'i9', productId:'pineapple',    deviceId:'pineapple-vii',    host:'172.16.42.1', online:true },
+];
+let expanded = {};   // productId -> bool
+let nextId = 100;
 
 const PAYLOADS = [
-  { name:'quickcreds.txt', device:'Bash Bunny', lang:'bash+QUACK', attack:'T1557', cm:'Disable LLMNR/NBT-NS' },
-  { name:'exfil-docs.txt', device:'Bash Bunny', lang:'bash+QUACK', attack:'T1052', cm:'USB mass-storage block' },
-  { name:'rev-shell-win.txt', device:'USB Rubber Ducky', lang:'DuckyScript 3.0', attack:'T1059.001', cm:'Constrained PowerShell / AMSI' },
-  { name:'disable-defender.txt', device:'USB Rubber Ducky', lang:'DuckyScript 3.0', attack:'T1562.001', cm:'Tamper protection ON' },
-  { name:'nmap-sweep.sh', device:'Shark Jack', lang:'bash', attack:'T1046', cm:'NAC / segmentation' },
-  { name:'loot-grab.sh', device:'Shark Jack', lang:'bash', attack:'T1046', cm:'Port security' },
-  { name:'autossh-foothold', device:'LAN Turtle', lang:'module', attack:'T1071', cm:'Egress filtering' },
-  { name:'responder.module', device:'LAN Turtle', lang:'module', attack:'T1557', cm:'Disable LLMNR/NBT-NS' },
-  { name:'keylog-exfil.txt', device:'O.MG Plug', lang:'DuckyScript 3.0', attack:'T1056.001', cm:'Device control' },
-  { name:'omg-rev-https.txt', device:'O.MG UnBlocker', lang:'DuckyScript 3.0', attack:'T1059', cm:'Untrusted-accessory policy' },
-  { name:'evil-portal-creds', device:'WiFi Pineapple VII', lang:'campaign', attack:'T1557', cm:'802.1X-EAP / user training' },
+  { name:'quickcreds.txt',      products:['bunny'],                 lang:'bash+QUACK',     attack:'T1557',     cm:'Disable LLMNR/NBT-NS' },
+  { name:'exfil-docs.txt',      products:['bunny'],                 lang:'bash+QUACK',     attack:'T1052',     cm:'USB mass-storage block' },
+  { name:'rev-shell-win.txt',   products:['ducky','omg-plug','omg-adapter','omg-unblocker'], lang:'DuckyScript 3.0', attack:'T1059.001', cm:'Constrained PowerShell / AMSI' },
+  { name:'disable-defender.txt',products:['ducky','omg-plug','omg-adapter','omg-unblocker'], lang:'DuckyScript 3.0', attack:'T1562.001', cm:'Tamper protection ON' },
+  { name:'nmap-sweep.sh',       products:['shark'],                 lang:'bash',           attack:'T1046',     cm:'NAC / segmentation' },
+  { name:'autossh-foothold',    products:['turtle'],                lang:'module',         attack:'T1071',     cm:'Egress filtering' },
+  { name:'responder.module',    products:['turtle','bunny'],        lang:'module',         attack:'T1557',     cm:'Disable LLMNR/NBT-NS' },
+  { name:'keylog-exfil.txt',    products:['omg-plug','omg-adapter','omg-unblocker'], lang:'DuckyScript 3.0', attack:'T1056.001', cm:'Device control' },
+  { name:'evil-portal-creds',   products:['pineapple'],             lang:'campaign',       attack:'T1557',     cm:'802.1X-EAP / user training' },
 ];
 
 const LOOT = [
-  { src:'Bash Bunny', type:'NetNTLMv2', sum:'CORP\\jdoe — hash captured (locked host)', route:'→ Credentials → hashcat' },
-  { src:'Bash Bunny', type:'NetNTLMv2', sum:'CORP\\svc-backup — hash captured', route:'→ Credentials → hashcat' },
-  { src:'Shark Jack', type:'nmap', sum:'10.10.50.0/24 — 12 hosts, 38 open ports', route:'→ Scan → Enumerate' },
-  { src:'LAN Turtle', type:'nmap', sum:'10.10.60.0/24 — 7 hosts', route:'→ Scan → Enumerate' },
-  { src:'O.MG Plug', type:'keylog', sum:'1,204 keystrokes — clipboard + creds', route:'→ Credentials' },
-  { src:'WiFi Pineapple', type:'WPA handshake', sum:'SSID "RANGE-LAB-7" — full 4-way', route:'→ Loot → hashcat' },
-  { src:'WiFi Pineapple', type:'portal creds', sum:'3 captured (evil portal)', route:'→ Credentials' },
+  { src:'bunny-keller',  type:'NetNTLMv2', sum:'CORP\\jdoe — hash captured (locked host)', route:'→ Credentials → hashcat' },
+  { src:'shark-01',      type:'nmap',      sum:'10.10.50.0/24 — 12 hosts, 38 open ports',  route:'→ Scan → Enumerate' },
+  { src:'turtle-rack-a', type:'nmap',      sum:'10.10.60.0/24 — 7 hosts',                  route:'→ Scan → Enumerate' },
+  { src:'omg-plug-01',   type:'keylog',    sum:'1,204 keystrokes — clipboard + creds',     route:'→ Credentials' },
+  { src:'pineapple-vii', type:'WPA handshake', sum:'SSID "RANGE-LAB-7" — full 4-way',      route:'→ Loot → hashcat' },
+  { src:'pineapple-vii', type:'portal creds',  sum:'3 captured (evil portal)',             route:'→ Credentials' },
+  { src:'bunny-keller',  type:'NetNTLMv2', sum:'CORP\\svc-backup — hash captured',         route:'→ Credentials → hashcat' },
 ];
 
 const APS = [
-  { ssid:'RANGE-LAB-7', bssid:'C2:9F:DB:11:04:7A', band:'5G', ch:36, enc:'WPA2', clients:6, hs:true },
-  { ssid:'RANGE-OPS', bssid:'A0:63:91:2C:88:1E', band:'2.4', ch:6, enc:'WPA2', clients:11, hs:true },
-  { ssid:'TRAINEE-BYOD', bssid:'F4:EC:38:5B:22:90', band:'2.4', ch:11, enc:'WPA2', clients:9, hs:false },
-  { ssid:'IOT-SEGMENT', bssid:'DC:A6:32:77:01:3B', band:'2.4', ch:1, enc:'WPA2', clients:14, hs:false },
-  { ssid:'RANGE-5G-LAB', bssid:'B8:27:EB:44:9C:05', band:'5G', ch:149, enc:'WPA3', clients:1, hs:false },
-  { ssid:'(hidden)', bssid:'00:11:22:33:44:55', band:'5G', ch:44, enc:'WPA2', clients:0, hs:false },
+  { ssid:'RANGE-LAB-7', bssid:'C2:9F:DB:11:04:7A', band:'5G',  ch:36,  enc:'WPA2', clients:6,  hs:true },
+  { ssid:'RANGE-OPS',   bssid:'A0:63:91:2C:88:1E', band:'2.4', ch:6,   enc:'WPA2', clients:11, hs:true },
+  { ssid:'TRAINEE-BYOD',bssid:'F4:EC:38:5B:22:90', band:'2.4', ch:11,  enc:'WPA2', clients:9,  hs:false },
+  { ssid:'IOT-SEGMENT', bssid:'DC:A6:32:77:01:3B', band:'2.4', ch:1,   enc:'WPA2', clients:14, hs:false },
+  { ssid:'RANGE-5G-LAB',bssid:'B8:27:EB:44:9C:05', band:'5G',  ch:149, enc:'WPA3', clients:1,  hs:false },
 ];
 
-/* ── Renderers ──────────────────────────────────────────────────────────── */
-function tierBadge(t){
-  if(t==='full') return '<span class="badge badge-green">FULL REMOTE</span>';
-  if(t==='managed') return '<span class="badge badge-warning">SSH MANAGED</span>';
-  return '<span class="badge badge-muted">AUTHOR ONLY</span>';
-}
-function actionBtns(d){
-  const map = {
-    deploy:`<button class="btn btn-violet btn-sm" onclick="event.stopPropagation();act('${d.id}','deploy')">DEPLOY</button>`,
-    fire:`<button class="btn btn-red btn-sm" onclick="event.stopPropagation();act('${d.id}','fire')">FIRE</button>`,
-    loot:`<button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();act('${d.id}','loot')">PULL LOOT</button>`,
-    recon:`<button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();act('${d.id}','recon')">RECON</button>`,
-    author:`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();act('${d.id}','author')">AUTHOR</button>`,
-    encode:`<button class="btn btn-violet btn-sm" onclick="event.stopPropagation();act('${d.id}','encode')">ENCODE</button>`,
-  };
-  return d.actions.map(a=>map[a]).join(' ');
-}
-function renderInventory(){
-  document.getElementById('inventory-tbody').innerHTML = DEVICES.map(d=>`
-    <tr onclick="openDrawer('${d.id}')">
-      <td><span class="status-dot ${d.online?'pulse':'red'}"></span></td>
-      <td class="text-cyan">${d.name}<div class="text-muted" style="font-size:10px">${d.disguise}</div></td>
-      <td class="text-muted">${d.transport}</td>
-      <td><span class="badge ${d.capBadge}">${d.cap}</span></td>
-      <td class="text-muted" style="font-size:11px">${d.attack}</td>
-      <td>${tierBadge(d.tier)}</td>
-      <td>${actionBtns(d)}</td>
-    </tr>`).join('');
-  const online = DEVICES.filter(d=>d.online).length;
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+function ts(){ return new Date().toISOString().slice(11,19); }
+function logTo(id, cls, msg){ const el=document.getElementById(id); el.innerHTML += `\n<span class="${cls}">[${ts()}] ${msg}</span>`; el.scrollTop=el.scrollHeight; }
+function ilog(m){ logTo('inv-terminal','t-ok',m); }
+function wlog(m){ logTo('w-terminal','t-info',m); }
+function prod(id){ return PRODUCTS.find(p=>p.id===id); }
+function tierBadge(t){ return t==='full'?'<span class="badge badge-green">FULL REMOTE</span>':t==='managed'?'<span class="badge badge-warning">SSH MANAGED</span>':'<span class="badge badge-muted">AUTHOR ONLY</span>'; }
+
+/* ── Inventory tree (rev 2) ──────────────────────────────────────────────── */
+function renderTree(){
+  const tree = document.getElementById('tree');
+  tree.innerHTML = PRODUCTS.map(p=>{
+    const insts = INSTANCES.filter(i=>i.productId===p.id);
+    const online = insts.filter(i=>i.online).length;
+    const open = !!expanded[p.id];
+    const children = insts.map(i=>`
+      <div class="tree-inst">
+        <span class="status-dot ${i.online?'pulse':'red'}"></span>
+        <span class="inst-id" title="click to rename" onclick="editInst('${i.id}', this)">${i.deviceId}</span>
+        <span class="text-muted" style="font-size:11px">${i.host}</span>
+        <span class="ml-auto flex gap-1">
+          <button class="btn btn-cyan btn-sm" onclick="act('${i.id}','validate')">VALIDATE</button>
+          ${p.tier!=='author'?`<button class="btn btn-violet btn-sm" onclick="act('${i.id}','deploy')">DEPLOY</button>`:`<button class="btn btn-green btn-sm" onclick="act('${i.id}','author')">AUTHOR</button>`}
+          ${p.tier==='full'?`<button class="btn btn-red btn-sm" onclick="act('${i.id}','fire')">FIRE</button>`:''}
+          <button class="btn btn-cyan btn-sm" onclick="act('${i.id}','loot')">LOOT</button>
+          <button class="btn btn-red btn-sm" onclick="removeInst('${i.id}')">✕</button>
+        </span>
+      </div>`).join('');
+    return `
+      <div class="tree-product">
+        <div class="tree-prod-row" onclick="toggle('${p.id}')">
+          <span class="tree-toggle">${open?'－':'＋'}</span>
+          <span class="tree-prod-name">${p.name}</span>
+          <span class="badge ${p.capBadge}">${p.cap}</span>
+          ${tierBadge(p.tier)}
+          <span class="ml-auto tree-prod-meta">${online}/${insts.length} online · ${p.transport}</span>
+        </div>
+        <div class="tree-children ${open?'':'collapsed'}">
+          ${children || '<div class="tree-inst text-muted">no instances</div>'}
+          <div class="tree-addrow"><button class="btn btn-sm" onclick="addInst('${p.id}')">＋ add instance</button></div>
+        </div>
+      </div>`;
+  }).join('');
+  const total = INSTANCES.length, online = INSTANCES.filter(i=>i.online).length;
+  document.getElementById('stat-products').textContent = PRODUCTS.length;
+  document.getElementById('stat-total').textContent = total;
   document.getElementById('stat-online').textContent = online;
-  document.getElementById('stat-total').textContent = DEVICES.length;
-  document.getElementById('c2-badge-val').textContent = `● LOCAL (${online} / ${DEVICES.length} online)`;
+  document.getElementById('c2-badge-val').textContent = `● LOCAL (${online}/${total})`;
+}
+function toggle(pid){ expanded[pid]=!expanded[pid]; renderTree(); }
+function addInst(pid){
+  const n = INSTANCES.filter(i=>i.productId===pid).length+1;
+  const id = 'n'+(nextId++);
+  const def = prod(pid);
+  const hostDefaults = {bunny:'172.16.64.1',shark:'172.16.24.1',turtle:'172.16.84.1','omg-plug':'192.168.4.1','omg-adapter':'192.168.4.1','omg-unblocker':'192.168.4.1',pineapple:'172.16.42.1',ducky:'(usb)'};
+  INSTANCES.push({ id, productId:pid, deviceId:`${pid}-${String(n).padStart(2,'0')}`, host:hostDefaults[pid]||'', online:false });
+  expanded[pid]=true; renderTree(); ilog(`added instance to ${def.name} → rename it for the operator`);
+}
+function removeInst(id){ INSTANCES = INSTANCES.filter(i=>i.id!==id); renderTree(); ilog(`removed instance ${id}`); }
+function editInst(id, el){
+  const inst = INSTANCES.find(i=>i.id===id); if(!inst) return;
+  const input = document.createElement('input');
+  input.className='inst-id-input'; input.value=inst.deviceId;
+  el.replaceWith(input); input.focus(); input.select();
+  function commit(){ const v=input.value.trim()||inst.deviceId; inst.deviceId=v; renderTree(); ilog(`renamed instance → ${v}`); }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){input.blur();} if(e.key==='Escape'){renderTree();} });
+}
+function act(id, action){
+  const i = INSTANCES.find(x=>x.id===id); const p = prod(i.productId);
+  const verbs = {
+    validate:['t-info',`validating callback to ${i.deviceId} (${i.host})… ✓ reachable, 14ms`],
+    deploy:['t-info',`pushing payload to ${i.deviceId} (${p.transport})…`],
+    fire:['t-warn',`FIRING on ${i.deviceId} — watch MSF sessions for callback`],
+    loot:['t-ok',`pulling loot from ${i.deviceId} → normalize → route downstream`],
+    author:['t-info',`opening DuckyScript 3.0 editor for ${i.deviceId}`],
+  };
+  const [cls,msg]=verbs[action]||['t-dim',action];
+  logTo('inv-terminal',cls,msg);
+}
+
+/* ── Payload library (filter by compatible product) ──────────────────────── */
+function fillProductFilter(){
+  const sel=document.getElementById('payload-product');
+  sel.innerHTML = '<option value="">All products</option>'+PRODUCTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
 }
 function renderPayloads(){
-  const q = (document.getElementById('payload-search').value||'').toLowerCase();
-  const rows = PAYLOADS.filter(p=>!q || (p.name+p.device+p.attack).toLowerCase().includes(q));
-  document.getElementById('payload-tbody').innerHTML = rows.map(p=>`
+  const q=(document.getElementById('payload-search').value||'').toLowerCase();
+  const pf=document.getElementById('payload-product').value;
+  const rows=PAYLOADS.filter(p=>(!q||(p.name+p.attack).toLowerCase().includes(q)) && (!pf||p.products.includes(pf)));
+  document.getElementById('payload-tbody').innerHTML = rows.length? rows.map(p=>`
     <tr>
       <td class="text-cyan">${p.name}</td>
-      <td class="text-muted">${p.device}</td>
+      <td>${p.products.map(id=>`<span class="pill">${prod(id)?prod(id).name.replace('WiFi ',''):id}</span>`).join(' ')}</td>
       <td><span class="badge badge-info">${p.lang}</span></td>
       <td class="text-muted">${p.attack}</td>
       <td class="text-green" style="font-size:11px">${p.cm}</td>
-      <td>
-        <button class="btn btn-violet btn-sm" onclick="ilog('staged ${p.name} → device slot')">STAGE</button>
-        <button class="btn btn-cyan btn-sm">VIEW</button>
-      </td>
-    </tr>`).join('');
+      <td><button class="btn btn-violet btn-sm">STAGE</button> <button class="btn btn-cyan btn-sm">VIEW</button></td>
+    </tr>`).join('') : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1.5rem">no payloads match filter</td></tr>';
 }
+
+/* ── Loot ingestion (connect-validate gate) ──────────────────────────────── */
 function renderLoot(){
   document.getElementById('loot-tbody').innerHTML = LOOT.map(l=>`
-    <tr>
-      <td class="text-cyan">${l.src}</td>
-      <td><span class="badge badge-warning">${l.type}</span></td>
-      <td class="text-muted">${l.sum}</td>
-      <td class="text-green" style="font-size:11px">${l.route}</td>
-    </tr>`).join('');
+    <tr><td class="text-cyan">${l.src}</td><td><span class="badge badge-warning">${l.type}</span></td>
+    <td class="text-muted">${l.sum}</td><td class="text-green" style="font-size:11px">${l.route}</td></tr>`).join('');
+  document.getElementById('stat-loot').textContent = LOOT.length;
 }
-function renderAPs(){
-  document.getElementById('ap-tbody').innerHTML = APS.map(a=>`
-    <tr>
-      <td class="text-cyan">${a.ssid}</td>
-      <td class="text-muted mono">${a.bssid}</td>
-      <td><span class="badge ${a.band==='5G'?'badge-violet':'badge-info'}">${a.band}</span></td>
-      <td>${a.ch}</td>
-      <td><span class="badge ${a.enc==='WPA3'?'badge-green':'badge-warning'}">${a.enc}</span></td>
-      <td>${a.clients}</td>
-      <td>${a.hs?'<span class="badge badge-green">CAPTURED</span>':'<span class="text-muted">—</span>'}</td>
-    </tr>`).join('');
-}
-
-/* ── Drawer ─────────────────────────────────────────────────────────────── */
-function openDrawer(id){
-  const d = DEVICES.find(x=>x.id===id); if(!d) return;
-  document.getElementById('d-title').textContent = d.name;
-  document.getElementById('d-tagline').textContent = '// '+d.disguise.toUpperCase()+' //';
-  document.getElementById('drawer-body').innerHTML = `
-    <dl class="kv">
-      <dt>STATUS</dt><dd><span class="status-dot ${d.online?'pulse':'red'}"></span> ${d.online?'<span class="text-green">ONLINE</span>':'<span class="text-red">OFFLINE</span>'}</dd>
-      <dt>TRANSPORT</dt><dd class="text-cyan">${d.transport}</dd>
-      <dt>CAPABILITY</dt><dd><span class="badge ${d.capBadge}">${d.cap}</span></dd>
-      <dt>CONTROL</dt><dd>${tierBadge(d.tier)}</dd>
-      <dt>ATT&CK</dt><dd class="text-muted">${d.attack}</dd>
-    </dl>
-    <div class="cap-block"><h4>OFFENSIVE PROFILE</h4><p>${d.desc}</p></div>
-    <div class="cap-block"><h4>DASHBOARD ROLE</h4><p>${d.role}</p></div>
-    <div class="cap-block def"><h4>BLUE-TEAM COUNTERMEASURE</h4><p>${d.defense}</p></div>
-    <div class="flex gap-1" style="flex-wrap:wrap;margin-top:1rem">${actionBtns(d)}</div>
-  `;
-  document.getElementById('drawer-overlay').classList.add('open');
-  document.getElementById('drawer').classList.add('open');
-}
-function closeDrawer(){
-  document.getElementById('drawer-overlay').classList.remove('open');
-  document.getElementById('drawer').classList.remove('open');
-}
-
-/* ── Tabs ───────────────────────────────────────────────────────────────── */
-function switchTab(tab){
-  ['inventory','payloads','loot','wireless'].forEach(t=>{
-    document.getElementById('view-'+t).classList.toggle('hidden', t!==tab);
-  });
-  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-}
-
-/* ── Mock actions / logging ─────────────────────────────────────────────── */
-function ts(){ return new Date().toISOString().slice(11,19); }
-function logTo(elId, cls, msg){
-  const el = document.getElementById(elId);
-  el.innerHTML += `\n<span class="${cls}">[${ts()}] ${msg}</span>`;
-  el.scrollTop = el.scrollHeight;
-}
-function ilog(m){ logTo('inv-terminal','t-ok',m); }
-function wlog(m){ logTo('w-terminal','t-info',m); }
-function act(id, action){
-  const d = DEVICES.find(x=>x.id===id);
-  const verbs = {
-    deploy:['t-info',`pushing payload to ${d.name} (${d.transport})…`],
-    fire:['t-warn',`FIRING payload on ${d.name} — watch MSF sessions for callback`],
-    loot:['t-ok',`pulling loot from ${d.name} → normalize → route downstream`],
-    recon:['t-info',`recon sweep dispatched on ${d.name}`],
-    author:['t-info',`opening DuckyScript 3.0 editor for ${d.name}`],
-    encode:['t-info',`encoding inject.bin for ${d.name}`],
-  };
-  const [cls,msg] = verbs[action] || ['t-dim',action];
-  switchTab('inventory');
-  ilog(msg);
+function clearLootTerm(){ document.getElementById('loot-terminal').innerHTML='<span class="t-dim">// cleared //</span>'; document.getElementById('btn-ingest').disabled=true; }
+function validateConnections(){
+  const sources = [...new Set(LOOT.map(l=>l.src))];
+  const el=document.getElementById('loot-terminal');
+  el.innerHTML='<span class="t-info">[validate] checking callbacks before ingest…</span>';
+  let ok=0;
+  sources.forEach((s,i)=>setTimeout(()=>{
+    const reach = Math.random()>0.15;   // mock: most reachable
+    if(reach){ ok++; logTo('loot-terminal','t-ok',`[connect] ${s} → reachable · handshake OK · ${(8+Math.random()*30|0)}ms`); }
+    else logTo('loot-terminal','t-err',`[connect] ${s} → UNREACHABLE · skipped`);
+    if(i===sources.length-1){
+      setTimeout(()=>{ logTo('loot-terminal','t-info',`[validate] ${ok}/${sources.length} sources validated — ingest ${ok?'ENABLED':'blocked'}`);
+        document.getElementById('btn-ingest').disabled = ok===0; }, 250);
+    }
+  }, i*350));
 }
 function simulateIngest(){
-  const steps = [
-    ['t-info','[shark-jack] scp /root/loot/nmap.xml → ./loot/implants/'],
+  const steps=[
+    ['t-info','[shark-01] scp /root/loot/nmap.xml → ./loot/implants/'],
     ['t-ok','[parse] 12 hosts / 38 ports → merged into Scan model'],
-    ['t-info','[bash-bunny] scp /root/loot/quickcreds/*.txt → ./loot/implants/'],
-    ['t-warn','[parse] 2 NetNTLMv2 hashes → Credentials + hashcat queue'],
-    ['t-info','[pineapple] REST GET /api/handshakes → ./loot/handshakes/'],
+    ['t-warn','[bunny-keller] 2 NetNTLMv2 hashes → Credentials + hashcat queue'],
+    ['t-info','[pineapple-vii] REST GET /api/handshakes → ./loot/handshakes/'],
     ['t-ok','[route] 6 handshakes → hashcat (offline, range GPU)'],
-    ['t-ok','[done] 7 loot items ingested, 0 errors'],
+    ['t-ok','[done] loot ingested, routed downstream, 0 errors'],
   ];
-  const el = document.getElementById('loot-terminal');
-  el.innerHTML = '<span class="t-dim">// ingest pipeline (mock) //</span>';
-  steps.forEach((s,i)=> setTimeout(()=>logTo('loot-terminal',s[0],s[1]), i*450));
+  const el=document.getElementById('loot-terminal'); el.innerHTML='<span class="t-dim">// ingest (validated sources only) //</span>';
+  steps.forEach((s,i)=>setTimeout(()=>logTo('loot-terminal',s[0],s[1]), i*420));
 }
 
-/* ── Liability modal ────────────────────────────────────────────────────── */
+/* ── Wireless ────────────────────────────────────────────────────────────── */
+function renderAPs(){
+  document.getElementById('ap-tbody').innerHTML = APS.map(a=>`
+    <tr><td class="text-cyan">${a.ssid}</td><td class="text-muted mono">${a.bssid}</td>
+    <td><span class="badge ${a.band==='5G'?'badge-violet':'badge-info'}">${a.band}</span></td>
+    <td>${a.ch}</td><td><span class="badge ${a.enc==='WPA3'?'badge-green':'badge-warning'}">${a.enc}</span></td>
+    <td>${a.clients}</td><td>${a.hs?'<span class="badge badge-green">CAPTURED</span>':'<span class="text-muted">—</span>'}</td></tr>`).join('');
+  const sel=document.getElementById('dh-target');
+  if(sel) sel.innerHTML = APS.map(a=>`<option value="${a.bssid}">${a.ssid} (${a.bssid}) · ${a.band} ch${a.ch}</option>`).join('');
+}
+function launchPortal(){
+  const ssid=document.getElementById('ep-ssid').value, tpl=document.getElementById('ep-template').value;
+  const redir=document.getElementById('ep-redirect').value, ct=document.getElementById('ep-cleartext').checked;
+  switchTab('wireless');
+  wlog(`evil portal ARMED — SSID "${ssid}" · template "${tpl}" · redirect ${redir} · cleartext-log ${ct?'on':'off'}`);
+}
+function launchDeauth(){
+  const t=document.getElementById('dh-target'), c=document.getElementById('dh-client').value;
+  const band=document.getElementById('dh-band').value, bursts=document.getElementById('dh-bursts').value, cap=document.getElementById('dh-capture').value;
+  const label=t.options[t.selectedIndex]?t.options[t.selectedIndex].text:t.value;
+  wlog(`deauth harvest START — target ${label} · client ${c} · band ${band} · ${bursts} bursts · capture ${cap} → hashcat`);
+}
+
+/* ── Tabs / modal / boot ─────────────────────────────────────────────────── */
+function switchTab(tab){
+  ['inventory','payloads','loot','wireless'].forEach(t=>document.getElementById('view-'+t).classList.toggle('hidden', t!==tab));
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.nav-link').forEach(a=>a.classList.remove('active'));
+}
 function toggleAck(){ document.getElementById('ack-btn').disabled = !document.getElementById('ack-checkbox').checked; }
-function acceptAck(){
-  sessionStorage.setItem('hak5_ack','1');
-  const m = document.getElementById('liability-modal');
-  m.style.transition='opacity .3s'; m.style.opacity='0';
-  setTimeout(()=>m.style.display='none',300);
-}
-
-/* ── Boot ───────────────────────────────────────────────────────────────── */
+function acceptAck(){ sessionStorage.setItem('hak5_ack','1'); const m=document.getElementById('liability-modal'); m.style.transition='opacity .3s'; m.style.opacity='0'; setTimeout(()=>m.style.display='none',300); }
 (function(){
   if(sessionStorage.getItem('hak5_ack')) document.getElementById('liability-modal').style.display='none';
-  renderInventory(); renderPayloads(); renderLoot(); renderAPs();
-  function tick(){ const el=document.getElementById('clock'); if(el) el.textContent = new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'; }
+  fillProductFilter(); renderTree(); renderPayloads(); renderLoot(); renderAPs();
+  function tick(){ const el=document.getElementById('clock'); if(el) el.textContent=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'; }
   tick(); setInterval(tick,1000);
 })();
 </script>
