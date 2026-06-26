@@ -1,0 +1,18 @@
+<!-- Disruption UI Template -->
+<div class="module-panel">
+  <h2>Disruption (DoS)</h2>
+  <div id="disrupt-config">
+    <label>Targets (comma-separated IPs)</label>
+    <input type="text" id="disrupt-targets" placeholder="192.168.1.1, 10.0.0.5">
+    <select id="disrupt-category">
+      <option value="all">All Categories</option>
+      <option value="Network">Network</option>
+      <option value="Web Exhaustion">Web Exhaustion</option>
+      <option value="Protocol Specific">Protocol Specific</option>
+    </select>
+  </div>
+  <div id="disrupt-tools"></div>
+  <button onclick="startDisruption()">Launch Campaign</button>
+  <div id="disrupt-status"></div>
+  <div id="disrupt-results"></div>
+</div>
