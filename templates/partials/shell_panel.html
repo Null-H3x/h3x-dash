@@ -1,0 +1,78 @@
+{% include 'partials/shell_styles.html' %}
+
+<div class="panel mt-2" id="shell-panel">
+  <div class="panel-header">
+    <span class="accent">⌬</span> ACTIVE SESSIONS
+    <span id="session-summary" style="margin-left:.5rem;font-size:10px;color:var(--muted)"></span>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;
+                    font-size:10px;color:var(--muted);white-space:nowrap"
+             title="On new Meterpreter: stabilize, then background (skips migrate if launch auto-migrate ran)">
+        <input type="checkbox" id="opt-autohandoff" class="h3x-autohandoff-cb" checked
+               style="width:auto;accent-color:var(--cyan)"
+               onchange="typeof setAutoHandoff==='function'&&setAutoHandoff(this.checked)">
+        auto-handoff
+      </label>
+      <button class="btn btn-red" onclick="killAllSessions()"
+              style="padding:.2rem .5rem;font-size:10px"
+              title="Stop every MSF session and clear stale tabs">✕ KILL ALL</button>
+      <button class="btn" onclick="refreshSessions(true)"
+              style="padding:.2rem .5rem;font-size:10px">↺ REFRESH</button>
+    </div>
+  </div>
+
+  <div id="shell-area" style="padding:.75rem 1rem">
+    <div class="no-sessions{% if shell_embedded %} embedded{% endif %}" id="no-sessions">
+      <div style="font-size:48px;color:var(--violet);margin-bottom:1rem">⌬</div>
+      <div style="font-size:14px;color:var(--text);margin-bottom:.5rem">No active sessions yet.</div>
+      <div style="font-size:11px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.6">
+        {% if shell_embedded %}
+        Launch an exploit above — sessions appear here automatically once a payload lands.
+        {% else %}
+        Successfully exploit a target on the
+        <a href="/exploit#shell-panel" style="color:var(--cyan)">Exploit</a> tab, then come back here.
+        Sessions auto-populate as Meterpreter and shell connections land.
+        {% endif %}
+      </div>
+    </div>
+
+    <div id="active-shell" style="display:none">
+      <div class="handoff-banner" id="handoff-banner">
+        <div class="handoff-banner-title">✓ SESSION LANDED — POST-EXPLOIT HANDOFF</div>
+        <div class="handoff-banner-sub" id="handoff-banner-sub">
+          Recommended order: migrate into a stable process → elevate (if needed) →
+          harvest creds → background the session so it survives console detach.
+        </div>
+        <div class="handoff-steps">
+          <button class="handoff-btn primary" onclick="runHandoffStep('migrate -n notepad.exe')">
+            ① MIGRATE
+          </button>
+          <button class="handoff-btn" onclick="runHandoffStep('getsystem')">
+            ② GETSYSTEM
+          </button>
+          <button class="handoff-btn creds" onclick="runHandoffStep('hashdump')">
+            ③ HASHDUMP
+          </button>
+          <button class="handoff-btn" onclick="runHandoffStep('background')">
+            ④ BACKGROUND
+          </button>
+          <button class="handoff-btn dismiss" onclick="dismissHandoffBanner()">✕ DISMISS</button>
+        </div>
+      </div>
+      <div class="session-tabs" id="session-tabs"></div>
+      <div class="shell-term{% if shell_embedded %} embedded{% endif %}" id="shell-term"></div>
+      <div class="shortcut-bank" id="shortcut-bank"></div>
+      <div class="cmd-input-row">
+        <input type="text" id="cmd-input" class="cmd-input"
+               placeholder="enter command — ↑/↓ for history, ENTER to send"
+               onkeydown="onCmdKeydown(event)" autocomplete="off">
+        <button class="btn btn-cyan" onclick="sendCmd()"
+                style="padding:.4rem 1rem;font-size:11px">SEND ▶</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">
+        Session type drives dispatch — Meterpreter commands use run_with_output,
+        raw shells use write+read. Output below streams from polling /read.
+      </div>
+    </div>
+  </div>
+</div>

@@ -225,7 +225,7 @@ class PreflightChecker:
                      "In h3x-dash.py: app.run(..., host='127.0.0.1')")
 
     def _check_enum_tools(self) -> Check:
-        enum_tools = {
+        tools = {
             'nikto':        'sudo apt-get install nikto',
             'whatweb':      'sudo apt-get install whatweb',
             'gobuster':     'sudo apt-get install gobuster',
@@ -240,40 +240,21 @@ class PreflightChecker:
             'ssh-audit':    'sudo apt-get install ssh-audit',
             'searchsploit': 'sudo apt-get install exploitdb',
         }
-        enum_missing = [t for t in enum_tools if not shutil.which(t)]
-        enum_present = len(enum_tools) - len(enum_missing)
-
-        dos_tools = {
-            'hping3':       'sudo apt-get install hping3',
-            'slowloris':    'sudo apt-get install slowloris',
-            'hydra':        'sudo apt-get install hydra',
-            'nmap':         'sudo apt-get install nmap',
-            'masscan':      'sudo apt-get install masscan',
-            'dnsperf':      'sudo apt-get install dnsperf',
-            'sqlmap':       'sudo apt-get install sqlmap',
-        }
-        dos_missing = [t for t in dos_tools if not shutil.which(t)]
-        dos_present = len(dos_tools) - len(dos_missing)
-
-        # Combine checks
-        all_missing = enum_missing + dos_missing
-        all_present = enum_present + dos_present
-
-        if not all_missing:
-            return Check('Tools', 'pass',
-                         f'All {all_present} tools present ({enum_present} enum + {dos_present} disruption)')
-        if all_present == 0:
-            return Check('Tools', 'fail',
-                         'No tools found',
-                         'sudo apt-get install nikto whatweb gobuster sslyze enum4linux-ng smbmap netexec '
-                         'onesixtyone snmp dnsrecon ldap-utils ssh-audit exploitdb hping3 slowloris hydra nmap masscan dnsperf sqlmap')
-        return Check('Tools', 'warn',
-                     f'{all_present}/{len(enum_tools) + len(dos_tools)} tools present. '
-                     f'Enum missing: {", ".join(enum_missing)}. '
-                     f'DoS missing: {", ".join(dos_missing)}',
+        missing = [t for t in tools if not shutil.which(t)]
+        present = len(tools) - len(missing)
+        if not missing:
+            return Check('Enum tools', 'pass',
+                         f'All {present} enumeration tools present')
+        if present == 0:
+            return Check('Enum tools', 'fail',
+                         'No enumeration tools found',
+                         'sudo apt-get install nikto whatweb gobuster sslyze '
+                         'enum4linux-ng smbmap netexec onesixtyone snmp '
+                         'dnsrecon ldap-utils ssh-audit exploitdb')
+        return Check('Enum tools', 'warn',
+                     f'{present}/{len(tools)} tools present. Missing: {", ".join(missing)}',
                      'sudo apt-get install ' + ' '.join(
-                         enum_tools[t].split()[-1] for t in enum_missing) + ' ' +
-                     ' '.join(dos_tools[t].split()[-1] for t in dos_missing))
+                         tools[t].split()[-1] for t in missing))
 
 
 # ── Convenience ───────────────────────────────────────────────────────────────

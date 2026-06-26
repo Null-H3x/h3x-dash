@@ -1,0 +1,56 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── H3x-Dash runtime output ───────────────────────────────────────────────────
+# These directories are created at runtime and should NOT be committed.
+# They may contain sensitive scan data, credentials, and loot.
+scans/
+reports/
+loot/
+
+# ── Secrets / config overrides ────────────────────────────────────────────────
+.env
+*.env
+config_local.py
+secrets.py
+
+# ── Flask session / instance ──────────────────────────────────────────────────
+instance/
+.webassets-cache
+flask_session/
+
+# ── Editor / OS junk ─────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
