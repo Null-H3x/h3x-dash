@@ -1,0 +1,117 @@
+--- a/h3x-dash.py	2026-07-13 21:50:12.569096922 +0000
++++ b/h3x-dash.py	2026-07-13 21:50:12.538651482 +0000
+@@ -43,6 +43,7 @@
+ from modules.payload_sources import PayloadSourceManager
+ from modules import report_engine
+ from modules.emulation_engine import EmulationEngine, DetectionLedger
++from modules.ad_engine import AdEngine
+ 
+ # ── App init ──────────────────────────────────────────────────────────────────
+ 
+@@ -116,6 +117,14 @@
+     emulation_ledger.clear()
+ emulation_engine = EmulationEngine(emulation_ledger, H3xConfig)
+ 
++# ── Active Directory / credential-access engine (Cred & AD panes) ─────────────
++# Wraps real installed AD tooling — Responder, Impacket, Certipy, BloodHound,
++# PetitPotam/PrinterBug coercion. Credential context comes exclusively from the
++# captured store; recovered NT hashes flow back into it, roastable / NetNTLM
++# material to loot files, and ADCS / coercion outcomes to findings. Refuses when
++# a tool is absent — nothing offensive is bundled.
++ad_engine = AdEngine(cred_store, H3xConfig.LOOT_DIR)
++
+ 
+ # ── Template context — runs on every render_template ──────────────────────────
+ # Single source of truth for variables the base layout needs. Without this,
+@@ -2361,6 +2370,91 @@
+ 
+ 
+ # ─────────────────────────────────────────────────────────────────────────────
++#  ACTIVE DIRECTORY / CREDENTIAL ACCESS — Responder, Impacket, Certipy,
++#  BloodHound, coercion. Wraps real installed tools; creds from the store only.
++# ─────────────────────────────────────────────────────────────────────────────
++
++_AD_ACTIONS = {'responder', 'roast', 'secretsdump', 'certipy', 'bloodhound', 'coercion'}
++
++
++@app.route('/api/ad/tools')
++def api_ad_tools():
++    return jsonify(ad_engine.tool_status())
++
++
++@app.route('/api/ad/start', methods=['POST'])
++def api_ad_start():
++    data   = request.get_json(silent=True) or {}
++    action = data.get('tool')
++    if action not in _AD_ACTIONS:
++        return jsonify({'status': 'error', 'message': f'unknown tool {action}'}), 400
++    client_id = data.get('client_id') or str(uuid.uuid4())
++    data['client_id'] = client_id
++    q = _get_queue(client_id)
++
++    def on_output(line):
++        try: q.put_nowait({'type': 'output', 'data': line})
++        except Exception: pass
++
++    def on_complete(result):
++        try: q.put_nowait({'type': 'complete', **result})
++        except Exception: pass
++
++    started, msg = ad_engine.start(action, data, on_output, on_complete)
++    if not started:
++        return jsonify({'status': 'error', 'message': msg, 'client_id': client_id}), 409
++    return jsonify({'status': 'started', 'client_id': client_id})
++
++
++@app.route('/api/ad/stream')
++def api_ad_stream():
++    client_id = request.args.get('client_id', 'default')
++    q = _get_queue(client_id)
++
++    def generate():
++        try:
++            while True:
++                try:
++                    event = q.get(timeout=25)
++                    yield f"data: {json.dumps(event)}\n\n"
++                    if event.get('type') in ('complete', 'error'):
++                        break
++                except queue.Empty:
++                    yield f"data: {json.dumps({'type':'heartbeat'})}\n\n"
++        finally:
++            _drop_queue(client_id)
++
++    return Response(stream_with_context(generate()),
++        mimetype='text/event-stream',
++        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
++
++
++@app.route('/api/ad/stop', methods=['POST'])
++def api_ad_stop():
++    data = request.get_json(silent=True) or {}
++    stopped = ad_engine.stop(data.get('client_id', ''))
++    return jsonify({'status': 'stopped' if stopped else 'not-running'})
++
++
++@app.route('/api/ad/loot')
++def api_ad_loot():
++    return jsonify({'files': ad_engine.loot_files(), 'findings': ad_engine.findings()})
++
++
++_AD_LOOT_RX = re.compile(r'^[A-Za-z0-9._-]+\.(txt|zip|json)$')
++
++
++@app.route('/api/ad/download/<name>')
++def api_ad_download(name):
++    if not _AD_LOOT_RX.match(name):
++        return jsonify({'status': 'error', 'message': 'bad filename'}), 400
++    path = ad_engine.loot_dir / name
++    if not path.is_file():
++        return jsonify({'status': 'error', 'message': 'not found'}), 404
++    return send_file(path, as_attachment=True)
++
++
++# ─────────────────────────────────────────────────────────────────────────────
+ #  CVE INTEL — CISA KEV + NVD aggregation, piped into chain + MSF
+ # ─────────────────────────────────────────────────────────────────────────────
+ 
