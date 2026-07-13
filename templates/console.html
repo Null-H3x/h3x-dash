@@ -855,20 +855,53 @@ PANES.engagement = {
 
 // ── DETECTION COVERAGE (live ATT&CK from findings) ──────────────────────────
 PANES.coverage = {
-  body(){ return sec('COVERAGE',`<div data-box="cov"><div class="sec-note">loading ATT&CK coverage from findings…</div></div>`); },
+  body(){ return (
+    sec('ATT&CK COVERAGE — LIVE FINDINGS',`<div data-box="cov"><div class="sec-note">loading ATT&CK coverage from findings…</div></div>`)
+    + sec('PURPLE RECONCILIATION — RED vs BLUE',
+      `<div class="controls" style="margin-bottom:12px">
+         <label class="btn ghost" style="cursor:pointer">⇪ INGEST SECURITY ONION EXPORT<input type="file" data-k="siem" accept=".json,application/json" style="display:none"></label>
+         ${btn('⟳ REFRESH','ghost sm','refresh')}${btn('✕ CLEAR LEDGER','ghost sm','clear')}
+       </div>
+       <div class="sec-note" style="margin-bottom:12px">Fire techniques from the <b style="color:var(--violet)">Emulation</b> workspace, export detections from Security Onion as JSON, then ingest here. Techniques that fired but were never flagged surface as <span style="color:#ff3b6b">BLIND SPOTS</span> — the gaps worth tuning.</div>
+       <div data-box="recon"><div class="sec-note">loading reconciliation…</div></div>`)
+  );},
   async mount(root){
-    const r=await api.get('/api/mitre/findings'); const b=box(root,'cov'); if(!b)return;
-    if(!r){ b.innerHTML='<div class="sec-note">Could not load coverage.</div>'; return; }
-    const matrix=r.matrix||{}; const cov=r.coverage||{};
-    const techs=Object.keys(matrix).filter(k=>k!=='unmapped');
-    const rows=techs.map(t=>{ const fs=matrix[t]||[]; const labels=[...new Set(fs.flatMap(f=>f.attack_labels||[]))].join(', ');
-      return `<tr><td><span class="chip att" style="padding:2px 8px">${esc(t)}</span></td><td style="color:#fff">${esc(labels||'—')}</td><td class="num">${fs.length}</td></tr>`; }).join('')
-      || '<tr><td colspan="3" class="d" style="color:var(--muted)">No mapped findings yet — run enumeration to populate the matrix.</td></tr>';
-    const unmapped=(matrix.unmapped||[]).length;
-    b.innerHTML =
-      `<div class="stats">${stat('var(--cyan)',techs.length,'TECHNIQUES SEEN')}${stat('var(--violet)',(r.findings||[]).length,'FINDINGS MAPPED')}${stat('var(--warn)',unmapped,'UNMAPPED')}${stat('#fff',cov.techniques_labeled??'—','LABELS AVAILABLE')}</div>`
-      + `<div class="detstrip" style="margin-top:18px"><div class="dh"><span class="eye">◎</span> PURPLE NOTE</div><div style="padding:13px 16px" class="sec-note" style="margin:0">This matrix is built live from current findings annotated with ATT&CK. Full red-vs-blue reconciliation (what fired vs. what Security Onion flagged) is a purple-team roll-up this build doesn't yet track server-side — the SIEM diff view is on the roadmap. Wire target: a detections index the emulation panes emit into.</div></div>`
-      + sec('TECHNIQUE → FINDINGS', tbl(['TECHNIQUE','ATT&CK LABEL(S)','FINDINGS'],rows));
+    // ── live findings matrix (unchanged behaviour) ──
+    const r=await api.get('/api/mitre/findings'); const b=box(root,'cov');
+    if(b){
+      if(!r){ b.innerHTML='<div class="sec-note">Could not load coverage.</div>'; }
+      else {
+        const matrix=r.matrix||{}; const cov=r.coverage||{}; const techs=Object.keys(matrix).filter(k=>k!=='unmapped');
+        const rows=techs.map(t=>{ const fs=matrix[t]||[]; const labels=[...new Set(fs.flatMap(f=>f.attack_labels||[]))].join(', ');
+          return `<tr><td><span class="chip att" style="padding:2px 8px">${esc(t)}</span></td><td style="color:#fff">${esc(labels||'—')}</td><td class="num">${fs.length}</td></tr>`; }).join('')
+          || '<tr><td colspan="3" class="d" style="color:var(--muted)">No mapped findings yet — run enumeration to populate the matrix.</td></tr>';
+        const unmapped=(matrix.unmapped||[]).length;
+        b.innerHTML=`<div class="stats">${stat('var(--cyan)',techs.length,'TECHNIQUES SEEN')}${stat('var(--violet)',(r.findings||[]).length,'FINDINGS MAPPED')}${stat('var(--warn)',unmapped,'UNMAPPED')}${stat('#fff',cov.techniques_labeled??'—','LABELS AVAILABLE')}</div>`
+          + tbl(['TECHNIQUE','ATT&CK LABEL(S)','FINDINGS'],rows);
+      }
+    }
+    // ── red-vs-blue reconciliation ──
+    const drawRecon=async()=>{ const rec=await api.get('/api/report/reconcile'); const rb=box(root,'recon'); if(!rb)return;
+      if(!rec||!rec.summary){ rb.innerHTML='<div class="sec-note">No reconciliation data.</div>'; return; }
+      const s=rec.summary; const pct=Math.round((s.detection_rate||0)*100); const techs=rec.techniques||[];
+      const rows=techs.map(t=>{ const st=t.status; const sc = st==='DETECTED'?'ok':st==='PARTIAL'?'warn':st==='PENDING'?'muted':'crit';
+        return `<tr><td><span class="chip att" style="padding:2px 8px">${esc(t.technique_id)}</span> <span class="d" style="color:var(--dim)">${esc(t.label)}</span></td><td class="d" style="color:var(--dim)">${esc(t.tactic)}</td><td class="num">${t.fired}</td><td class="num">${t.detected}</td><td><span class="pill ${sc}">${esc(st)}</span></td><td class="d" style="color:var(--muted)">${esc(t.hint||'')}</td></tr>`; }).join('')
+        || '<tr><td colspan="6" class="d" style="color:var(--muted)">Nothing fired yet — run an emulation, then ingest a Security Onion export.</td></tr>';
+      rb.innerHTML=`<div class="stats">${stat('var(--acid)',pct+'%','DETECTION RATE')}${stat('var(--cyan)',s.fired_techniques,'TECHNIQUES FIRED')}${stat('#ff3b6b',s.blind_spots,'BLIND SPOTS')}${stat('var(--violet)',s.ingest_events,'SIEM EVENTS')}</div>`
+        + `<div class="sec-note" style="margin:10px 0 4px">Last ingest: <span style="color:var(--dim)">${esc(s.last_ingest||'never')}</span> · emulated ${Math.round((s.emulated_pct||0)*100)}% of the atomic catalog (${s.catalog_techniques} techniques)</div>`
+        + tbl(['TECHNIQUE','TACTIC','FIRED','DET','VERDICT','SIEM SHOULD CATCH'],rows);
+    };
+    await drawRecon();
+    onAct(root,'refresh', async()=>{ await drawRecon(); toast('Reconciliation refreshed'); });
+    onAct(root,'clear', async()=>{ await api.post('/api/emulation/clear',{}); toast('Ledger cleared','warn'); await drawRecon(); });
+    const fileEl=EL(root,'siem');
+    if(fileEl) fileEl.addEventListener('change', async()=>{ const f=fileEl.files&&fileEl.files[0]; if(!f)return;
+      toast('Ingesting '+f.name+'…'); const fd=new FormData(); fd.append('file',f);
+      try{ const res=await fetch('/api/emulation/ingest',{method:'POST',body:fd}); const j=await res.json();
+        if(j&&j.status==='ok'){ toast(`Ingested ${j.detections_parsed} detections · ${j.ledger_entries_matched} matched`,'ok'); await drawRecon(); }
+        else toast((j&&j.message)||'ingest failed','err'); }
+      catch(e){ toast('ingest error','err'); }
+      fileEl.value=''; });
   }
 };
 
@@ -921,6 +954,135 @@ PANES.spectrum = {
     onAct(root,'recon', async()=>{ toast('Running recon sweep…'); drawSurvey(await api.get('/api/wireless/recon')); });
     onAct(root,'connect', async()=>{ const r=await api.post('/api/wireless/api-connect',{device:V(root,'dev'),password:V(root,'pw')}); toast((r&&r.status)||'connect attempted'); drawSurvey(await api.get('/api/wireless/recon')); });
     onAct(root,'disconnect', async()=>{ await api.post('/api/wireless/api-disconnect',{}); toast('Disconnected','warn'); });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ADVERSARY EMULATION (purple team) — Atomic Red Team / CALDERA / Playbooks
+//  Wrap REAL tooling; when a backing tool is absent the pane says so honestly
+//  and disables firing rather than faking telemetry.
+// ═══════════════════════════════════════════════════════════════════════════
+function emuLedgerTable(entries){
+  if(!entries.length) return '<div class="sec-note">No techniques fired yet.</div>';
+  return tbl(['TECHNIQUE','TACTIC','SOURCE','STATUS','BLUE VERDICT'], entries.slice().reverse().map(e=>{
+    const st=(e.status||'ran'); const sc = st==='error'?'crit':'info';
+    const det = e.detected===true?'<span class="pill ok">DETECTED</span>':e.detected===false?'<span class="pill crit">MISS</span>':'<span class="pill muted">pending ingest</span>';
+    return `<tr><td><span class="chip att" style="padding:2px 8px">${esc(e.technique_id||'')}</span> <span class="d" style="color:var(--dim)">${esc(e.technique_name||'')}</span></td><td class="d" style="color:var(--dim)">${esc(e.tactic||'')}</td><td>${esc(e.source||'')}</td><td><span class="pill ${sc}">${esc(st.toUpperCase())}</span></td><td>${det}</td></tr>`;
+  }).join(''));
+}
+function emuGate(status, kind){
+  const t = kind==='caldera' ? (status&&status.caldera) : (status&&status.atomic);
+  if(t && t.available) return {ok:true, banner:''};
+  const need = kind==='caldera' ? 'MITRE CALDERA (set CALDERA_URL + CALDERA_API_KEY)' : 'Invoke-AtomicRedTeam (pwsh on PATH + an atomics folder)';
+  return {ok:false, banner:`<div class="detstrip" style="background:var(--surface2);margin-bottom:14px"><div class="dh"><span class="eye" style="color:var(--warn)">◆</span> BACKING TOOL NOT AVAILABLE</div><div style="padding:14px 16px" class="sec-note">This module wraps real tooling and will not fake telemetry. Requires ${esc(need)}. &nbsp;Detail: <span style="color:var(--warn)">${esc((t&&t.detail)||'unavailable')}</span>.</div></div>`};
+}
+function emuStatusSetter(root){
+  const sl=root.querySelector('[data-statusline]');
+  return (t,run)=>{ if(!sl)return; const dot=sl.querySelector('.sdot'); if(dot) dot.className='sdot '+(run?'run':''); const b=sl.querySelector('b'); if(b){ b.textContent=t; b.style.color=run?'var(--acid)':'var(--dim)'; } };
+}
+
+PANES.atomic = {
+  body(){ return (
+    detStrip(META.atomic)
+    + sec('ATOMIC RED TEAM', `<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('TARGET HOST',inp('host',firstIp()||'localhost','localhost or lab IP','200px'))}${btn('RECHECK','ghost sm','recheck')}</div>
+        <div class="sec-note" style="margin-bottom:10px">Select ATT&CK techniques to fire — each maps to a benign Atomic test. Hover a chip for the detection your SIEM should catch.</div>
+        <div data-box="cat"><div class="sec-note">loading atomic catalog…</div></div>
+        <div class="controls" style="margin-top:14px">${btn('▶ FIRE SELECTED','go','run')}${btn('■ STOP','stop','stop')}${btn('SELECT ALL','ghost sm','all')}${btn('NONE','ghost sm','none')}</div>
+        ${statusline('IDLE','no emulation running')}
+        <div class="term" data-term="emu" style="margin-top:14px"><span class="d">// atomic execution streams here</span></div>`)
+    + sec('FIRED LEDGER', `<div data-box="ledger"><div class="sec-note">No techniques fired yet.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root);
+    let gate={ok:false};
+    const loadGate=async()=>{ const status=await api.get('/api/emulation/tools'); gate=emuGate(status,'atomic'); const gb=box(root,'gate'); if(gb) gb.innerHTML=gate.banner; };
+    await loadGate();
+    const cat=await api.get('/api/emulation/catalog?source=atomic'); const atomics=(cat&&cat.atomics)||[];
+    const cb=box(root,'cat');
+    if(cb) cb.innerHTML = atomics.length
+      ? `<div class="chips">`+atomics.map(a=>`<label class="chip" title="${esc(a.detection_hint||'')}" style="cursor:pointer"><input type="checkbox" data-k="t_${esc(a.technique_id)}" style="vertical-align:-1px"> ${esc(a.technique_id)} · ${esc(a.label)}</label>`).join('')+`</div>`
+      : '<div class="sec-note">No atomic catalog returned.</div>';
+    const drawLedger=async()=>{ const r=await api.get('/api/emulation/ledger?source=atomic'); const b=box(root,'ledger'); if(b) b.innerHTML=emuLedgerTable((r&&r.entries)||[]); };
+    await drawLedger();
+    onAct(root,'recheck', async()=>{ await loadGate(); toast('Tool availability rechecked'); });
+    onAct(root,'all',  ()=>{ root.querySelectorAll('[data-k^="t_"]').forEach(c=>c.checked=true); });
+    onAct(root,'none', ()=>{ root.querySelectorAll('[data-k^="t_"]').forEach(c=>c.checked=false); });
+    onAct(root,'stop', async()=>{ await api.post('/api/emulation/stop',{}); toast('Stop requested','warn'); });
+    onAct(root,'run', async()=>{
+      if(!gate.ok){ toast('Atomic Red Team not available — see banner','err'); return; }
+      const techs=[...root.querySelectorAll('[data-k^="t_"]')].filter(c=>c.checked).map(c=>c.getAttribute('data-k').slice(2));
+      if(!techs.length){ toast('Select at least one technique','warn'); return; }
+      const t=term(root,'emu'); clearTerm(t); termLine(t,'[H3x-Dash] atomic run starting…','c'); setStatus('FIRING',true);
+      await api.stream('/api/emulation/start',{source:'atomic',techniques:techs,host:V(root,'host')},'/api/emulation/stream',
+        { term:t,
+          onEvent:m=>{ if(m.type==='fired'&&m.entry) termLine(t,`  ✓ ${m.entry.technique_id} → ledger ${m.entry.id||''}`,'a'); },
+          onDone: async m=>{ setStatus('COMPLETE · '+(m.fired_count??0)+' fired',false); toast('Emulation complete · '+(m.fired_count??0)+' fired','ok'); await drawLedger(); } }); });
+  }
+};
+
+PANES.playbooks = {
+  body(){ return (
+    detStrip(META.playbooks)
+    + sec('SCENARIO CHAINS',`<div data-box="gate"></div>
+       <div class="controls" style="margin-bottom:12px">${fld('TARGET HOST',inp('host',firstIp()||'localhost','','200px'))}${fld('SCENARIO',sel('scen',[['','— loading —']],'280px'))}</div>
+       <div data-box="detail" class="sec-note" style="margin-bottom:8px"></div>
+       <div class="controls" style="margin-top:6px">${btn('▶ RUN CHAIN','go','run')}${btn('■ STOP','stop','stop')}</div>
+       ${statusline('IDLE','no chain running')}
+       <div class="term" data-term="emu" style="margin-top:14px"><span class="d">// chain execution streams here</span></div>`)
+    + sec('FIRED LEDGER',`<div data-box="ledger"><div class="sec-note">No techniques fired yet.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root);
+    const status=await api.get('/api/emulation/tools'); const gate=emuGate(status,'atomic'); const gb=box(root,'gate'); if(gb) gb.innerHTML=gate.banner;
+    const cat=await api.get('/api/emulation/catalog?source=playbook'); const pbs=(cat&&cat.playbooks)||[];
+    const selEl=EL(root,'scen'); if(selEl) selEl.innerHTML=pbs.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+    const drawDetail=()=>{ const id=V(root,'scen'); const p=pbs.find(x=>x.id===id); const d=box(root,'detail'); if(d&&p) d.innerHTML=`${esc(p.desc)}<br><span class="d" style="color:var(--dim)">Chain: ${p.steps.map(esc).join(' → ')}</span>`; };
+    drawDetail(); if(selEl) selEl.addEventListener('change',drawDetail);
+    const drawLedger=async()=>{ const r=await api.get('/api/emulation/ledger?source=playbook'); const b=box(root,'ledger'); if(b) b.innerHTML=emuLedgerTable((r&&r.entries)||[]); };
+    await drawLedger();
+    onAct(root,'stop', async()=>{ await api.post('/api/emulation/stop',{}); toast('Stop requested','warn'); });
+    onAct(root,'run', async()=>{
+      if(!gate.ok){ toast('Atomic Red Team not available — see banner','err'); return; }
+      if(!V(root,'scen')){ toast('Select a scenario','warn'); return; }
+      const t=term(root,'emu'); clearTerm(t); termLine(t,'[H3x-Dash] playbook starting…','c'); setStatus('RUNNING',true);
+      await api.stream('/api/emulation/start',{source:'playbook',scenario:V(root,'scen'),host:V(root,'host')},'/api/emulation/stream',
+        { term:t,
+          onEvent:m=>{ if(m.type==='fired'&&m.entry) termLine(t,`  ✓ ${m.entry.technique_id} · ${m.entry.technique_name}`,'a'); if(m.type==='output'&&/Playbook ::/.test(m.data||'')) termLine(t,m.data,'v'); },
+          onDone: async m=>{ setStatus('COMPLETE · '+(m.fired_count??0)+' fired',false); toast('Playbook complete','ok'); await drawLedger(); } }); });
+  }
+};
+
+PANES.caldera = {
+  body(){ return (
+    detStrip(META.caldera)
+    + sec('CALDERA OPERATION',`<div data-box="gate"></div>
+       <div class="controls" style="margin-bottom:12px">${fld('TARGET HOST',inp('host',firstIp()||'localhost','','180px'))}${fld('ADVERSARY',sel('adv',[['','— none loaded —']],'300px'))}${fld('OP NAME',inp('op','','auto','140px'))}</div>
+       <div class="controls">${btn('▶ LAUNCH OPERATION','go','run')}${btn('■ STOP','stop','stop')}</div>
+       ${statusline('IDLE','no operation running')}
+       <div class="term" data-term="emu" style="margin-top:14px"><span class="d">// CALDERA operation streams here</span></div>`)
+    + sec('FIRED LEDGER',`<div data-box="ledger"><div class="sec-note">No abilities fired yet.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root);
+    const status=await api.get('/api/emulation/tools'); const gate=emuGate(status,'caldera'); const gb=box(root,'gate'); if(gb) gb.innerHTML=gate.banner;
+    const cat = gate.ok ? await api.get('/api/emulation/catalog?source=caldera') : {adversaries:[]};
+    const advs=(cat&&cat.adversaries)||[]; const selEl=EL(root,'adv');
+    if(selEl) selEl.innerHTML = advs.length
+      ? advs.map(a=>`<option value="${esc(a.adversary_id)}">${esc(a.name)} · ${a.atomic_ordering} abilities</option>`).join('')
+      : '<option value="">— no adversaries loaded —</option>';
+    const drawLedger=async()=>{ const r=await api.get('/api/emulation/ledger?source=caldera'); const b=box(root,'ledger'); if(b) b.innerHTML=emuLedgerTable((r&&r.entries)||[]); };
+    await drawLedger();
+    onAct(root,'stop', async()=>{ await api.post('/api/emulation/stop',{}); toast('Stop requested','warn'); });
+    onAct(root,'run', async()=>{
+      if(!gate.ok){ toast('CALDERA not reachable — see banner','err'); return; }
+      const adv=V(root,'adv'); if(!adv){ toast('No adversary selected','warn'); return; }
+      const t=term(root,'emu'); clearTerm(t); termLine(t,'[H3x-Dash] launching CALDERA operation…','c'); setStatus('RUNNING',true);
+      const body={source:'caldera',adversary_id:adv,host:V(root,'host')}; const op=V(root,'op'); if(op) body.op_name=op;
+      await api.stream('/api/emulation/start',body,'/api/emulation/stream',
+        { term:t,
+          onEvent:m=>{ if(m.type==='fired'&&m.entry) termLine(t,`  ✓ ${m.entry.technique_id} · ${m.entry.technique_name}`,'a'); },
+          onDone: async m=>{ setStatus('COMPLETE · '+(m.fired_count??0)+' fired',false); toast('Operation complete','ok'); await drawLedger(); } }); });
   }
 };
 
