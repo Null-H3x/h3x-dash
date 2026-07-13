@@ -1,0 +1,26 @@
+# H3x-Dash dependencies
+#
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  KALI LINUX — DO NOT use plain 'pip install'                    ║
+# ║                                                                  ║
+# ║  pip is blocked for system Python on Kali 2024+.               ║
+# ║  See INSTALL.md for the correct installation method.            ║
+# ║                                                                  ║
+# ║  Quick install (Kali):                                           ║
+# ║    sudo apt-get install python3-flask python3-pymetasploit3     ║
+# ║                                                                  ║
+# ║  If python3-pymetasploit3 is unavailable in your Kali version:  ║
+# ║    pip install pymetasploit3 --break-system-packages            ║
+# ╚══════════════════════════════════════════════════════════════════╝
+#
+# Non-Kali / venv environments only:
+flask>=3.0
+pymetasploit3>=1.0
+
+# ── Optional (richer Access / Spectrum transports; stdlib fallbacks exist) ──
+# paramiko  → real SSH arming/loot for SSH-managed implants (Bash Bunny, Shark
+#             Jack, LAN Turtle, Packet Squirrel, Key Croc, Signal Owl).
+# requests  → nicer HTTP probes for O.MG / WiFi Pineapple REST APIs.
+# The vetted GitHub payload-source updater is pure stdlib (urllib) — no extra dep.
+paramiko>=3.0
+requests>=2.31
