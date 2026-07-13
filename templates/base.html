@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>H3x-Dash — {% block title %}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Color tokens ─────────────────────────────────────────────────────── */
+    :root {
+      --bg:       #0d0d12;
+      --surface:  #13131a;
+      --surface2: #1a1a24;
+      --border:   #1e1e2e;
+      --border2:  #2a2a3e;
+      --cyan:     #0ff0fc;
+      --violet:   #9b30ff;
+      --green:    #39ff14;
+      --red:      #ff4444;
+      --orange:   #ff8c00;
+      --text:     #c8d6e0;
+      --muted:    #4a5060;
+      --mono:     "Share Tech Mono", "Courier New", monospace;
+      --head:     "Rajdhani", sans-serif;
+    }
+
+    /* ── Base ─────────────────────────────────────────────────────────────── */
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 1.25rem 1rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px; height: 42px;
+      border: 1.5px solid var(--cyan);
+      border-radius: 6px;
+      position: relative;
+      margin-bottom: 10px;
+    }
+    .logo-icon::before {
+      content: '';
+      position: absolute;
+      inset: 4px;
+      border: 1px solid var(--violet);
+      border-radius: 3px;
+    }
+    .logo-hex {
+      font-family: var(--head);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--green);
+      position: relative;
+      z-index: 1;
+    }
+    .logo-name {
+      font-family: var(--head);
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: .06em;
+      line-height: 1;
+    }
+    .logo-name span { color: var(--cyan); }
+    .logo-sub {
+      font-size: 9px;
+      color: var(--violet);
+      letter-spacing: .2em;
+      margin-top: 3px;
+    }
+    .logo-version {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 1px 7px;
+      font-size: 9px;
+      letter-spacing: .12em;
+      color: var(--green);
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      background: rgba(57,255,20,.05);
+    }
+
+    /* Nav */
+    .nav { flex: 1; padding: 1rem 0; }
+    .nav-section {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: .25em;
+      padding: .5rem 1rem .25rem;
+    }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: .55rem 1rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      letter-spacing: .05em;
+      border-left: 2px solid transparent;
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    .nav-link:hover {
+      color: var(--cyan);
+      background: rgba(15,240,252,.04);
+    }
+    .nav-link.active {
+      color: var(--cyan);
+      border-left-color: var(--cyan);
+      background: rgba(15,240,252,.06);
+    }
+    .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+    .wip-tag { font-size: 9px; color: var(--orange); letter-spacing: .1em; margin-left: 4px; opacity: .85; }
+
+    /* MSF badge */
+    .msf-badge {
+      margin: auto 1rem 1rem;
+      padding: .5rem .75rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 10px;
+    }
+    .msf-badge .badge-label { color: var(--muted); letter-spacing: .15em; }
+    .msf-badge .badge-val { color: var(--green); margin-top: 2px; }
+    .msf-badge .badge-val.disconnected { color: var(--red); }
+
+    /* ── Main area ────────────────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Topbar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: .75rem 1.5rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-family: var(--head);
+      font-size: 18px;
+      font-weight: 500;
+      color: #fff;
+      letter-spacing: .05em;
+    }
+    .topbar-title span { color: var(--cyan); }
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 2px rgba(57,255,20,.2);
+      display: inline-block;
+    }
+    .status-dot.red { background: var(--red); box-shadow: 0 0 0 2px rgba(255,68,68,.2); }
+    .status-dot.orange { background: var(--orange); box-shadow: 0 0 0 2px rgba(255,140,0,.2); }
+
+    /* Content */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+
+    /* ── Cards / panels ───────────────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: .2em;
+    }
+    .panel-header .accent { color: var(--cyan); }
+    .panel-body { padding: 1rem; }
+
+    /* Stat cards */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: .2em;
+    }
+    .stat-val {
+      font-family: var(--head);
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+      color: #fff;
+    }
+    .stat-val.cyan   { color: var(--cyan); }
+    .stat-val.violet { color: var(--violet); }
+    .stat-val.green  { color: var(--green); }
+    .stat-val.red    { color: var(--red); }
+    .stat-val.orange { color: var(--orange); }
+
+    /* ── Forms ────────────────────────────────────────────────────────────── */
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 1rem;
+    }
+    .form-row label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: .2em;
+    }
+    input[type=text], select, textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: .5rem .75rem;
+      width: 100%;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input[type=text]:focus, select:focus, textarea:focus {
+      border-color: var(--cyan);
+    }
+    select option { background: var(--surface); }
+    textarea { resize: vertical; min-height: 80px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .5rem 1.25rem;
+      border-radius: 4px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .05em;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .btn:hover { background: var(--surface2); }
+    .btn-cyan {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+    .btn-cyan:hover { background: rgba(15,240,252,.08); }
+    .btn-green {
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .btn-green:hover { background: rgba(57,255,20,.08); }
+    .btn-red {
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .btn-red:hover { background: rgba(255,68,68,.08); }
+    .btn-violet {
+      border-color: var(--violet);
+      color: var(--violet);
+    }
+    .btn-violet:hover { background: rgba(155,48,255,.08); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* ── Terminal output ──────────────────────────────────────────────────── */
+    .terminal {
+      background: #080810;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 6px;
+      padding: .75rem 1rem;
+      font-size: 11px;
+      color: var(--green);
+      overflow-y: auto;
+      max-height: 360px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    .terminal .t-err  { color: var(--red); }
+    .terminal .t-warn { color: var(--orange); }
+    .terminal .t-info { color: var(--cyan); }
+    .terminal .t-dim  { color: var(--muted); }
+    .terminal .t-prompt::before { content: 'H3x-Dash > '; color: var(--violet); }
+
+    /* ── Tables ───────────────────────────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .data-table th {
+      padding: .4rem .75rem;
+      text-align: left;
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: .2em;
+      border-bottom: 1px solid var(--border);
+      font-weight: 400;
+    }
+    .data-table td {
+      padding: .55rem .75rem;
+      border-bottom: 1px solid var(--border2);
+      vertical-align: middle;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+    /* Risk badges */
+    .badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 1px 7px;
+      border-radius: 3px;
+      letter-spacing: .12em;
+      border: 1px solid;
+    }
+    .badge-danger  { color: var(--red);    border-color: var(--red);    background: #1a0000; }
+    .badge-warning { color: var(--orange); border-color: var(--orange); background: #140a00; }
+    .badge-info    { color: var(--cyan);   border-color: var(--cyan);   background: #001418; }
+    .badge-green   { color: var(--green);  border-color: var(--green);  background: #001400; }
+    .badge-violet  { color: var(--violet); border-color: var(--violet); background: #0e0018; }
+
+    /* Severity badges */
+    .sev-CRITICAL { color: var(--red);    border-color: var(--red);    background: #1a0000; }
+    .sev-HIGH     { color: var(--orange); border-color: var(--orange); background: #140a00; }
+    .sev-MEDIUM   { color: #f4c542;       border-color: #f4c542;       background: #141000; }
+    .sev-LOW      { color: var(--green);  border-color: var(--green);  background: #001400; }
+    .sev-INFO     { color: var(--cyan);   border-color: var(--cyan);   background: #001418; }
+
+    /* ── Utilities ────────────────────────────────────────────────────────── */
+    .mt-1  { margin-top: .5rem; }
+    .mt-2  { margin-top: 1rem; }
+    .mt-3  { margin-top: 1.5rem; }
+    .flex  { display: flex; }
+    .gap-1 { gap: .5rem; }
+    .gap-2 { gap: 1rem; }
+    .items-center { align-items: center; }
+    .ml-auto { margin-left: auto; }
+    .text-muted { color: var(--muted); }
+    .text-cyan  { color: var(--cyan); }
+    .text-green { color: var(--green); }
+    .text-red   { color: var(--red); }
+    .text-violet{ color: var(--violet); }
+    .mono { font-family: var(--mono); }
+
+    /* Grid helpers */
+    .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .col-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* Flash messages */
+    .flash { padding: .6rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 12px; border: 1px solid; }
+    .flash-ok  { color: var(--green); border-color: var(--green); background: #001400; }
+    .flash-err { color: var(--red);   border-color: var(--red);   background: #1a0000; }
+
+
+    /* ── Liability modal ──────────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.88);
+      z-index: 9999; display: flex; align-items: center;
+      justify-content: center; padding: 1rem;
+    }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-top: 3px solid var(--red); border-radius: 8px;
+      width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-head  { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .modal-htop  { display: flex; align-items: center; gap: .75rem; margin-bottom: .25rem; }
+    .modal-micon {
+      width: 36px; height: 36px; border: 1.5px solid var(--red);
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      font-family: var(--head); font-size: 16px; font-weight: 700;
+      color: var(--red); flex-shrink: 0;
+    }
+    .modal-title { font-family: var(--head); font-size: 20px; font-weight: 700; color: var(--red); letter-spacing: .08em; }
+    .modal-sub   { font-size: 10px; color: var(--muted); letter-spacing: .2em; margin-left: 48px; }
+    .modal-body  { padding: 1.25rem 1.5rem; }
+    .modal-intro {
+      font-size: 12px; color: var(--muted); line-height: 1.7; margin-bottom: 1.25rem;
+      border-left: 2px solid var(--border2); padding-left: .75rem;
+    }
+    .clause {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1rem 1.1rem; margin-bottom: .75rem;
+    }
+    .clause-num   { font-size: 9px; color: var(--violet); letter-spacing: .2em; margin-bottom: .35rem; }
+    .clause-title { font-size: 13px; color: #fff; font-weight: 500; margin-bottom: .4rem; }
+    .clause-body  { font-size: 11px; color: var(--muted); line-height: 1.65; }
+    .clause-body em { color: var(--orange); font-style: normal; }
+    .legal-note {
+      font-size: 10px; color: var(--muted); line-height: 1.6;
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: .6rem .75rem; margin-top: 1rem; margin-bottom: 1.25rem;
+    }
+    .legal-note strong { color: var(--red); }
+    .ack-row   { display: flex; align-items: flex-start; gap: .6rem; margin-bottom: 1rem; cursor: pointer; }
+    .ack-row input[type=checkbox] { width: auto; margin-top: 2px; accent-color: var(--cyan); flex-shrink: 0; }
+    .ack-label { font-size: 11px; color: var(--text); line-height: 1.55; cursor: pointer; }
+    .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); }
+    .modal-btns { display: flex; gap: .75rem; }
+    .btn-ack {
+      flex: 1; padding: .65rem; border-radius: 4px;
+      border: 1px solid var(--green); background: rgba(57,255,20,.06);
+      color: var(--green); font-family: var(--mono); font-size: 12px;
+      letter-spacing: .06em; cursor: pointer; transition: background .15s;
+    }
+    .btn-ack:hover:not(:disabled) { background: rgba(57,255,20,.12); }
+    .btn-ack:disabled { opacity: .3; cursor: not-allowed; border-color: var(--border2); color: var(--muted); }
+    .btn-decline {
+      padding: .65rem 1.25rem; border-radius: 4px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-family: var(--mono); font-size: 12px; cursor: pointer;
+    }
+    .btn-decline:hover { background: var(--surface2); color: var(--red); border-color: var(--red); }
+    {% block extra_style %}{% endblock %}
+  </style>
+</head>
+<body>
+
+
+<!-- ── Liability / Authorization Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="liability-modal" style="display:none">
+  <div class="modal-box">
+
+    <div class="modal-head">
+      <div class="modal-htop">
+        <div class="modal-micon">⚠</div>
+        <div class="modal-title">AUTHORIZED USE ONLY</div>
+      </div>
+      <div class="modal-sub">// H3X-DASH PENETRATION TESTING FRAMEWORK // LIABILITY STATEMENT //</div>
+    </div>
+
+    <div class="modal-body">
+
+      <p class="modal-intro">
+        H3x-Dash is a professional penetration testing tool that executes real network operations
+        against real systems. Before proceeding, you must read and acknowledge all three conditions
+        below. This statement is displayed at the start of every session.
+      </p>
+
+      <div class="clause">
+        <div class="clause-num">CONDITION 01 — SCOPE</div>
+        <div class="clause-title">Educational Purposes in a Closed Setting</div>
+        <div class="clause-body">
+          This tool is authorized for use in educational and professional security research
+          contexts within <em>controlled, isolated, and authorized environments only</em>.
+          Lab networks, air-gapped ranges, and purpose-built vulnerable systems (Metasploitable,
+          VulnHub, HackTheBox, etc.) fall within scope. Production networks, shared
+          infrastructure, and cloud environments do not — regardless of your role or intent.
+        </div>
+      </div>
+
+      <div class="clause">
+        <div class="clause-num">CONDITION 02 — OWNERSHIP</div>
+        <div class="clause-title">Systems You Own and Operate</div>
+        <div class="clause-body">
+          You may use H3x-Dash against systems and networks that you <em>personally own</em>
+          and have full legal authority over. Ownership means your name is on the hardware,
+          the lease, or the service agreement. Shared tenancy, access credentials, or
+          informal permission from a colleague <em>does not constitute ownership</em>.
+        </div>
+      </div>
+
+      <div class="clause">
+        <div class="clause-num">CONDITION 03 — AUTHORIZATION</div>
+        <div class="clause-title">Signed Written Permission Required</div>
+        <div class="clause-body">
+          For any system or network you do not personally own, you must hold a
+          <em>current, signed penetration testing agreement</em> with the authorized
+          system owner before initiating any operation. Verbal agreements are not
+          sufficient. Expired agreements are not sufficient. An assumption of implied
+          consent is not sufficient. No signed document — no scan.
+        </div>
+      </div>
+
+      <div class="legal-note">
+        Unauthorized access to computer systems is a federal crime under
+        <strong>18 U.S.C. § 1030 (Computer Fraud and Abuse Act)</strong> and equivalent
+        legislation in most jurisdictions worldwide. The developer of H3x-Dash accepts
+        no liability for misuse of this tool. All consequences of unauthorized use are
+        solely the responsibility of the operator.
+      </div>
+
+      <label class="ack-row">
+        <input type="checkbox" id="ack-checkbox" onchange="h3xToggleAck()">
+        <span class="ack-label">
+          I have read and understood all three conditions above. I confirm that I am
+          operating within an authorized scope, on systems I own or have written
+          permission to test, and that I accept full personal responsibility for
+          all actions taken with this tool.
+        </span>
+      </label>
+
+    </div>
+
+    <div class="modal-footer">
+      <div class="modal-btns">
+        <button class="btn-decline" onclick="h3xDeclineAck()">✕ DECLINE &amp; EXIT</button>
+        <button class="btn-ack" id="ack-btn" disabled onclick="h3xAcceptAck()">
+          ✓ I ACKNOWLEDGE AND PROCEED
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><span class="logo-hex">H3</span></div>
+    <div class="logo-name"><span>H3x</span>-Dash</div>
+    <div class="logo-sub">// PENETRATION FRAMEWORK //</div>
+    <div class="logo-version">v{{ app_version }}</div>
+  </div>
+
+  <nav class="nav">
+    <a href="/" class="nav-link {% if active == 'dashboard' %}active{% endif %}">
+      <span class="nav-icon">◈</span> Dashboard
+    </a>
+
+    <div class="nav-section" style="margin-top:.5rem">ACCESS</div>
+    <a href="/payload" class="nav-link {% if active == 'payload' %}active{% endif %}">
+      <span class="nav-icon">❏</span> Payload <span class="wip-tag">(working)</span>
+    </a>
+    <a href="/spectrum" class="nav-link {% if active == 'spectrum' %}active{% endif %}">
+      <span class="nav-icon">📡</span> Spectrum <span class="wip-tag">(working)</span>
+    </a>
+
+    <div class="nav-section" style="margin-top:.5rem">OPERATIONS</div>
+    <a href="/scan" class="nav-link {% if active == 'scan' %}active{% endif %}">
+      <span class="nav-icon">◉</span> Scan
+    </a>
+    <a href="/enumerate" class="nav-link {% if active == 'enumerate' %}active{% endif %}">
+      <span class="nav-icon">⚙</span> Enumerate
+    </a>
+    <a href="/validate" class="nav-link {% if active == 'validate' %}active{% endif %}">
+      <span class="nav-icon">◇</span> Validate
+    </a>
+    <a href="/exploit" class="nav-link {% if active == 'exploit' %}active{% endif %}">
+      <span class="nav-icon">⚡</span> Shell <span class="wip-tag">(working)</span>
+    </a>
+    <a href="/credentials" class="nav-link {% if active == 'credentials' %}active{% endif %}">
+      <span class="nav-icon">🔑</span> Credentials <span class="wip-tag">(working)</span>
+    </a>
+    <a href="/loot" class="nav-link {% if active == 'loot' %}active{% endif %}">
+      <span class="nav-icon">◎</span> Loot <span class="wip-tag">(working)</span>
+    </a>
+
+    <div class="nav-section" style="margin-top:.5rem">REFERENCE</div>
+    <a href="/modules" class="nav-link {% if active == 'modules' %}active{% endif %}">
+      <span class="nav-icon">▦</span> MSF Modules
+    </a>
+  </nav>
+
+  <div class="stealth-badge" style="padding:8px 10px;margin:6px 8px 0;
+       background:var(--surface2);border:1px solid var(--border2);border-radius:4px">
+    <div style="font-size:9px;color:var(--muted);letter-spacing:1px;
+         text-transform:uppercase;margin-bottom:4px">EVASION</div>
+    <select id="stealth-selector" onchange="setStealthLevel(this.value)"
+            style="width:100%;background:var(--bg);border:1px solid var(--border2);
+                   color:var(--cyan);padding:3px 4px;font-family:var(--mono);
+                   font-size:11px;border-radius:2px;cursor:pointer">
+      <option value="0">⚡ Normal       — 1×</option>
+      <option value="1">◇ Quiet        — 3×</option>
+      <option value="2">◈ Stealth      — 10×</option>
+      <option value="3">◉ Paranoid     — 60×+</option>
+    </select>
+    <div id="stealth-desc" style="font-size:9px;color:var(--muted);
+         margin-top:4px;line-height:1.3">No evasion. Lab default.</div>
+  </div>
+
+  <div class="msf-badge" id="msf-badge">
+    <div class="badge-label">MSF RPC</div>
+    <div class="badge-val {% if not msf_conn %}disconnected{% endif %}"
+         id="msf-badge-val">
+      {% if msf_conn %}● CONNECTED{% else %}○ OFFLINE{% endif %}
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-title">{% block topbar_title %}{% endblock %}</div>
+    <div class="topbar-right">
+      <span class="text-muted" id="clock" style="font-size:11px;letter-spacing:.08em"></span>
+    </div>
+  </header>
+
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+
+<script>
+  /* ── Liability modal — runs before any other page JS ── */
+  (function () {
+    var modal = document.getElementById('liability-modal');
+    if (!sessionStorage.getItem('h3x_ack')) {
+      modal.style.display = 'flex';
+    }
+  })();
+
+  /* ── Stealth/evasion selector — sync with backend ── */
+  (function () {
+    const sel  = document.getElementById('stealth-selector');
+    const desc = document.getElementById('stealth-desc');
+    if (!sel) return;
+    const DESCRIPTIONS = {
+      0: 'No evasion. Lab default.',
+      1: 'Reduced rate, T2 timing. Avoids basic rate alerts.',
+      2: 'Fragmented + T1 + shikata_ga_nai encoder. Defeats most IDS sigs.',
+      3: 'Decoys + source-port spoof + T0. Engagement-grade. SLOW.',
+    };
+    fetch('/api/evasion').then(r => r.json()).then(d => {
+      sel.value = String(d.current);
+      desc.textContent = DESCRIPTIONS[d.current] || '';
+    }).catch(() => {});
+  })();
+
+  window.setStealthLevel = function (level) {
+    fetch('/api/evasion', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({level: parseInt(level, 10)}),
+    }).then(r => r.json()).then(d => {
+      const descs = {
+        0: 'No evasion. Lab default.',
+        1: 'Reduced rate, T2 timing. Avoids basic rate alerts.',
+        2: 'Fragmented + T1 + shikata_ga_nai encoder. Defeats most IDS sigs.',
+        3: 'Decoys + source-port spoof + T0. Engagement-grade. SLOW.',
+      };
+      const desc = document.getElementById('stealth-desc');
+      if (desc) desc.textContent = descs[d.current] || '';
+    });
+  };
+
+  function h3xToggleAck() {
+    var cb  = document.getElementById('ack-checkbox');
+    var btn = document.getElementById('ack-btn');
+    if (cb && btn) btn.disabled = !cb.checked;
+  }
+
+  function h3xAcceptAck() {
+    sessionStorage.setItem('h3x_ack', '1');
+    var modal = document.getElementById('liability-modal');
+    if (!modal) return;
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity .3s';
+    setTimeout(function () { modal.style.display = 'none'; }, 300);
+  }
+
+  function h3xDeclineAck() {
+    // Redirect to Hack The Box — productive landing for someone who declined
+    // an authorized-use acknowledgement. Use replace() so the back button
+    // doesn't bring them back to H3x-Dash without re-acknowledging.
+    window.location.replace('https://www.hackthebox.com/');
+  }
+
+  // ── Belt-and-suspenders binding ─────────────────────────────────────────
+  // The inline onchange/onclick attributes are the primary path. This block
+  // is the backup — it rebinds the same handlers via addEventListener on
+  // DOMContentLoaded so a stale browser cache or a single missing attribute
+  // can't lock the operator out of the framework. If you're reading this
+  // because the modal got stuck AGAIN, check the browser console — we log
+  // when the backup binding fires so you can confirm the script reached here.
+  (function () {
+    function bind() {
+      var cb       = document.getElementById('ack-checkbox');
+      var btnAck   = document.getElementById('ack-btn');
+      var btnDecl  = document.querySelector('.btn-decline');
+      if (cb && btnAck) {
+        cb.addEventListener('change', h3xToggleAck);
+        cb.addEventListener('input',  h3xToggleAck);    // some browsers
+        cb.addEventListener('click',  h3xToggleAck);    // last resort
+        btnAck.addEventListener('click', h3xAcceptAck);
+        // Force a sync on bind in case the checkbox already has state
+        h3xToggleAck();
+      }
+      if (btnDecl) {
+        btnDecl.addEventListener('click', h3xDeclineAck);
+      }
+      console.log('[H3x-Dash] modal handlers bound: cb=' + !!cb +
+                  ', ackBtn=' + !!btnAck + ', declineBtn=' + !!btnDecl);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bind);
+    } else {
+      bind();
+    }
+  })();
+</script>
+<script src="/static/h3x-dash.js?v={{ app_version }}"></script>
+<script>
+  // ── Live MSF status poll ────────────────────────────────────────────────
+  // Template-rendered badge can go stale: msf-rpcd may go up/down while the
+  // operator stays on one page. Poll /api/msf/status every 5s and update the
+  // badge text + .disconnected class so the sidebar reflects ground truth.
+  (function () {
+    function pollMsf() {
+      fetch('/api/msf/status').then(r => r.json()).then(d => {
+        var val = document.getElementById('msf-badge-val');
+        if (!val) return;
+        if (d.connected) {
+          val.textContent = '● CONNECTED';
+          val.classList.remove('disconnected');
+        } else {
+          val.textContent = '○ OFFLINE';
+          val.classList.add('disconnected');
+        }
+      }).catch(function () { /* swallow — keep rendered state */ });
+    }
+    // Run immediately so first render isn't waiting 5s
+    pollMsf();
+    setInterval(pollMsf, 5000);
+  })();
+
+  // ── Live UTC clock in the topbar ────────────────────────────────────────
+  function tick() {
+    const now = new Date();
+    const el  = document.getElementById('clock');
+    if (el) el.textContent =
+      now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+{% block extra_script %}{% endblock %}
+</body>
+</html>

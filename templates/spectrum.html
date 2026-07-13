@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% set active = 'spectrum' %}
+{% block title %}Spectrum{% endblock %}
+{% block topbar_title %}<span>📡</span> Spectrum — WiFi Pineapple{% endblock %}
+
+{% block extra_style %}
+  {% include 'partials/hak5_styles.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="stepper">
+  <span class="here">SPECTRUM FLOW</span>
+  <span class="arr">›</span><span>① INVENTORY</span>
+  <span class="arr">›</span><span>② CONNECT API</span>
+  <span class="arr">›</span><span>③ FUNCTIONS</span>
+  <span class="arr">›</span><span>④ PCAP / HASHCAT</span>
+</div>
+
+<div class="subtabs">
+  <button class="subtab active" data-tab="s-inv"  onclick="sTab('s-inv')"><span class="step">1</span>INVENTORY</button>
+  <button class="subtab"        data-tab="s-conn" onclick="sTab('s-conn')"><span class="step">2</span>CONNECT API</button>
+  <button class="subtab"        data-tab="s-fn"   onclick="sTab('s-fn')"><span class="step">3</span>FUNCTIONS</button>
+  <button class="subtab"        data-tab="s-pcap" onclick="sTab('s-pcap')"><span class="step">4</span>PCAP / HASHCAT</button>
+</div>
+
+<!-- ═══════════ 1. INVENTORY ═══════════ -->
+<section id="view-s-inv">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">DEVICES</div><div class="stat-val cyan" id="ss-prod">—</div></div>
+    <div class="stat-card"><div class="stat-label">API CONNECTED</div><div class="stat-val green" id="ss-conn">—</div></div>
+    <div class="stat-card"><div class="stat-label">HANDSHAKES</div><div class="stat-val violet" id="ss-hs">—</div></div>
+    <div class="stat-card"><div class="stat-label">QUEUED FOR HASHCAT</div><div class="stat-val orange" id="ss-qhc">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="accent">＋</span> ADD DEVICE — CONNECT TO ADD
+      <span class="text-muted" style="margin-left:auto;font-size:10px">Pineapple unlocks the Functions tab; capture devices (Screen Crab, Plunder Bug, WiFi Coconut) register for inventory + loot</span>
+    </div>
+    <div class="panel-body">
+      <div class="col-3">
+        <div class="form-row"><label class="fld">DEVICE</label>
+          <select id="sp-product" onchange="spPrefill()"></select></div>
+        <div class="form-row"><label class="fld">HOST</label><input type="text" id="sp-host" value="172.16.42.1"></div>
+        <div class="form-row"><label class="fld">PORT</label><input type="number" id="sp-port" value="1471"></div>
+      </div>
+      <div class="col-3">
+        <div class="form-row"><label class="fld">DEVICE ID</label><input type="text" id="sp-name" placeholder="pineapple-vii"></div>
+      </div>
+      <button class="btn btn-cyan" onclick="connectSpectrumDevice()">⟳ CONNECT &amp; ADD</button>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">📡</span> INVENTORY — TREE</div>
+    <div class="panel-body" style="padding:0"><div class="tree" id="tree-s"></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 2. CONNECT API ═══════════ -->
+<section id="view-s-conn" class="hidden">
+  <div class="col-2">
+    <div class="panel">
+      <div class="panel-header"><span class="accent">🔌</span> CONNECT TO PINEAPPLE REST API</div>
+      <div class="panel-body">
+        <div class="form-row"><label class="fld">DEVICE</label>
+          <select id="api-device"></select></div>
+        <div class="col-2">
+          <div class="form-row"><label class="fld">USERNAME</label><input type="text" id="api-user" value="root"></div>
+          <div class="form-row"><label class="fld">PASSWORD / API TOKEN</label><input type="password" id="api-pass" placeholder="••••••••"></div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-cyan" onclick="apiConnect()">⟳ CONNECT</button>
+          <button class="btn btn-red btn-sm" onclick="apiDisconnect()">DISCONNECT</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="accent">◇</span> DEVICE INFO</div>
+      <div class="panel-body" style="font-size:11.5px">
+        <div id="api-info"><span class="text-muted">not connected</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▶</span> API LOG</div>
+    <div class="panel-body"><div class="terminal" id="api-term"><span class="t-dim">// REST API exchanges //</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 3. FUNCTIONS ═══════════ -->
+<section id="view-s-fn" class="hidden">
+  <div class="col-3">
+    <div class="panel">
+      <div class="panel-header"><span class="accent">🔎</span> RECON</div>
+      <div class="panel-body">
+        <p class="text-muted" style="font-size:11px;line-height:1.6;margin-bottom:.5rem">Dual-band AP/client survey.</p>
+        <div class="flex gap-1"><button class="btn btn-cyan btn-sm" onclick="fnRecon()">▶ RECON SWEEP</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="accent">🎣</span> ROGUE AP / EVIL PORTAL</div>
+      <div class="panel-body">
+        <div class="cfg">
+          <div class="form-row"><label class="fld">PORTAL SSID</label><input type="text" id="ep-ssid" value="RANGE-GUEST-WIFI"></div>
+          <div class="col-2">
+            <div class="form-row"><label class="fld">TEMPLATE</label>
+              <select id="ep-template"></select></div>
+            <div class="form-row"><label class="fld">REDIRECT</label><input type="text" id="ep-redirect" value="https://intranet.range.local"></div>
+          </div>
+          <div class="form-row"><label class="fld">CAPTURE FIELDS</label>
+            <div>
+              <label class="chk"><input type="checkbox" id="ep-f-user" checked> username</label>
+              <label class="chk"><input type="checkbox" id="ep-f-pass" checked> password</label>
+              <label class="chk"><input type="checkbox" id="ep-f-email"> email</label>
+              <label class="chk"><input type="checkbox" id="ep-f-mfa"> MFA / OTP</label>
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="chk"><input type="checkbox" id="ep-cleartext" checked> Log cleartext</label>
+            <label class="chk"><input type="checkbox" id="ep-https"> HTTPS (self-signed)</label>
+          </div>
+          <div class="flex gap-1">
+            <button class="btn btn-violet btn-sm" onclick="fnPortalArm()">ARM PORTAL</button>
+            <button class="btn btn-red btn-sm" onclick="fnPortalStop()">STOP</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="accent">💥</span> DEAUTH CRED HARVEST</div>
+      <div class="panel-body">
+        <div class="cfg">
+          <div class="form-row"><label class="fld">TARGET AP</label>
+            <select id="dh-target"></select></div>
+          <div class="form-row"><label class="fld">CLIENT</label>
+            <select id="dh-client"><option value="ff:ff:ff:ff:ff:ff">Broadcast</option></select></div>
+          <div class="col-3">
+            <div class="form-row"><label class="fld">BAND</label><select id="dh-band"><option>auto</option><option>2.4 GHz</option><option>5 GHz</option></select></div>
+            <div class="form-row"><label class="fld">BURSTS</label><input type="number" id="dh-bursts" value="5" min="1" max="64"></div>
+            <div class="form-row"><label class="fld">CAPTURE</label><select id="dh-capture"><option>WPA handshake</option><option>PMKID</option><option>Both</option></select></div>
+          </div>
+          <div class="flex gap-1">
+            <button class="btn btn-orange btn-sm" onclick="fnDeauthStart()">▶ START</button>
+            <button class="btn btn-red btn-sm" onclick="fnDeauthStop()">STOP</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">📡</span> RECON — ACCESS POINTS</div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>SSID</th><th>BSSID</th><th>BAND</th><th>CH</th><th>ENC</th><th>CLIENTS</th><th>HS</th></tr></thead>
+        <tbody id="ap-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▶</span> FUNCTIONS LOG</div>
+    <div class="panel-body"><div class="terminal" id="fn-term"><span class="t-dim">// function output //</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 4. PCAP / HASHCAT ═══════════ -->
+<section id="view-s-pcap" class="hidden">
+  <div class="panel">
+    <div class="panel-header"><span class="accent">◎</span> CAPTURED ARTIFACTS</div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>NAME</th><th>TYPE</th><th>SSID / SOURCE</th><th>SIZE</th><th>HASHCAT MODE</th><th>STATE</th><th style="width:240px">ACTIONS</th></tr></thead>
+        <tbody id="pcap-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-2 mt-2">
+    <div class="panel">
+      <div class="panel-header"><span class="accent">🔓</span> HASHCAT QUEUE</div>
+      <div class="panel-body">
+        <div class="col-2">
+          <div class="form-row"><label class="fld">WORDLIST</label>
+            <select id="hc-wl"><option>rockyou.txt</option><option>SecLists/Passwords/Common-Credentials/10k-most-common.txt</option><option>(custom)</option></select></div>
+          <div class="form-row"><label class="fld">RULES</label>
+            <select id="hc-rule"><option value="">(none)</option><option>best64.rule</option><option>OneRuleToRuleThemAll.rule</option></select></div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-green" onclick="hcRun()">▶ RUN QUEUE</button>
+          <button class="btn btn-red btn-sm" onclick="hcClearLog()">CLEAR LOG</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="accent">▶</span> HASHCAT LOG</div>
+      <div class="panel-body"><div class="terminal" id="hc-term" style="max-height:220px"><span class="t-dim">// hashcat (offline, range GPU) //</span></div></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_script %}<script src="/static/spectrum.js?v={{ app_version }}"></script>{% endblock %}

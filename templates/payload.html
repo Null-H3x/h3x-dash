@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% set active = 'payload' %}
+{% block title %}Payload{% endblock %}
+{% block topbar_title %}<span>❏</span> Payload — Hak5 Implants{% endblock %}
+
+{% block extra_style %}
+  {% include 'partials/hak5_styles.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="stepper">
+  <span class="here">PAYLOAD FLOW</span>
+  <span class="arr">›</span><span>① INVENTORY</span>
+  <span class="arr">›</span><span>② ARM</span>
+  <span class="arr">›</span><span>③ DEPLOY</span>
+</div>
+
+<div class="subtabs">
+  <button class="subtab active" data-tab="p-dash"   onclick="pTab('p-dash')">⌂ DASHBOARD</button>
+  <button class="subtab"        data-tab="p-inv"    onclick="pTab('p-inv')"><span class="step">1</span>INVENTORY</button>
+  <button class="subtab"        data-tab="p-arm"    onclick="pTab('p-arm')"><span class="step">2</span>ARM</button>
+  <button class="subtab"        data-tab="p-deploy" onclick="pTab('p-deploy')"><span class="step">3</span>DEPLOY</button>
+  <button class="subtab"        data-tab="p-lib"    onclick="pTab('p-lib')">⟲ LIBRARY</button>
+</div>
+
+<!-- ═══════════ DASHBOARD (landing) ═══════════ -->
+<section id="view-p-dash">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">PRODUCTS</div><div class="stat-val cyan" id="ps-prod">—</div></div>
+    <div class="stat-card"><div class="stat-label">INSTANCES ONLINE</div><div class="stat-val green" id="ps-on">—</div></div>
+    <div class="stat-card"><div class="stat-label">INSTANCES TOTAL</div><div class="stat-val violet" id="ps-tot">—</div></div>
+    <div class="stat-card"><div class="stat-label">ARMED</div><div class="stat-val orange" id="ps-armed">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="accent">◇</span> ARMED &amp; DEPLOYED INSTANCES
+      <span class="text-muted" style="margin-left:auto;font-size:10px">callback status refreshes every 5s; reverse shells land in the Shell tab</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>INSTANCE</th><th>PRODUCT</th><th>PAYLOAD</th><th>CALLBACK</th><th>TARGET NOTE</th><th>STATE</th><th style="width:280px">ACTIONS</th></tr></thead>
+        <tbody id="deploy-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">◎</span> LOOT INFORMATION
+      <span class="text-muted" style="margin-left:auto;font-size:10px">expected loot + downstream routing per armed/deployed device</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>SOURCE</th><th>EXPECTED LOOT</th><th>ROUTES TO</th><th>STATE</th></tr></thead>
+        <tbody id="loot-tbody-p"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▶</span> ACTIVITY / INSTALL LOG</div>
+    <div class="panel-body"><div class="terminal" id="dep-term"><span class="t-dim">// install / deploy / recall events stream here //</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 1. INVENTORY ═══════════ -->
+<section id="view-p-inv" class="hidden">
+  <div class="panel">
+    <div class="panel-header"><span class="accent">＋</span> ADD DEVICE — CONNECT TO ADD
+      <span class="text-muted" style="margin-left:auto;font-size:10px">validates the callback first; only adds on success (USB skips)</span>
+    </div>
+    <div class="panel-body">
+      <div class="col-3">
+        <div class="form-row"><label class="fld">PRODUCT</label>
+          <select id="add-product" onchange="addPrefill()"></select></div>
+        <div class="form-row"><label class="fld">HOST / ADDRESS</label>
+          <input type="text" id="add-host" placeholder="172.16.64.1 or (usb)"></div>
+        <div class="form-row"><label class="fld">PORT</label>
+          <input type="number" id="add-port" value="22"></div>
+      </div>
+      <div class="col-3">
+        <div class="form-row"><label class="fld">USERNAME</label>
+          <input type="text" id="add-user" value="root"></div>
+        <div class="form-row"><label class="fld">DEVICE ID (renameable later)</label>
+          <input type="text" id="add-name" placeholder="bunny-keller"></div>
+        <div class="form-row"><label class="fld">NOTES</label>
+          <input type="text" id="add-notes" placeholder="optional asset tag / checkout"></div>
+      </div>
+      <div class="flex gap-1">
+        <button class="btn btn-cyan" onclick="connectAndAdd()">⟳ CONNECT &amp; ADD</button>
+        <button class="btn btn-sm" onclick="clearAdd()">CLEAR</button>
+        <span class="text-muted ml-auto" style="font-size:10px;align-self:center" id="add-status">USB devices (Rubber Ducky) skip the callback — added directly.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">⌗</span> INVENTORY — TREE
+      <span class="text-muted" style="margin-left:auto;font-size:10px">click ＋/－ to expand · click an instance ID to rename · VALIDATE re-checks the live callback</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <div class="tree" id="tree-p"><div class="text-muted" style="padding:1.5rem">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▶</span> LOG</div>
+    <div class="panel-body"><div class="terminal" id="p-term"><span class="t-dim">// payload-flow log //</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 2. ARM ═══════════ -->
+<section id="view-p-arm" class="hidden">
+  <div class="col-2">
+    <div class="panel">
+      <div class="panel-header"><span class="accent">①</span> SELECT INSTANCE</div>
+      <div class="panel-body">
+        <div class="form-row"><label class="fld">DEVICE INSTANCE</label>
+          <select id="arm-inst" onchange="armRefresh()"></select></div>
+        <div class="text-muted" style="font-size:11px" id="arm-meta">—</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="accent">②</span> SELECT PAYLOAD (compatible only)</div>
+      <div class="panel-body">
+        <div class="form-row"><label class="fld">PAYLOAD</label>
+          <select id="arm-payload" onchange="armRefresh()"></select></div>
+        <div class="text-muted" style="font-size:11px" id="arm-pay-meta">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="text-muted mt-2" style="font-size:11px">
+    Selection carries to the <strong>Deploy</strong> tab, where you acknowledge the liability
+    statement and run the one-click install.
+  </div>
+</section>
+
+<!-- ═══════════ 3. DEPLOY ═══════════  (liability statement + one-click install ONLY) -->
+<section id="view-p-deploy" class="hidden">
+  <div class="liability">
+    <h4>⚠ DEPLOYMENT LIABILITY STATEMENT</h4>
+    <p>
+      Use of this module is authorized only when <em>at least one of the three scenarios below applies</em>
+      to the operator's intended use. The scenarios are alternatives — not joint requirements —
+      but each carries its own conditions.
+    </p>
+
+    <div class="scenarios">
+      <div class="scenario lab">
+        <div class="stag">SCENARIO A</div>
+        <h5>LAB / OWNED INFRASTRUCTURE</h5>
+        <ul>
+          <li>Operating inside a <strong>controlled, isolated training range</strong> or on systems you
+              personally own (your name on the hardware / lease / service agreement).</li>
+          <li>The lab is <strong>segmented from production and public networks</strong>; no inadvertent
+              traffic crosses the boundary.</li>
+          <li>RF-capable devices (O.MG, Pineapple, LAN Turtle 3G) <strong>stay inside the authorized
+              RF perimeter</strong>.</li>
+        </ul>
+      </div>
+      <div class="scenario pentest">
+        <div class="stag">SCENARIO B</div>
+        <h5>CONTRACTED AUTHORIZED PENTEST</h5>
+        <ul>
+          <li>You hold a <strong>current, signed Rules of Engagement / penetration-testing agreement</strong>
+              with the authorized system owner (verbal or implied permission is insufficient).</li>
+          <li>Target IPs / SSIDs / scope, the deployment window, and acceptable outcomes are
+              <strong>documented in that agreement</strong>.</li>
+          <li>You are <strong>physically present</strong> for any device deployment and the device is
+              recovered before the window closes.</li>
+        </ul>
+      </div>
+      <div class="scenario research">
+        <div class="stag">SCENARIO C</div>
+        <h5>SECURITY RESEARCH</h5>
+        <ul>
+          <li>Operating against a <strong>research lab, vulnerable-by-design platform</strong>
+              (Metasploitable, HackTheBox, VulnHub, TryHackMe, etc.), or your own published-research target.</li>
+          <li>Findings will be <strong>disclosed responsibly</strong> per the platform's or vendor's policy.</li>
+          <li>No third-party data leaves the research environment.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="legal-fine">
+      <strong>Jurisdictional note.</strong> Computer-misuse statutes vary by country, state/province, and
+      locality — including but not limited to the U.S. federal Computer Fraud and Abuse Act
+      (<strong>18 U.S.C. § 1030</strong>) and state-level variants (e.g., CA Penal Code §502, NY Penal Law §156),
+      the UK Computer Misuse Act 1990, Canada's Criminal Code §342.1, Australia's Cybercrime Act 2001,
+      EU member-state implementations of the NIS2 / Cybercrime Directives, and equivalents elsewhere.
+      It is the operator's sole responsibility to ensure compliance with the laws applicable to
+      <em>(a)</em> the operator's physical location, <em>(b)</em> the target's location, and
+      <em>(c)</em> any RF emissions that may cross jurisdictional boundaries.
+    </div>
+
+    <label class="chk" style="margin-top:.5rem">
+      <input type="checkbox" id="dep-ack" onchange="depAckChanged()">
+      <span>I acknowledge that at least one of Scenarios A–C above applies to my intended use, and I
+      have verified my legal authority under the jurisdiction(s) applicable to this deployment.</span>
+    </label>
+  </div>
+
+  <div class="flex gap-1 items-center mt-2">
+    <button class="btn btn-green btn-lg" id="btn-install" disabled onclick="depInstallNow()">⟳ ONE-CLICK INSTALL ▶</button>
+    <span class="text-muted" style="font-size:10px" id="install-status">select an instance + payload on the Arm tab, then acknowledge above</span>
+  </div>
+</section>
+
+<!-- ═══════════ LIBRARY — VETTED GITHUB SOURCES ═══════════ -->
+<section id="view-p-lib" class="hidden">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">VETTED SOURCES</div><div class="stat-val cyan" id="ls-src">—</div></div>
+    <div class="stat-card"><div class="stat-label">BUILT-IN PAYLOADS</div><div class="stat-val violet" id="ls-builtin">—</div></div>
+    <div class="stat-card"><div class="stat-label">SYNCED FROM GITHUB</div><div class="stat-val green" id="ls-synced">—</div></div>
+    <div class="stat-card"><div class="stat-label">LIBRARY TOTAL</div><div class="stat-val orange" id="ls-total">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="accent">⟲</span> VETTED GITHUB SOURCES — ACCESS UPDATE
+      <span class="text-muted" style="margin-left:auto;font-size:10px">allowlist only · official Hak5 / O.MG repos · offline range degrades gracefully</span>
+    </div>
+    <div class="panel-body">
+      <div class="text-muted" style="font-size:11px;margin-bottom:.75rem">
+        Pull payloads from the curated allowlist of <strong>vetted</strong> GitHub repositories below and
+        merge them into the Payload library. Only these org/repos are ever contacted; arbitrary URLs are
+        refused server-side. Synced payloads are catalogued for arming but never auto-stage a handler —
+        review before you wire a callback. Set <code>GITHUB_TOKEN</code> to raise the API rate limit.
+      </div>
+      <div class="flex gap-1 items-center" style="margin-bottom:.75rem">
+        <button class="btn btn-cyan" onclick="updateAllSources()">⟲ UPDATE ALL FROM GITHUB</button>
+        <span class="text-muted" style="font-size:10px;align-self:center" id="lib-status">click UPDATE on a row to pull a single source</span>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>SOURCE</th><th>REPOSITORY</th><th>PRODUCTS</th><th>LAST SYNC</th><th>PAYLOADS</th><th>STATUS</th><th style="width:130px">ACTION</th></tr></thead>
+        <tbody id="src-tbody"><tr><td colspan="7" class="text-muted" style="text-align:center;padding:1rem">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▦</span> SYNCED PAYLOAD BROWSER
+      <span class="text-muted" id="syn-count" style="margin-left:auto;font-size:10px">—</span>
+    </div>
+    <div class="panel-body">
+      <div class="lib-controls">
+        <div class="form-row"><label class="fld">PRODUCT</label>
+          <select id="lib-product" onchange="renderSyncedPayloads()"><option value="">All products</option></select></div>
+        <div class="form-row"><label class="fld">GROUP BY</label>
+          <select id="lib-group" onchange="renderSyncedPayloads()">
+            <option value="category">Category</option>
+            <option value="product">Product</option>
+            <option value="source">Source</option>
+            <option value="none">None (flat)</option>
+          </select></div>
+        <div class="form-row"><label class="fld">SORT BY</label>
+          <select id="lib-sort" onchange="renderSyncedPayloads()">
+            <option value="name">Name (A→Z)</option>
+            <option value="category">Category</option>
+            <option value="source">Source</option>
+          </select></div>
+        <div class="form-row"><label class="fld">FILTER</label>
+          <input type="text" id="lib-q" placeholder="name / category / source…" oninput="renderSyncedPayloads()"></div>
+      </div>
+      <div class="flex gap-1" style="margin:.1rem 0 .75rem">
+        <button class="btn btn-sm" onclick="libExpandAll(true)">EXPAND ALL</button>
+        <button class="btn btn-sm" onclick="libExpandAll(false)">COLLAPSE ALL</button>
+        <span class="text-muted" style="font-size:10px;align-self:center">click a payload to pull its description from the source repo</span>
+      </div>
+      <div id="syn-groups"><div class="text-muted" style="padding:1rem">no synced payloads yet — run an update above</div></div>
+    </div>
+  </div>
+
+  <div class="panel mt-2">
+    <div class="panel-header"><span class="accent">▶</span> UPDATE LOG</div>
+    <div class="panel-body"><div class="terminal" id="lib-term"><span class="t-dim">// vetted-source pull events stream here //</span></div></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_script %}<script src="/static/payload.js?v={{ app_version }}"></script>{% endblock %}
