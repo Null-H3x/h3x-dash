@@ -44,6 +44,7 @@ from modules.payload_sources import PayloadSourceManager
 from modules import report_engine
 from modules.emulation_engine import EmulationEngine, DetectionLedger
 from modules.ad_engine import AdEngine
+from modules.c2_engine import BeaconEmitter
 
 # ── App init ──────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,12 @@ emulation_engine = EmulationEngine(emulation_ledger, H3xConfig)
 # material to loot files, and ADCS / coercion outcomes to findings. Refuses when
 # a tool is absent — nothing offensive is bundled.
 ad_engine = AdEngine(cred_store, H3xConfig.LOOT_DIR)
+
+# ── Synthetic C2 beacon emitter (LCE · detection validation) ──────────────────
+# Benign traffic generator — emits jittered HTTP(S)/DNS heartbeats to an
+# operator-controlled sink to exercise beaconing detections. No command channel,
+# no payload, no data transfer.
+beacon_emitter = BeaconEmitter()
 
 
 # ── Template context — runs on every render_template ──────────────────────────
@@ -2454,6 +2461,68 @@ def api_ad_download(name):
     if not path.is_file():
         return jsonify({'status': 'error', 'message': 'not found'}), 404
     return send_file(path, as_attachment=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SYNTHETIC C2 BEACON (LCE) — benign detection-validation traffic generator.
+#  Emits jittered HTTP(S)/DNS heartbeats to an operator-controlled sink.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/c2/profiles')
+def api_c2_profiles():
+    return jsonify({'profiles': beacon_emitter.profiles()})
+
+
+@app.route('/api/c2/start', methods=['POST'])
+def api_c2_start():
+    data      = request.get_json(silent=True) or {}
+    client_id = data.get('client_id') or str(uuid.uuid4())
+    data['client_id'] = client_id
+    q = _get_queue(client_id)
+
+    def on_event(ev):
+        try: q.put_nowait(ev)
+        except Exception: pass
+
+    def on_complete(result):
+        try: q.put_nowait({'type': 'complete', **result})
+        except Exception: pass
+
+    started, msg = beacon_emitter.start(data, on_event, on_complete)
+    if not started:
+        _drop_queue(client_id)
+        return jsonify({'status': 'error', 'message': msg}), 409
+    return jsonify({'status': 'started', 'client_id': client_id})
+
+
+@app.route('/api/c2/stream')
+def api_c2_stream():
+    client_id = request.args.get('client_id', 'default')
+    q = _get_queue(client_id)
+
+    def generate():
+        try:
+            while True:
+                try:
+                    event = q.get(timeout=25)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get('type') in ('complete', 'error'):
+                        break
+                except queue.Empty:
+                    yield f"data: {json.dumps({'type':'heartbeat'})}\n\n"
+        finally:
+            _drop_queue(client_id)
+
+    return Response(stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/c2/stop', methods=['POST'])
+def api_c2_stop():
+    data = request.get_json(silent=True) or {}
+    stopped = beacon_emitter.stop(data.get('client_id', ''))
+    return jsonify({'status': 'stopping' if stopped else 'not-running'})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
