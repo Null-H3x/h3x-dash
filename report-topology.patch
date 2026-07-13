@@ -1,0 +1,161 @@
+diff --git a/modules/report_engine.py b/modules/report_engine.py
+index d1d3baa..f852ff1 100644
+--- a/modules/report_engine.py
++++ b/modules/report_engine.py
+@@ -546,6 +546,104 @@ td{padding:7px 12px;border-bottom:1px solid #0d0d12;vertical-align:top}
+ """
+ 
+ 
++def _topology_svg(hosts: list) -> str:
++    """Self-contained inline SVG network map — gateway + risk-tiered host nodes.
++
++    No JS and no external assets: renders identically in a browser, in print,
++    and through WeasyPrint to PDF. Mirrors the console topology pane's risk
++    palette (red = critical port, amber = elevated, cyan = open, violet =
++    gateway / domain controller) so the deliverable matches the live UI.
++    """
++    RED, AMBER, CYAN, VIOLET = '#ff4d4d', '#ff9e2c', '#0ff0fc', '#9b30ff'
++    live = [h for h in hosts if (h.get('ports') or [])]
++    if not live:
++        return '<p class="empty-msg">No hosts with open ports to map.</p>'
++
++    def _risk(h):
++        rs = [str(p.get('risk', 'info')).lower() for p in h.get('ports', [])]
++        if 'danger' in rs or 'critical' in rs:
++            return RED
++        if 'warn' in rs or 'warning' in rs:
++            return AMBER
++        return CYAN
++
++    def _is_dc(h):
++        blob = (str(h.get('type', '')) + ' ' + str(h.get('os', ''))).lower()
++        return 'domain controller' in blob or blob.endswith(' dc') or ' dc ' in blob
++
++    n = len(live)
++    cols = min(n, 5)
++    rows = (n + cols - 1) // cols
++    gap_x, gap_y, pad_x = 130, 128, 80
++    W = max(560, pad_x * 2 + (cols - 1) * gap_x)
++    gw_y, row0_y = 54, 152
++    H = row0_y + (rows - 1) * gap_y + 78
++    cx = W / 2
++
++    def _pos(i):
++        r, c = divmod(i, cols)
++        in_row = min(cols, n - r * cols)
++        x0 = cx - ((in_row - 1) * gap_x) / 2
++        return x0 + c * gap_x, row0_y + r * gap_y
++
++    p = [f'<svg viewBox="0 0 {W:.0f} {H:.0f}" width="100%" '
++         f'font-family="Share Tech Mono, monospace" '
++         f'style="display:block;background:#0a0a0f;border:1px solid #1c1c28;border-radius:8px">']
++    # connective lines (gateway → host), tinted by the host's risk
++    for i, h in enumerate(live):
++        x, y = _pos(i)
++        p.append(f'<line x1="{cx:.0f}" y1="{gw_y + 22:.0f}" x2="{x:.0f}" y2="{y - 24:.0f}" '
++                 f'stroke="{_risk(h)}" stroke-opacity="0.22" stroke-width="1.3"/>')
++    # gateway
++    p.append(f'<circle cx="{cx:.0f}" cy="{gw_y}" r="22" fill="#0f0f17" stroke="{VIOLET}" stroke-width="1.6"/>'
++             f'<text x="{cx:.0f}" y="{gw_y + 5}" fill="{VIOLET}" text-anchor="middle" font-size="15">&#9672;</text>'
++             f'<text x="{cx:.0f}" y="{gw_y + 41}" fill="{VIOLET}" text-anchor="middle" font-size="10" letter-spacing="1.5">GATEWAY</text>')
++    # host nodes
++    for i, h in enumerate(live):
++        x, y = _pos(i)
++        col = _risk(h)
++        ring = VIOLET if _is_dc(h) else col
++        ports = h.get('ports', [])
++        nports = len(ports)
++        crit = sum(1 for pt in ports if str(pt.get('risk', '')).lower() in ('danger', 'critical'))
++        ip = _esc(h.get('ip', ''))
++        sub = _esc((str(h.get('type') or h.get('os') or ''))[:20])
++        p.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="20" fill="#0f0f17" stroke="{ring}" stroke-width="1.6"/>')
++        if _is_dc(h):
++            p.append(f'<text x="{x:.0f}" y="{y - 24:.0f}" fill="{VIOLET}" text-anchor="middle" font-size="12">&#9733;</text>')
++        p.append(f'<text x="{x:.0f}" y="{y + 5:.0f}" fill="{ring}" text-anchor="middle" font-size="13">{nports}</text>')
++        p.append(f'<text x="{x:.0f}" y="{y + 37:.0f}" fill="#e8e8f0" text-anchor="middle" font-size="10">{ip}</text>')
++        if sub:
++            p.append(f'<text x="{x:.0f}" y="{y + 50:.0f}" fill="#6a6a7a" text-anchor="middle" font-size="8">{sub}</text>')
++        if crit:
++            p.append(f'<circle cx="{x + 16:.0f}" cy="{y - 15:.0f}" r="7" fill="{RED}"/>'
++                     f'<text x="{x + 16:.0f}" y="{y - 11:.0f}" fill="#0a0a0f" text-anchor="middle" font-size="9">{crit}</text>')
++    p.append('</svg>')
++    return ''.join(p)
++
++
++def _topology_section(hosts: list) -> str:
++    """Topology map + a one-line lede + an inline legend (self-contained)."""
++    live = [h for h in hosts if (h.get('ports') or [])]
++    n = len(live)
++    crit = sum(1 for h in live
++               if any(str(pt.get('risk', '')).lower() in ('danger', 'critical')
++                      for pt in h.get('ports', [])))
++    lede = (f'<p class="lede">{n} live host{"" if n == 1 else "s"} mapped across the '
++            f'engagement scope'
++            + (f', <b style="color:#ff4d4d">{crit}</b> exposing critical-severity ports.'
++               if crit else '.') + '</p>')
++    swatches = [('#ff4d4d', 'Critical port exposed'), ('#ff9e2c', 'Elevated risk'),
++                ('#0ff0fc', 'Open ports'), ('#9b30ff', 'Gateway / Domain Controller')]
++    legend = ('<div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;'
++              'font-family:Share Tech Mono,monospace;font-size:11px;color:#9a9aad">'
++              + ''.join('<span style="display:inline-flex;align-items:center;gap:7px">'
++                        f'<i style="width:11px;height:11px;display:inline-block;background:{c}"></i>'
++                        f'{lbl}</span>' for c, lbl in swatches)
++              + '</div>')
++    return lede + _topology_svg(hosts) + legend
++
++
+ def render_html(data: dict, include_secrets: bool = False) -> str:
+     """Render the full SPECTR engagement report as a standalone HTML document."""
+     eng = data.get('engagement') or {}
+@@ -580,10 +678,11 @@ def render_html(data: dict, include_secrets: bool = False) -> str:
+     # ── Table of contents ─────────────────────────────────────────────────────
+     parts.append('''<div class="toc">
+ <a href="#exec">01 · Executive Summary</a><br>
+-<a href="#findings">02 · Findings</a><br>
+-<a href="#creds">03 · Recovered Credentials</a><br>
+-<a href="#attack">04 · MITRE ATT&CK Coverage</a><br>
+-<a href="#appendix">05 · Host Enumeration Appendix</a></div>''')
++<a href="#topology">02 · Network Topology</a><br>
++<a href="#findings">03 · Findings</a><br>
++<a href="#creds">04 · Recovered Credentials</a><br>
++<a href="#attack">05 · MITRE ATT&CK Coverage</a><br>
++<a href="#appendix">06 · Host Enumeration Appendix</a></div>''')
+ 
+     # ── Executive summary ─────────────────────────────────────────────────────
+     parts.append('<div class="section" id="exec"><h2>// 01 · EXECUTIVE SUMMARY</h2>')
+@@ -592,8 +691,13 @@ def render_html(data: dict, include_secrets: bool = False) -> str:
+     parts.append(_sev_bar(data.get('sev_counts', {})))
+     parts.append('</div>')
+ 
++    # ── Network topology ──────────────────────────────────────────────────────
++    parts.append('<div class="section" id="topology"><h2>// 02 · NETWORK TOPOLOGY</h2>')
++    parts.append(_topology_section(data.get('hosts', [])))
++    parts.append('</div>')
++
+     # ── Findings ──────────────────────────────────────────────────────────────
+-    parts.append('<div class="section" id="findings"><h2>// 02 · FINDINGS</h2>')
++    parts.append('<div class="section" id="findings"><h2>// 03 · FINDINGS</h2>')
+     findings = data.get('findings', [])
+     if findings:
+         for i, f in enumerate(findings, 1):
+@@ -603,17 +707,17 @@ def render_html(data: dict, include_secrets: bool = False) -> str:
+     parts.append('</div>')
+ 
+     # ── Credentials ───────────────────────────────────────────────────────────
+-    parts.append('<div class="section" id="creds"><h2>// 03 · RECOVERED CREDENTIALS</h2>')
++    parts.append('<div class="section" id="creds"><h2>// 04 · RECOVERED CREDENTIALS</h2>')
+     parts.append(_creds_table(data.get('credentials', []), include_secrets))
+     parts.append('</div>')
+ 
+     # ── ATT&CK coverage ───────────────────────────────────────────────────────
+-    parts.append('<div class="section" id="attack"><h2>// 04 · MITRE ATT&CK COVERAGE</h2>')
++    parts.append('<div class="section" id="attack"><h2>// 05 · MITRE ATT&CK COVERAGE</h2>')
+     parts.append(_attack_heatmap(data.get('attack_matrix', {})))
+     parts.append('</div>')
+ 
+     # ── Host appendix ─────────────────────────────────────────────────────────
+-    parts.append('<div class="section" id="appendix"><h2>// 05 · HOST ENUMERATION APPENDIX</h2>')
++    parts.append('<div class="section" id="appendix"><h2>// 06 · HOST ENUMERATION APPENDIX</h2>')
+     parts.append(_host_appendix(data.get('hosts', [])))
+     parts.append('</div>')
+ 
