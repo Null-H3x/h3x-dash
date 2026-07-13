@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>H3x-Dash // Purple Ops Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#0c0c11; --surface:#121219; --surface2:#0f0f15;
+  --line:#1c1c28; --line-faint:#16161f;
+  --cyan:#0ff0fc; --violet:#9b30ff; --acid:#39ff14;
+  --danger:#ff4d4d; --warn:#ff9e2c;
+  --text:#b6c2cf; --dim:#6c7686; --muted:#464d5b;
+  --topbar-h:54px; --side-w:224px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--void); color:var(--text);
+  font-family:"Share Tech Mono","Courier New",monospace;
+  overflow:hidden; line-height:1.6; font-size:13px;
+}
+/* calm atmosphere: one faint grid + a soft top glow. no scanlines. */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.55;
+  background:
+    radial-gradient(900px 380px at 60% -8%, rgba(15,240,252,.05), transparent 70%),
+    linear-gradient(rgba(155,48,255,.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(15,240,252,.018) 1px,transparent 1px);
+  background-size:auto, 44px 44px, 44px 44px;
+}
+h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
+::selection{background:rgba(15,240,252,.25)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#1e1e2c;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── PRIMARY AXIS — overhead workflow tabs ──────────────────────────────── */
+.topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:40;display:flex;
+  align-items:stretch;background:rgba(11,11,16,.92);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;padding:0 20px;border-right:1px solid var(--line);white-space:nowrap}
+.brand .mark{font-family:"Rajdhani",sans-serif;font-weight:700;font-size:18px;letter-spacing:.16em;color:#fff}
+.brand .mark b{color:var(--acid)}
+.brand .sub{font-size:8px;letter-spacing:.3em;color:var(--dim);margin-top:3px}
+.tabs{display:flex;align-items:stretch;overflow-x:auto;flex:1;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{display:flex;align-items:center;gap:8px;padding:0 17px;cursor:pointer;
+  font-family:"Rajdhani",sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.14em;
+  color:var(--dim);white-space:nowrap;position:relative;transition:color .16s}
+.tab .tnum{font-size:9px;color:var(--muted);font-family:"Share Tech Mono",monospace}
+.tab:hover{color:var(--text)}
+.tab.active{color:#fff}
+.tab.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;
+  background:var(--cyan);box-shadow:0 0 12px rgba(15,240,252,.7)}
+.tab .dotnew{width:5px;height:5px;border-radius:50%;background:var(--violet)}
+.status{display:flex;align-items:center;gap:18px;padding:0 20px;border-left:1px solid var(--line);white-space:nowrap}
+.si{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.1em}
+.si .lbl{color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot.on{background:var(--acid);box-shadow:0 0 7px rgba(57,255,20,.8)}
+.dot.watch{background:var(--cyan);box-shadow:0 0 7px rgba(15,240,252,.8)}
+
+/* ── SECONDARY AXIS — contextual side-nav + main ────────────────────────── */
+.shell{position:fixed;top:var(--topbar-h);left:0;right:0;bottom:0;display:flex;z-index:1}
+.sidenav{width:var(--side-w);flex:0 0 var(--side-w);overflow-y:auto;
+  background:rgba(9,9,13,.6);border-right:1px solid var(--line);padding:18px 0}
+.side-eyebrow{font-family:"Rajdhani",sans-serif;font-size:9.5px;letter-spacing:.28em;
+  color:var(--violet);padding:0 20px 12px}
+.mlink{display:flex;align-items:center;gap:12px;padding:8px 20px;cursor:pointer;font-size:12.5px;
+  color:var(--dim);border-left:2px solid transparent;transition:color .12s,background .12s,border-color .12s}
+.mlink .mi{width:15px;text-align:center;font-size:13px;color:var(--muted);transition:color .12s}
+.mlink:hover{color:var(--text);background:rgba(15,240,252,.03)}
+.mlink:hover .mi{color:var(--cyan)}
+.mlink.active{color:#fff;background:rgba(15,240,252,.055);border-left-color:var(--cyan)}
+.mlink.active .mi{color:var(--cyan)}
+.tag-new{margin-left:auto;font-size:7.5px;letter-spacing:.14em;color:var(--violet);
+  border:1px solid #2f1c44;border-radius:3px;padding:1px 5px}
+
+.main{flex:1;overflow-y:auto;padding:26px 34px 70px}
+.wrap{max-width:1020px}
+.crumb{font-size:10px;letter-spacing:.18em;color:var(--muted);margin-bottom:7px}
+.crumb b{color:var(--violet);font-weight:400}
+.phead{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
+.phead h1{font-size:25px;letter-spacing:.03em;color:#fff;font-weight:600}
+.pdesc{font-size:12.5px;color:var(--dim);max-width:720px;margin:9px 0 0;line-height:1.7}
+.divider{height:1px;background:var(--line);margin:22px 0 26px}
+
+/* section — no boxed card by default; eyebrow + air */
+.sec{margin-bottom:30px}
+.eyebrow{display:flex;align-items:center;gap:9px;font-family:"Rajdhani",sans-serif;font-weight:600;
+  font-size:10.5px;letter-spacing:.24em;color:var(--violet);margin-bottom:14px}
+.eyebrow i{width:14px;height:2px;background:var(--violet);display:inline-block;opacity:.7}
+.sec-note{font-size:11px;color:var(--muted);margin-top:11px;letter-spacing:.03em;line-height:1.6}
+
+/* surface — used sparingly, for things that need a real container */
+.surface{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+
+/* stats — minimal, divided by space not borders */
+.stats{display:flex;gap:30px;flex-wrap:wrap;margin-bottom:4px}
+.stat .sv{font-family:"Rajdhani",sans-serif;font-weight:700;font-size:30px;line-height:1}
+.stat .sk{font-size:8.5px;letter-spacing:.2em;color:var(--muted);margin-top:6px}
+
+/* fields + controls */
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label{font-size:8.5px;letter-spacing:.18em;color:var(--muted)}
+.inp,.sel{background:var(--surface2);border:1px solid #23232f;color:var(--cyan);font-family:inherit;
+  font-size:12px;padding:8px 12px;border-radius:5px;min-width:160px;transition:border-color .14s}
+.inp::placeholder{color:#3a4150}
+.inp:focus,.sel:focus{outline:none;border-color:var(--cyan)}
+.btn{font-family:"Rajdhani",sans-serif;font-weight:700;letter-spacing:.11em;font-size:12px;
+  padding:9px 17px;border-radius:6px;cursor:pointer;border:1px solid;background:transparent;transition:background .15s,color .15s}
+.btn.pri{color:var(--cyan);border-color:#1c4a52}
+.btn.pri:hover{background:rgba(15,240,252,.09)}
+.btn.go{color:var(--acid);border-color:#1e5230}
+.btn.go:hover{background:rgba(57,255,20,.09)}
+.btn.stop{color:var(--danger);border-color:#5e2020}
+.btn.stop:hover{background:rgba(255,77,77,.09)}
+.btn.ghost{color:var(--dim);border-color:#23232f}
+.btn.ghost:hover{color:var(--text);background:rgba(255,255,255,.02)}
+.btn.sm{padding:5px 11px;font-size:10.5px}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:10px;letter-spacing:.04em;padding:4px 10px;border-radius:14px;border:1px solid #23232f;color:var(--dim)}
+.chip.on{color:var(--acid);border-color:#1e5230}
+.chip.att{color:var(--violet);border-color:#2a1a3a}
+.chip.src{color:var(--cyan);border-color:#153740}
+
+.statusline{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--dim);margin:16px 0 0;letter-spacing:.05em}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.sdot.run{background:var(--acid);box-shadow:0 0 7px rgba(57,255,20,.7)}
+
+/* tables — airy, hairline separators, no vertical rules */
+.tblwrap{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{text-align:left;padding:10px 15px;font-size:8.5px;letter-spacing:.16em;color:var(--muted);
+  background:rgba(255,255,255,.012);border-bottom:1px solid var(--line);font-weight:400}
+tbody td{padding:11px 15px;border-bottom:1px solid var(--line-faint);color:var(--text)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(15,240,252,.02)}
+.num{font-variant-numeric:tabular-nums}
+.pill{font-size:8.5px;letter-spacing:.08em;padding:2px 8px;border-radius:4px;border:1px solid;white-space:nowrap}
+.pill.ok{color:var(--acid);border-color:#1e5230} .pill.no{color:var(--danger);border-color:#5e2020}
+.pill.warn{color:var(--warn);border-color:#5e3e1e} .pill.info{color:var(--cyan);border-color:#1c4a52}
+.pill.muted{color:var(--dim);border-color:#2a2a38}
+.pill.crit{color:#fff;background:#3a0d0d;border-color:#7a1f1f}
+
+/* terminal — one accent edge, calm syntax */
+.term{background:var(--surface2);border:1px solid var(--line);border-left:2px solid var(--acid);
+  border-radius:7px;padding:13px 15px;font-size:11.5px;line-height:1.75;max-height:250px;overflow:auto;white-space:pre-wrap}
+.term .c{color:var(--cyan)} .term .v{color:var(--violet)} .term .g{color:var(--acid)}
+.term .r{color:var(--danger)} .term .w{color:var(--warn)} .term .d{color:var(--muted)}
+
+/* detection strip — the signature, calmed down */
+.detstrip{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:26px;background:var(--surface2)}
+.detstrip .dh{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--line);
+  font-size:9px;letter-spacing:.22em;color:var(--violet)}
+.detstrip .dh .eye{color:var(--cyan);font-size:11px}
+.dflow{display:flex;flex-wrap:wrap}
+.dcol{flex:1;min-width:200px;padding:15px 16px;border-right:1px solid var(--line)}
+.dcol:last-child{border-right:none}
+.dcol .dk{font-size:8px;letter-spacing:.2em;color:var(--muted);margin-bottom:9px}
+.detrow{display:flex;align-items:center;gap:9px;font-size:10.5px;margin:6px 0;color:var(--text)}
+.led{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+.led.hit{background:var(--acid);box-shadow:0 0 6px rgba(57,255,20,.8)}
+.led.part{background:var(--warn);box-shadow:0 0 6px rgba(255,158,44,.8)}
+.led.miss{background:var(--danger);box-shadow:0 0 6px rgba(255,77,77,.8)}
+.led.pend{background:var(--muted)}
+
+/* session tabs */
+.stabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.stab{font-size:11px;padding:7px 13px;border-radius:6px 6px 0 0;border:1px solid var(--line);
+  border-bottom:none;color:var(--dim);cursor:pointer;background:var(--surface2)}
+.stab.active{color:#fff;border-color:#1c4a52;background:var(--surface)}
+.stab .sid{color:var(--acid)}
+
+/* topology mini-graph */
+.topo{border:1px solid var(--line);border-radius:8px;background:var(--surface2);padding:8px}
+
+/* coverage bar */
+.covbar{height:24px;border-radius:6px;overflow:hidden;display:flex;border:1px solid var(--line);
+  font-size:9.5px;margin:14px 0 4px}
+.covbar span{display:flex;align-items:center;justify-content:center;color:#0c0c11;font-weight:700}
+
+.proto-flag{position:fixed;bottom:13px;right:15px;z-index:70;font-size:8.5px;letter-spacing:.16em;
+  color:var(--warn);border:1px solid #3a2600;background:rgba(20,12,0,.85);border-radius:6px;padding:6px 11px}
+
+@media (max-width:840px){:root{--side-w:172px} .brand .sub{display:none} .si.hide{display:none} .main{padding:20px 18px 60px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><div>
+    <div class="mark">// H3X<b>·</b>DASH //</div>
+    <div class="sub">PURPLE OPS CONSOLE</div>
+  </div></div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="status">
+    <div class="si"><span class="lbl">MSF&nbsp;RPC</span><span class="dot" id="msfDot"></span><span id="msfText" style="color:var(--dim)">checking…</span></div>
+    <div class="si hide"><span class="lbl">SIEM</span><span class="dot watch"></span><span style="color:var(--cyan)">MONITORING</span></div>
+    <div class="si hide"><span class="lbl">TGT</span><span id="tgtText" style="color:var(--dim)">10.10.10.0/24</span></div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidenav" id="sidenav"></aside>
+  <main class="main" id="main"><div class="wrap" id="wrap"></div></main>
+</div>
+
+<div id="toaster" style="position:fixed;bottom:46px;right:15px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:360px"></div>
+<div class="proto-flag">◆ LIVE CONSOLE — wired to the H3x-Dash API at <b style="color:var(--cyan)">/console</b></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════════════════
+//  H3x-Dash · Purple Ops Console — live client
+//  Preserves the prototype's design system; every pane is wired to the real
+//  Flask API (same-origin /api/*). Panes without a backend endpoint in this
+//  build render an honest "not wired" roadmap card instead of faking controls.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24',
+            msf:{connected:false, version:''}, _streams:[], _timers:[] };
+
+// ── Workspaces (primary tabs → contextual modules) ──────────────────────────
+const WS = [
+  {id:'overview',label:'OVERVIEW',modules:[{id:'dashboard',label:'Dashboard',icon:'◈'}]},
+  {id:'recon',label:'RECON & ENUM',modules:[
+    {id:'scan',label:'Scan',icon:'◉'},{id:'topology',label:'Topology',icon:'◭'},
+    {id:'webscan',label:'Web Scan',icon:'◍'},{id:'enum',label:'Enum Suite',icon:'⚙'},
+    {id:'msfscan',label:'MSF Scanners',icon:'▦'}]},
+  {id:'access',label:'ACCESS',modules:[
+    {id:'exploit',label:'Exploit',icon:'⚡'},{id:'validate',label:'Validate',icon:'◇'},
+    {id:'shell',label:'Sessions / Shell',icon:'▸'},{id:'payloads',label:'Payloads',icon:'❏'},
+    {id:'spectrum',label:'Spectrum',icon:'∿'}]},
+  {id:'credsad',label:'CREDS & AD',modules:[
+    {id:'loot',label:'Loot Creds',icon:'🔑'},{id:'responder',label:'Responder + Relay',icon:'☰',isnew:true},
+    {id:'roast',label:'Kerberoast / AS-REP',icon:'⛨',isnew:true},{id:'bloodhound',label:'BloodHound',icon:'⌖',isnew:true},
+    {id:'impacket',label:'Impacket-AD',icon:'⊟',isnew:true},{id:'certipy',label:'Certipy / ADCS',icon:'⬡',isnew:true},
+    {id:'coercion',label:'Coercion',icon:'⇄',isnew:true}]},
+  {id:'lce',label:'LATERAL / C2 / EXFIL',modules:[
+    {id:'lateral',label:'Lateral Movement',icon:'⇉',isnew:true},{id:'c2',label:'C2 Beacon Emulator',icon:'◕',isnew:true},
+    {id:'exfil',label:'Exfil & Tunneling',icon:'⤢',isnew:true}]},
+  {id:'emulation',label:'EMULATION',modules:[
+    {id:'atomic',label:'Atomic Red Team',icon:'⚛',isnew:true},{id:'caldera',label:'CALDERA',icon:'⬢',isnew:true},
+    {id:'playbooks',label:'Scenario Playbooks',icon:'❑',isnew:true}]},
+  {id:'report',label:'REPORT & PURPLE',modules:[
+    {id:'engagement',label:'Engagement Report',icon:'◎'},{id:'coverage',label:'Detection Coverage',icon:'▤',isnew:true}]},
+];
+
+// ── Module metadata (desc + purple detection wiring) ────────────────────────
+const META = {
+  topology:{d:'Live graph of discovered hosts, risk-tiered ports, and their relationships.'},
+  webscan:{d:'Layer-7 web scan — response headers, tech fingerprint, and http-NSE surface.'},
+  msfscan:{d:'Metasploit auxiliary scanner modules for post-recon confirmation.'},
+  spectrum:{d:'RF / wireless operations — device control, recon sweeps, and handshake capture.'},
+  responder:{d:'LLMNR / NBT-NS / mDNS poisoning with SMB/LDAP/ADCS relay via Responder + ntlmrelayx.',
+    tech:['T1557.001','T1187'],src:['Zeek dns / mdns','Suricata ET','Sysmon 4624'],
+    det:[['ET LLMNR/NBT-NS poisoning','hit'],['Sigma: Responder capture','hit'],['Unexpected machine-account logon','part']],
+    tools:['Responder','ntlmrelayx (impacket)']},
+  roast:{d:'GetUserSPNs / GetNPUsers roast-and-crack — request RC4 tickets, hand off to hashcat.',
+    tech:['T1558.003','T1558.004'],src:['4769 (0x17/RC4)','Zeek kerberos'],det:[['Sigma: Kerberoasting 4769','hit'],['ET Kerberos RC4','hit']],
+    tools:['impacket GetUserSPNs / GetNPUsers','hashcat']},
+  bloodhound:{d:'SharpHound / bloodhound-python collection — LDAP + session enumeration for attack paths.',
+    tech:['T1087.002','T1482'],src:['4662 volume','Zeek ldap'],det:[['Sigma: SharpHound burst','part'],['ET LDAP enumeration','miss']],
+    tools:['bloodhound-python','SharpHound','neo4j']},
+  impacket:{d:'Impacket AD — secretsdump / DCSync credential extraction against the DC.',
+    tech:['T1003.006'],src:['4662 + DRSUAPI GUID','Zeek drsuapi'],det:[['Sigma: DCSync (DRSUAPI)','hit'],['ET replication','part']],
+    tools:['impacket secretsdump']},
+  certipy:{d:'Certipy ADCS abuse — enumerate + exploit ESC1–ESC8 certificate misconfigurations.',
+    tech:['T1649'],src:['4886 / 4887 enroll','Zeek'],det:[['Sigma: suspicious enrollment','miss'],['ESC1 template abuse','miss']],
+    tools:['Certipy']},
+  coercion:{d:'Auth coercion — PetitPotam (EFSRPC) and PrinterBug (MS-RPRN) force machine auth.',
+    tech:['T1187'],src:['Zeek efsrpc / rprn','5145'],det:[['Sigma: PetitPotam EFSRPC','hit'],['ET PrinterBug','part']],
+    tools:['PetitPotam','printerbug (dementor)']},
+  lateral:{d:'Lateral movement — psexec / smbexec / wmiexec / dcomexec / atexec / evil-winrm, plus PtH / PtT.',
+    tech:['T1021.002','T1047','T1053.005','T1550.002'],src:['7045 service','Zeek smb / pipes','WMI process-create','4698'],
+    det:[['Sigma: PsExec service (7045)','hit'],['Sigma: WMI remote exec','part'],['ET SMBExec pipe','hit']],
+    tools:['impacket *exec','evil-winrm','netexec']},
+  c2:{d:'Synthetic C2 beaconing — jittered HTTP/HTTPS/DNS callbacks with tunable sleep + malleable profiles.',
+    tech:['T1071.001','T1571','T1573'],src:['Zeek conn / JA3','RITA score'],det:[['RITA: interval beacon','hit'],['Suricata: JA3','part'],['Zeek: long-conn','pend']],
+    tools:['synthetic beacon emitter']},
+  exfil:{d:'Staged exfil + tunneling — HTTPS POST, DNS (dnscat2/iodine), ICMP with adjustable volume/timing.',
+    tech:['T1041','T1048.003','T1071.004'],src:['Zeek dns (entropy)','Suricata ET DNS','conn bytes-out'],
+    det:[['Sigma: DNS tunneling','hit'],['ET DNS exfil','part'],['DLP egress volume','miss']],
+    tools:['dnscat2','iodine']},
+  atomic:{d:'Atomic Red Team — invoke-atomicredteam runs portable, ATT&CK-mapped atomics built for detection validation.',
+    tech:['T1218.011','T1059.001','T1547.001'],src:['Sysmon 1 / 11 / 13','4688'],
+    det:[['Sigma: rundll32 LOLBAS','hit'],['Sigma: PS script block','hit'],['Sigma: Run-key persist','hit']],
+    tools:['Invoke-AtomicRedTeam']},
+  caldera:{d:'MITRE CALDERA — autonomous, chained adversary emulation across the ATT&CK matrix.',
+    tech:['T1059','T1053','T1105'],src:['Sysmon','4688','Zeek http'],det:[['CALDERA agent beacon','part'],['Sigma: ability exec','hit']],
+    tools:['MITRE CALDERA server + agents']},
+  playbooks:{d:'Named-actor + ransomware-precursor scenario chains — sequenced end-to-end intrusion emulation.',
+    tech:['T1486','T1490','T1070.001'],src:['Sysmon','1102 log clear','VSS delete'],
+    det:[['Sigma: shadow-copy delete','hit'],['Sigma: log cleared (1102)','hit'],['Mass file rename','part']],
+    tools:['chained scenario runner']},
+  engagement:{d:'Client-deliverable engagement report — scan, creds, exploit outcomes, verdicts and ATT&CK coverage in one SPECTR report.'},
+};
+
+// ── DOM refs ────────────────────────────────────────────────────────────────
+const wrap = document.getElementById('wrap');
+const main = document.getElementById('main');
+
+// ── tiny utils ──────────────────────────────────────────────────────────────
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mask = s => { s=String(s==null?'':s); if(!s) return '—'; return s[0]+'•••••• ('+s.length+')'; };
+const when = ts => ts ? String(ts) : '—';
+const num = v => (v==null||v==='')?'—':v;
+function toast(msg, kind='ok', ttl=4200){
+  const box=document.getElementById('toaster');
+  const col = kind==='err'?'var(--danger)':kind==='warn'?'var(--warn)':'var(--acid)';
+  const d=document.createElement('div');
+  d.style.cssText=`border:1px solid ${col};border-left:3px solid ${col};background:rgba(11,11,16,.94);`
+    +`color:var(--text);font-size:11.5px;letter-spacing:.03em;padding:10px 13px;border-radius:6px;`
+    +`box-shadow:0 6px 22px rgba(0,0,0,.5);max-width:360px;line-height:1.5`;
+  d.innerHTML=`<span style="color:${col};font-weight:700">${kind==='err'?'✕':kind==='warn'?'△':'✓'}</span>&nbsp;&nbsp;${esc(msg)}`;
+  box.appendChild(d);
+  if(ttl>0) setTimeout(()=>{d.style.transition='opacity .3s';d.style.opacity='0';setTimeout(()=>d.remove(),320);},ttl);
+}
+
+// ── API layer ───────────────────────────────────────────────────────────────
+const api = {
+  async get(url){ try{ const r=await fetch(url); return await r.json(); }
+    catch(e){ toast('GET '+url+' failed: '+e.message,'err'); return null; } },
+  async post(url, body){ try{
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+      return await r.json(); }
+    catch(e){ toast('POST '+url+' failed: '+e.message,'err'); return {status:'error',message:e.message}; } },
+  // start+stream pattern: POST start → {client_id}; open SSE stream?client_id=…
+  async stream(startUrl, body, streamBase, {term, onEvent, onDone}={}){
+    const res = await api.post(startUrl, body);
+    if(!res || res.status==='error' || res.error){
+      const m = (res&&(res.message||res.error))||'failed to start';
+      if(term) termLine(term, '[!] '+m, 'err'); toast(m,'err'); if(onDone)onDone({type:'error',data:m}); return null;
+    }
+    const cid = res.client_id || 'default';
+    const es = new EventSource(streamBase+'?client_id='+encodeURIComponent(cid));
+    S._streams.push(es);
+    es.onmessage = e => { let m; try{ m=JSON.parse(e.data); }catch{ return; }
+      if(m.type==='heartbeat') return;
+      if(m.type==='output' && term) termLine(term, m.data);
+      if(onEvent) onEvent(m);
+      if(m.type==='complete' || m.type==='error'){ es.close();
+        if(m.type==='error' && term) termLine(term, '[!] '+(m.data||'error'), 'err');
+        if(onDone) onDone(m); }
+    };
+    es.onerror = () => { es.close(); };
+    return {es, started:res};
+  }
+};
+
+// ── terminal helper (colourises like the app's shared JS) ────────────────────
+function termLine(el, text, cls){
+  if(!el) return;
+  if(!cls){ const lo=String(text).toLowerCase();
+    if(lo.includes('[error]')||lo.includes('[!]')||lo.includes('[-]')) cls='r';
+    else if(lo.includes('[warn')||lo.includes('△')||lo.includes('⚠')) cls='w';
+    else if(lo.includes('[h3x-dash]')||lo.includes('[*]')) cls='c';
+    else if(lo.includes('[+]')||lo.includes('vulnerable')||lo.includes('session opened')) cls='g';
+    else if(lo.startsWith('  ')||lo.startsWith('↳')||lo.startsWith('──')) cls='d'; }
+  const span=document.createElement('span');
+  if(cls) span.className=cls;
+  span.textContent=text+'\n';
+  el.appendChild(span); el.scrollTop=el.scrollHeight;
+}
+function clearTerm(el){ if(el) el.textContent=''; }
+
+// ── shared render primitives (unchanged look) ───────────────────────────────
+const sec = (l,i)=>`<section class="sec"><div class="eyebrow"><i></i>${l}</div>${i}</section>`;
+const fld = (l,c)=>`<div class="fld"><label>${l}</label>${c}</div>`;
+const inp = (k,v='',ph='',w='')=>`<input class="inp" data-k="${k}" value="${esc(v)}" placeholder="${esc(ph)}"${w?` style="min-width:${w}"`:''}>`;
+const pwd = (k,v='',w='140px')=>`<input class="inp" data-k="${k}" type="password" value="${esc(v)}" style="min-width:${w}">`;
+const sel = (k,opts,w='')=>`<select class="sel" data-k="${k}"${w?` style="min-width:${w}"`:''}>`
+  + opts.map((o,i)=>{const val=Array.isArray(o)?o[0]:o, lab=Array.isArray(o)?o[1]:o;
+      return `<option value="${esc(val)}"${i===0?' selected':''}>${esc(lab)}</option>`;}).join('') + `</select>`;
+const btn = (t,k='pri',act='')=>`<button class="btn ${k}"${act?` data-act="${act}"`:''}>${t}</button>`;
+const stat= (c,v,k)=>`<div class="stat"><div class="sv" style="color:${c}" data-stat="${k}">${v}</div><div class="sk">${k}</div></div>`;
+const tbl = (h,rows)=>`<div class="tblwrap"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+const statusline=(state,meta,run=false)=>`<div class="statusline" data-statusline><span class="sdot ${run?'run':''}"></span><b style="color:${run?'var(--acid)':'var(--dim)'};font-weight:400">${esc(state)}</b><span style="color:var(--muted)">${esc(meta)}</span></div>`;
+const E = h=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild;};
+// scoped query helpers
+const V = (root,k)=>{const el=root.querySelector(`[data-k="${k}"]`);return el?el.value.trim():'';};
+const EL = (root,k)=>root.querySelector(`[data-k="${k}"]`);
+const setV = (root,k,val)=>{const el=EL(root,k);if(el)el.value=val;};
+const box = (root,name)=>root.querySelector(`[data-box="${name}"]`);
+const term = (root,name)=>root.querySelector(`[data-term="${name}"]`);
+const onAct = (root,act,fn)=>{const el=root.querySelector(`[data-act="${act}"]`);if(el)el.addEventListener('click',fn);};
+
+// ── tabs / sidenav ──────────────────────────────────────────────────────────
+function renderTabs(){
+  const c=document.getElementById('tabs'); c.innerHTML='';
+  WS.forEach((w,i)=>{
+    const hasNew=w.modules.some(m=>m.isnew);
+    const t=E(`<div class="tab ${w.id===S.ws?'active':''}"><span class="tnum">${String(i+1).padStart(2,'0')}</span>${w.label}${hasNew?'<span class="dotnew"></span>':''}</div>`);
+    t.onclick=()=>{S.ws=w.id;S.mod=w.modules[0].id;render();};
+    c.appendChild(t);
+  });
+}
+function renderSide(){
+  const w=WS.find(x=>x.id===S.ws)||WS[0], c=document.getElementById('sidenav'); c.innerHTML='';
+  c.appendChild(E(`<div class="side-eyebrow">${w.label}</div>`));
+  w.modules.forEach(m=>{
+    const wired = !!PANES[m.id];
+    const l=E(`<div class="mlink ${m.id===S.mod?'active':''}"><span class="mi">${m.icon}</span>${m.label}${m.isnew?`<span class="tag-new">${wired?'NEW':'PLANNED'}</span>`:''}</div>`);
+    l.onclick=()=>{S.mod=m.id;render();}; c.appendChild(l);
+  });
+}
+
+// ── detection strip (purple wiring) ─────────────────────────────────────────
+function detStrip(m){
+  if(!m||!m.tech) return '';
+  const dets=m.det.map(([r,s])=>`<div class="detrow"><span class="led ${s}"></span>${esc(r)}</div>`).join('');
+  return `<div class="detstrip"><div class="dh"><span class="eye">◎</span> PURPLE WIRING — WHAT THIS SHOULD LIGHT UP</div>
+  <div class="dflow">
+    <div class="dcol"><div class="dk">ATT&CK</div><div class="chips">${m.tech.map(t=>`<span class="chip att">${esc(t)}</span>`).join('')}</div></div>
+    <div class="dcol"><div class="dk">EXPECTED TELEMETRY</div><div class="chips">${(m.src||[]).map(s=>`<span class="chip src">${esc(s)}</span>`).join('')}</div></div>
+    <div class="dcol"><div class="dk">DETECTIONS · SECURITY ONION</div>${dets}</div>
+  </div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PANES — each { body(mod) → html, mount(root, mod) → wire live data }
+// ═══════════════════════════════════════════════════════════════════════════
+const PANES = {};
+
+// ── MSF status (topbar + reused) ────────────────────────────────────────────
+async function refreshMsf(){
+  const st = await api.get('/api/msf/status');
+  const dot=document.getElementById('msfDot'), txt=document.getElementById('msfText');
+  const connected = !!(st && st.connected);
+  S.msf.connected = connected; S.msf.version = (st&&st.version)||'';
+  if(dot) dot.className = 'dot '+(connected?'on':'');
+  if(txt){ txt.textContent = connected ? (S.msf.version||'CONNECTED') : (st&&st.last_error? 'OFFLINE' : 'DISCONNECTED');
+           txt.style.color = connected ? 'var(--acid)' : 'var(--dim)'; }
+  return st;
+}
+function setTarget(t){ if(!t) return; S.target=t; const e=document.getElementById('tgtText'); if(e) e.textContent=t; }
+
+// ── DASHBOARD ───────────────────────────────────────────────────────────────
+PANES.dashboard = {
+  body(){ return (
+    sec('CONNECTION',
+      `<div class="controls">
+        ${fld('METASPLOIT RPC','<div data-box="msfconn" style="display:flex;gap:8px;align-items:center;height:36px"><span class="dot"></span><span style="color:var(--dim);font-size:12px">checking…</span></div>')}
+        ${fld('TARGET',inp('target',S.target,'192.168.1.0/24'))}
+        ${btn('INITIATE ▶','go','connect')}${btn('DISCONNECT','ghost','disconnect')}
+      </div>
+      ${statusline('PREFLIGHT','loading host + tool status…')}`)
+    +sec('POSTURE',`<div class="stats">${stat('#fff','—','HOSTS')}${stat('var(--danger)','—','CRITICAL')}${stat('var(--acid)','—','SESSIONS')}${stat('var(--violet)','—','CREDS')}${stat('var(--cyan)','—','FINDINGS')}</div>
+      <div class="sec-note" data-box="scope">SCOPE <span style="color:var(--text)">${esc(S.target)}</span> · OPERATOR <span style="color:var(--text)">Null-H3x</span> · BLUE TEAM <span style="color:var(--acid)">Security Onion + Kali Purple + SIEM</span></div>`)
+    +sec('CVE INTELLIGENCE · CISA KEV',
+      `<div class="controls" style="margin-bottom:14px">${btn('⟲ SYNC KEV FEED','pri','synckev')}${btn('LOAD KEV + MSF','ghost','loadkev')}${btn('CHAIN CANDIDATES','ghost','candidates')}</div>
+       <div data-box="kev"><div class="sec-note">KEV feed not loaded yet — Sync pulls the CISA catalog, then cross-references it against your locally installed MSF modules.</div></div>`)
+    +sec('RECENT ACTIVITY',`<div class="term" data-term="activity"><span class="d">// loading recent scan + session activity…</span></div>`)
+  );},
+  async mount(root){
+    // connection block
+    const drawConn = st=>{ const b=box(root,'msfconn'); if(!b) return;
+      const on=!!(st&&st.connected);
+      b.innerHTML=`<span class="dot ${on?'on':''}"></span><span style="color:${on?'var(--acid)':'var(--dim)'};font-size:12px">${on?esc(st.version||'CONNECTED'):'DISCONNECTED'}</span>`; };
+    drawConn(await refreshMsf());
+    // posture
+    const hist = await api.get('/api/scan/history');
+    const setStat=(k,v)=>{const e=root.querySelector(`[data-stat="${k}"]`); if(e)e.textContent=v;};
+    if(hist&&hist.stats){ setStat('HOSTS',hist.stats.hosts); setStat('CRITICAL',hist.stats.vulns); setStat('SESSIONS',hist.stats.sessions); }
+    const cstats=await api.get('/api/creds/stats'); if(cstats) setStat('CREDS', cstats.total ?? cstats.count ?? Object.values(cstats).find(v=>typeof v==='number') ?? '0');
+    const fnd=await api.get('/api/enum/findings'); if(fnd&&fnd.findings) setStat('FINDINGS', fnd.findings.length);
+    // recent activity terminal
+    const t=term(root,'activity'); clearTerm(t);
+    const rows=(hist&&hist.history)||[];
+    if(!rows.length) termLine(t,'// no scans recorded yet — run a scan from RECON & ENUM → Scan','d');
+    rows.forEach(h=>termLine(t,`[${h.timestamp||'—'}] ${h.command||'scan'} → ${h.hosts??0} host(s) · ${h.state||''}  ${h.target||''}`,'c'));
+    const ss=await api.get('/api/msf/sessions');
+    if(ss&&ss.sessions) ss.sessions.forEach(s=>termLine(t,`[session #${s.id}] ${s.type||'?'} · ${s.target||''} · ${s.user||''}`,'g'));
+    // wiring
+    onAct(root,'connect', async()=>{ setTarget(V(root,'target'));
+      toast('Connecting to msfrpcd…'); const r=await api.post('/api/msf/connect',{});
+      if(r&&(r.status==='connected')) toast('MSF RPC connected · '+(r.version||''),'ok'); else toast((r&&r.message)||'connect failed','err');
+      drawConn(await refreshMsf()); });
+    onAct(root,'disconnect', async()=>{ await api.post('/api/msf/disconnect',{}); toast('Disconnected from MSF RPC','warn'); drawConn(await refreshMsf()); });
+    onAct(root,'synckev', async()=>{ toast('Syncing CISA KEV catalog…'); const r=await api.post('/api/cve_intel/sync',{});
+      if(r&&r.status==='ok') toast(`KEV synced · ${r.kev_with_msf??'?'} actionable w/ MSF`,'ok'); else toast((r&&r.message)||'sync failed','err');
+      PANES.dashboard._loadKev(root); });
+    onAct(root,'loadkev', ()=>PANES.dashboard._loadKev(root));
+    onAct(root,'candidates', async()=>{ const r=await api.get('/api/cve_intel/candidates'); const b=box(root,'kev');
+      if(!r){b.innerHTML='<div class="sec-note">Could not load candidates.</div>';return;}
+      const rows=(r.candidates||[]).slice(0,40).map(c=>`<tr><td style="color:var(--cyan)">${esc(c.cve)}</td><td>${esc((c.vendor||'')+' · '+(c.product||''))}</td><td class="d" style="color:var(--dim)">${esc(c.date_added||'')}</td></tr>`).join('')
+        || `<tr><td colspan="3" class="d" style="color:var(--muted)">No new KEV+MSF candidates outside the curated chain.</td></tr>`;
+      b.innerHTML=`<div class="sec-note" style="margin-bottom:12px">${r.count||0} KEV CVE(s) with local MSF modules not yet in the curated chain (${r.existing_chain_cves||0} already curated).</div>`+tbl(['CVE','VENDOR / PRODUCT','KEV ADDED'],rows); });
+    // auto-load KEV snapshot
+    PANES.dashboard._loadKev(root);
+  },
+  async _loadKev(root){ const b=box(root,'kev'); if(!b) return;
+    const r=await api.get('/api/cve_intel/kev');
+    if(!r){ b.innerHTML='<div class="sec-note">Could not load KEV data.</div>'; return; }
+    if(r.msf_unavailable){ b.innerHTML='<div class="sec-note">MSF module index unavailable — connect to Metasploit and rescan modules to cross-reference KEV against your local install.</div>'; return; }
+    const rows=(r.with_msf||[]).slice(0,40).map(k=>{
+      const mods=(k.msf_modules||[]).map(m=>esc(m.fullname||'')).join('<br>')||'<span class="d" style="color:var(--muted)">—</span>';
+      return `<tr><td style="color:var(--cyan)">${esc(k.cve)}</td><td>${esc((k.vendor||'')+' · '+(k.product||''))}</td><td class="d" style="color:var(--dim)">${esc(k.date_added||'')}</td><td style="font-size:11px">${mods}</td></tr>`;
+    }).join('') || `<tr><td colspan="4" class="d" style="color:var(--muted)">No actionable KEV overlap yet — Sync the feed and rescan MSF modules.</td></tr>`;
+    b.innerHTML=`<div class="sec-note" style="margin-bottom:12px">${r.kev_with_msf||0} of ${r.total||0} KEV CVEs have a local MSF module (actionable set).</div>`+tbl(['CVE','VENDOR / PRODUCT','KEV ADDED','MSF MODULE(S)'],rows);
+  }
+};
+
+// ── SCAN ────────────────────────────────────────────────────────────────────
+const TIMING = [['T4','Antagonistic — fast (recommended)'],['T1','Sneaky Ninja — very slow / IDS evasion'],['T2','Polite Brit — slow, low bandwidth'],['T3','Boringly Average — nmap default'],['T5','Roid Rage — max speed']];
+const PORTPROF = [['driveby','driveby — high-value ports'],['spyglass','spyglass — top-1024 + extras'],['web','web — HTTP/S + alt-web'],['full','full — all 65535']];
+const SCRIPTPROF = [['default','default'],['none','none'],['banner','banner'],['safe','safe'],['vuln','vuln'],['full','full']];
+
+PANES.scan = {
+  body(){ return (
+    sec('SCAN CONFIG',
+      `<div class="controls">
+        ${fld('TARGET',inp('target',S.target,'host · CIDR · URL'))}
+        ${fld('TIMING',sel('timing',TIMING,'220px'))}
+        ${fld('PORT PROFILE',sel('ports',PORTPROF,'200px'))}
+        ${fld('SCRIPTS',sel('scripts',SCRIPTPROF,'130px'))}
+      </div>
+      <div class="controls" style="margin-top:14px">${fld('EXTRA FLAGS',inp('extra','','e.g. --open --min-rate 500','280px'))}${btn('▶ INITIATE SCAN','go','start')}${btn('■ ABORT','stop','abort')}${btn('CLEAR','ghost','clear')}</div>
+      ${statusline('IDLE','no scan running')}`)
+    +sec('LIVE OUTPUT',`<div class="term" data-term="scan"><span class="d">// configure a target and INITIATE SCAN — output streams here via SSE</span></div>`)
+    +sec('OPEN PORTS',`<div data-box="ports"><div class="sec-note">No results yet. Results load automatically when a scan completes; you can also revisit prior results here.</div></div>`)
+  );},
+  async mount(root){
+    setV(root,'target',S.target);
+    const drawPorts = res=>{ const b=box(root,'ports'); if(!b) return;
+      const hosts=(res&&res.hosts)||[]; const rows=[];
+      hosts.forEach(h=>(h.ports||[]).forEach(p=>{
+        const risk=(p.risk||'info'); const rc=risk==='danger'?'crit':risk==='warn'?'warn':risk==='info'?'info':'muted';
+        const rl=risk==='danger'?'CRITICAL':risk==='warn'?'WARN':risk==='info'?'INFO':esc(risk).toUpperCase();
+        const col=risk==='danger'?'var(--danger)':risk==='warn'?'var(--warn)':'var(--cyan)';
+        rows.push(`<tr><td class="num">${esc(h.ip)}</td><td class="num" style="color:${col}">${esc(p.port)}</td><td class="d" style="color:var(--dim)">${esc((p.protocol||'tcp').toUpperCase())}</td><td style="color:${col}">${esc(p.service||'')}</td><td class="d" style="color:var(--dim)">${esc(p.version||'')}</td><td><span class="pill ${rc}">${rl}</span></td></tr>`);
+      }));
+      b.innerHTML = rows.length ? tbl(['HOST','PORT','PROTO','SERVICE','VERSION','RISK'],rows.join(''))
+        : '<div class="sec-note">No open ports discovered yet.</div>'; };
+    // preload any existing results
+    drawPorts(await api.get('/api/scan/results'));
+    const sl = root.querySelector('[data-statusline]');
+    const setStatus=(txt,run)=>{ if(!sl) return; sl.querySelector('.sdot').className='sdot '+(run?'run':''); const b=sl.querySelector('b'); b.textContent=txt; b.style.color=run?'var(--acid)':'var(--dim)'; };
+
+    onAct(root,'start', async()=>{
+      const target=V(root,'target'); if(!target){ toast('Enter a target first','warn'); return; }
+      setTarget(target);
+      const extra=V(root,'extra'); const scan_mode='network';
+      const t=term(root,'scan'); clearTerm(t); termLine(t,`[H3x-Dash] starting scan → ${target}`,'c'); setStatus('SCANNING '+target,true);
+      await api.stream('/api/scan/start',
+        { target, timing:V(root,'timing'), port_profile:V(root,'ports'), scripts:V(root,'scripts'), scan_mode, extra_args: extra?extra.split(/\s+/):[] },
+        '/api/scan/stream',
+        { term:t, onDone: async m=>{ setStatus('COMPLETE · '+(m.host_count??0)+' host(s)',false); toast('Scan complete · '+(m.host_count??0)+' host(s)','ok'); drawPorts(await api.get('/api/scan/results')); } });
+    });
+    onAct(root,'abort', async()=>{ await api.post('/api/scan/stop',{}); setStatus('ABORTED',false); toast('Scan aborted','warn'); });
+    onAct(root,'clear', ()=>{ clearTerm(term(root,'scan')); termLine(term(root,'scan'),'// cleared','d'); });
+  }
+};
+
+// ── TOPOLOGY (from live scan results) ───────────────────────────────────────
+PANES.topology = {
+  body(){ return sec('NETWORK TOPOLOGY',
+    `<div class="topo" data-box="topo"><div class="sec-note" style="padding:14px">Building graph from scan results…</div></div>
+     <div class="sec-note">Node colour = risk tier (red = critical port, cyan = open ports, violet = domain controller). Run a scan to populate.</div>`); },
+  async mount(root){
+    const res=await api.get('/api/scan/results'); const hosts=((res&&res.hosts)||[]).filter(h=>(h.ports||[]).length);
+    const b=box(root,'topo'); if(!b) return;
+    if(!hosts.length){ b.innerHTML='<div class="sec-note" style="padding:14px">No hosts with open ports yet — run a scan first.</div>'; return; }
+    const W=640, cx=W/2, top=54, rowY=190, n=hosts.length;
+    const xs = n===1?[cx]:hosts.map((_,i)=>90 + i*((W-180)/(n-1)));
+    const risk=h=>{ const rs=(h.ports||[]).map(p=>p.risk); if(rs.includes('danger'))return '#ff4d4d'; if(rs.includes('warn'))return '#ff9e2c'; return '#0ff0fc'; };
+    const lines=hosts.map((h,i)=>`<line x1="${cx}" y1="${top+18}" x2="${xs[i]}" y2="${rowY-18}" stroke="#22222f" stroke-width="1.5"/>`).join('');
+    const nodes=hosts.map((h,i)=>{ const c=risk(h); const nports=(h.ports||[]).length;
+      return `<circle cx="${xs[i]}" cy="${rowY}" r="17" fill="#0f0f15" stroke="${c}" stroke-width="1.5"/>`
+        +`<text x="${xs[i]}" y="${rowY+34}" fill="${c}" text-anchor="middle" font-size="10">${esc(h.ip)}</text>`
+        +`<text x="${xs[i]}" y="${rowY+3}" fill="${c}" text-anchor="middle" font-size="9">${nports}</text>`; }).join('');
+    const H = rowY+60;
+    b.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+      ${lines}
+      <g font-family="Share Tech Mono">
+        <circle cx="${cx}" cy="${top}" r="20" fill="#0f0f15" stroke="#9b30ff" stroke-width="1.5"/><text x="${cx}" y="${top+38}" fill="#9b30ff" text-anchor="middle" font-size="10">gateway</text>
+        ${nodes}
+      </g></svg>`;
+  }
+};
+
+// ── WEB SCAN (scan_mode = web_only) ─────────────────────────────────────────
+PANES.webscan = {
+  body(){ return (
+    sec('WEB SCAN',`<div class="controls">${fld('TARGET URL / IP',inp('url','','https://10.10.10.5/','260px'))}${btn('▶ START','go','start')}${btn('■ ABORT','stop','abort')}</div>
+      ${statusline('IDLE','Layer-7 fingerprint · titles · TLS · tech')}
+      <div class="term" data-term="web" style="margin-top:14px"><span class="d">// runs the web scanner (whatweb / httpx surface) against the URL — results below</span></div>`)
+    +sec('RESULTS',`<div data-box="web"><div class="sec-note">No web results yet.</div></div>`)
+  );},
+  async mount(root){
+    const drawWeb=res=>{ const b=box(root,'web'); if(!b) return; const rows=[];
+      ((res&&res.hosts)||[]).forEach(h=>(h.web||[]).forEach(w=>{ const fp=w.fingerprint||{};
+        const st=fp.status||w.status||'—'; const scls = String(st).startsWith('2')?'ok':String(st).startsWith('4')?'info':'muted';
+        rows.push(`<tr><td style="color:var(--cyan)">${esc(w.url||'')}</td><td><span class="pill ${scls}">${esc(st)}</span></td><td class="d" style="color:var(--dim)">${esc(fp.server||'')}</td><td>${esc(fp.title||'—')}</td></tr>`);
+      }));
+      b.innerHTML = rows.length? tbl(['URL','STATUS','SERVER','TITLE'],rows.join('')) : '<div class="sec-note">No web services fingerprinted yet.</div>'; };
+    drawWeb(await api.get('/api/scan/results'));
+    const sl=root.querySelector('[data-statusline]');
+    const setStatus=(t,run)=>{ if(!sl)return; sl.querySelector('.sdot').className='sdot '+(run?'run':''); const b=sl.querySelector('b'); b.textContent=t; b.style.color=run?'var(--acid)':'var(--dim)'; };
+    onAct(root,'start', async()=>{ const url=V(root,'url'); if(!url){ toast('Enter a URL or IP','warn'); return; }
+      const t=term(root,'web'); clearTerm(t); termLine(t,`[H3x-Dash] web scan → ${url}`,'c'); setStatus('SCANNING '+url,true);
+      await api.stream('/api/scan/start', { target:url, scan_mode:'web_only', web_targets:[url] }, '/api/scan/stream',
+        { term:t, onDone: async m=>{ setStatus('COMPLETE',false); toast('Web scan complete','ok'); drawWeb(await api.get('/api/scan/results')); } }); });
+    onAct(root,'abort', async()=>{ await api.post('/api/scan/stop',{}); setStatus('ABORTED',false); });
+  }
+};
+
+// ── ENUM SUITE ──────────────────────────────────────────────────────────────
+const DEPTHS=[['2','Standard'],['1','Recon'],['3','Deep']];
+PANES.enum = {
+  body(){ return (
+    sec('TOOL SELECTION',
+      `<div class="controls" style="margin-bottom:14px">${fld('TARGET IP',inp('ip',firstIp(),'blank = all scanned hosts','200px'))}${fld('SWEEP DEPTH',sel('tier',DEPTHS,'150px'))}${btn('RECHECK TOOLS','ghost sm','recheck')}</div>
+       <div class="sec-note" style="margin-bottom:10px">Tools fire automatically based on detected services and the selected depth. Green = installed locally, dim = not found on PATH.</div>
+       <div class="chips" data-box="tools"><span class="chip">loading tool availability…</span></div>
+       <div class="controls" style="margin-top:16px">${btn('⚙ ENUMERATE','go','start')}${btn('■ STOP','stop','stop')}</div>
+       ${statusline('IDLE','no enumeration running')}
+       <div class="term" data-term="enum" style="margin-top:14px"><span class="d">// enumeration output streams here</span></div>`)
+    +sec('FINDINGS',`<div data-box="findings"><div class="sec-note">No findings yet.</div></div>`)
+  );},
+  async mount(root){
+    const drawTools=t=>{ const b=box(root,'tools'); if(!b)return; const tools=(t&&t.tools)||{};
+      const keys=Object.keys(tools); if(!keys.length){ b.innerHTML='<span class="chip">no tool data</span>'; return; }
+      b.innerHTML=keys.map(k=>`<span class="chip ${tools[k]?'on':''}">${esc(k)}</span>`).join(''); };
+    drawTools(await api.get('/api/enum/tools'));
+    const drawFindings=f=>{ const b=box(root,'findings'); if(!b)return; const rows=((f&&f.findings)||[]).map(x=>{
+        const sev=(x.severity||'INFO').toUpperCase(); const sc=sev==='CRITICAL'?'crit':sev==='HIGH'?'warn':sev==='MEDIUM'?'warn':sev==='LOW'?'info':'muted';
+        return `<tr><td><span class="pill ${sc}">${esc(sev)}</span></td><td class="num">${esc(x.host_ip||'')}</td><td class="num">${esc(x.port||'')}</td><td class="d" style="color:var(--dim)">${esc(x.tool||'')}</td><td>${esc(x.title||x.detail||'')}</td></tr>`; }).join('');
+      b.innerHTML = rows? tbl(['SEV','HOST','PORT','TOOL','FINDING'],rows) : '<div class="sec-note">No findings yet.</div>'; };
+    drawFindings(await api.get('/api/enum/findings'));
+    const sl=root.querySelector('[data-statusline]');
+    const setStatus=(t,run)=>{ if(!sl)return; sl.querySelector('.sdot').className='sdot '+(run?'run':''); const b=sl.querySelector('b'); b.textContent=t; b.style.color=run?'var(--acid)':'var(--dim)'; };
+    onAct(root,'recheck', async()=>{ drawTools(await api.get('/api/enum/tools')); toast('Tool availability refreshed'); });
+    onAct(root,'stop', async()=>{ await api.post('/api/enum/start',{}); }); // no explicit stop endpoint; guard below
+    onAct(root,'start', async()=>{
+      const ip=V(root,'ip'); const body={ tier: parseInt(V(root,'tier')||'2',10) }; if(ip) body.ips=[ip];
+      const t=term(root,'enum'); clearTerm(t); termLine(t,'[H3x-Dash] enumeration starting…','c'); setStatus('ENUMERATING',true);
+      await api.stream('/api/enum/start', body, '/api/enum/stream',
+        { term:t,
+          onEvent: m=>{ if(m.type==='finding'&&m.finding) termLine(t,`  ⚑ [${(m.finding.severity||'INFO')}] ${m.finding.tool||''}: ${m.finding.title||m.finding.detail||''}`,'w'); },
+          onDone: async m=>{ setStatus('COMPLETE · '+(m.finding_count??0)+' finding(s)',false); toast('Enumeration complete','ok'); drawFindings(await api.get('/api/enum/findings')); } }); });
+  }
+};
+
+// ── MSF SCANNERS ────────────────────────────────────────────────────────────
+PANES.msfscan = {
+  body(){ return sec('AUXILIARY SCANNERS',
+    `<div class="controls" style="margin-bottom:14px">${fld('TARGET IP',inp('ip',firstIp(),'scanned host','200px'))}${btn('LIST CANDIDATES','pri','list')}${btn('▶ RUN SELECTED','go','run')}${btn('■ STOP','stop','stop')}</div>
+     ${statusline('IDLE','auxiliary scanners are recon, not exploits')}
+     <div data-box="scanners"><div class="sec-note">Enter a scanned host IP and LIST CANDIDATES to see applicable auxiliary/scanner modules.</div></div>
+     <div class="term" data-term="msfscan" style="margin-top:14px"><span class="d">// scanner output streams here</span></div>`); },
+  async mount(root){
+    const sl=root.querySelector('[data-statusline]');
+    const setStatus=(t,run)=>{ if(!sl)return; sl.querySelector('.sdot').className='sdot '+(run?'run':''); const b=sl.querySelector('b'); b.textContent=t; b.style.color=run?'var(--acid)':'var(--dim)'; };
+    async function list(){ const ip=V(root,'ip'); if(!ip){ toast('Enter a host IP','warn'); return; }
+      const r=await api.get('/api/msf/scanners/list?ip='+encodeURIComponent(ip)); const b=box(root,'scanners');
+      const cands=(r&&r.scanners)||[];
+      if(!cands.length){ b.innerHTML='<div class="sec-note">No scanner candidates for '+esc(ip)+' — scan/enumerate it first.</div>'; return; }
+      b.innerHTML=tbl(['','MODULE','RPORT','CVE'], cands.map((c,i)=>
+        `<tr><td><input type="checkbox" data-scan="${esc(c.msf_module)}" checked></td><td>${esc(c.msf_module)}</td><td class="num d" style="color:var(--dim)">${num(c.msf_rport)}</td><td class="d" style="color:var(--cyan)">${esc(c.cve||'—')}</td></tr>`).join('')); }
+    onAct(root,'list', list);
+    onAct(root,'run', async()=>{ const ip=V(root,'ip'); if(!ip){ toast('Enter a host IP','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first (Dashboard → INITIATE)','warn'); return; }
+      const picks=[...root.querySelectorAll('[data-scan]:checked')].map(c=>c.getAttribute('data-scan'));
+      if(!picks.length){ toast('List candidates and select at least one module','warn'); return; }
+      const t=term(root,'msfscan'); clearTerm(t); termLine(t,`[H3x-Dash] running ${picks.length} scanner module(s) vs ${ip}`,'c'); setStatus('SCANNING',true);
+      await api.stream('/api/msf/scanners/start', {ip, modules:picks}, '/api/msf/scanners/stream',
+        { term:t, onEvent:m=>{ if(m.type==='result'&&m.result) termLine(t,'  ✓ '+(typeof m.result==='string'?m.result:JSON.stringify(m.result)),'g'); },
+          onDone:m=>{ setStatus('COMPLETE · '+(m.total??0)+' scanner(s)',false); toast('Scanner run complete','ok'); } }); });
+    onAct(root,'stop', async()=>{ setStatus('IDLE',false); });
+  }
+};
+
+// host cache (so body() can prefill target IPs synchronously)
+async function refreshHosts(){ const r=await api.get('/api/scan/results'); S._hosts=((r&&r.hosts)||[]); return S._hosts; }
+const firstIp = ()=> (S._hosts && S._hosts[0] && S._hosts[0].ip) || '';
+
+// ── EXPLOIT ─────────────────────────────────────────────────────────────────
+PANES.exploit = {
+  body(){ return (
+    sec('MODULE',
+      `<div class="controls">${fld('MSF MODULE',inp('module','','search or paste — e.g. exploit/windows/smb/ms17_010_eternalblue','380px'))}${btn('RECOMMEND','pri','recommend')}${btn('SEARCH','ghost','search')}${btn('INSPECT','ghost','inspect')}</div>
+       <div data-box="sugg"></div>`)
+    +sec('OPTIONS',
+      `<div class="controls">
+        ${fld('RHOST',inp('rhost',firstIp(),'','140px'))}${fld('RPORT',inp('rport','445','','90px'))}${fld('TARGET',inp('tidx','0','idx','80px'))}
+        ${fld('LHOST',inp('lhost','','auto-detect on RHOST blur','160px'))}${fld('LPORT',inp('lport','4444','','90px'))}
+      </div>
+      <div class="controls" style="margin-top:14px">${fld('PAYLOAD',inp('payload','','blank = module default','240px'))}<label class="chip on" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="automig" checked style="vertical-align:-1px"> AUTO-MIGRATE</label></div>
+      <div data-box="opts"></div>`)
+    +sec('EXECUTE',
+      `<div class="controls" style="margin-bottom:16px">${btn('⚡ RUN','go','run')}${btn('◇ CHECK','pri','check')}${btn('CALLBACK VERIFY','ghost','cbverify')}</div>
+       <div class="term" data-term="exp"><span class="d">// module console output streams here</span></div>`)
+  );},
+  async mount(root){
+    setV(root,'rhost',firstIp());
+    const t=()=>term(root,'exp');
+    // auto-fill LHOST from routing when RHOST changes
+    const rhostEl=EL(root,'rhost');
+    if(rhostEl) rhostEl.addEventListener('blur', async()=>{ const rh=rhostEl.value.trim(); if(!/^(\d{1,3}\.){3}\d{1,3}$/.test(rh))return;
+      const r=await api.get('/api/network/lhost?rhost='+encodeURIComponent(rh)); if(r&&r.lhost){ setV(root,'lhost',r.lhost); } });
+    onAct(root,'recommend', async()=>{ const ip=V(root,'rhost'); if(!ip){ toast('Set RHOST to a scanned host first','warn'); return; }
+      toast('Fetching MSF suggestions for '+ip+'…'); const r=await api.post('/api/cve/suggest',{ip}); const b=box(root,'sugg');
+      const s=(r&&r.suggestions)||[];
+      if(!s.length){ b.innerHTML='<div class="sec-note">No module suggestions for '+esc(ip)+' — scan + enumerate it first.</div>'; return; }
+      b.innerHTML='<div style="margin-top:14px">'+tbl(['CVE','MSF MODULE','KEV','CVSS','VERDICT'], s.slice(0,25).map(x=>{
+        const kev=x.kev_listed?'<span class="pill crit">KEV</span>':'<span class="d" style="color:var(--muted)">—</span>';
+        const v=x.msf_verdict?`<span class="pill ${x.msf_verdict==='VULNERABLE'?'no':'muted'}">${esc(x.msf_verdict)}</span>`:'<span class="d" style="color:var(--muted)">—</span>';
+        return `<tr data-pick="${esc(x.msf_module||'')}" data-rport="${esc(x.msf_rport||x.port||'')}" style="cursor:pointer"><td style="color:var(--cyan)">${esc(x.cve||'—')}</td><td>${esc(x.msf_module||'')}</td><td>${kev}</td><td class="num">${num(x.cvss_v31)}</td><td>${v}</td></tr>`;
+      }).join(''))+'</div>';
+      b.querySelectorAll('[data-pick]').forEach(tr=>tr.addEventListener('click',()=>{ setV(root,'module',tr.getAttribute('data-pick')); const rp=tr.getAttribute('data-rport'); if(rp) setV(root,'rport',rp); toast('Module loaded — set options and RUN/CHECK'); })); });
+    onAct(root,'search', async()=>{ const q=V(root,'module'); if(!q){ toast('Type a search term in MSF MODULE','warn'); return; }
+      const r=await api.post('/api/msf/search',{query:q}); const b=box(root,'sugg'); const mods=(r&&r.modules)||[];
+      b.innerHTML='<div style="margin-top:14px">'+tbl(['MATCHING MODULE'], mods.slice(0,30).map(m=>`<tr data-pick="${esc(m)}" style="cursor:pointer"><td>${esc(m)}</td></tr>`).join('')||'<tr><td class="d" style="color:var(--muted)">no matches</td></tr>')+'</div>';
+      b.querySelectorAll('[data-pick]').forEach(tr=>tr.addEventListener('click',()=>{ setV(root,'module',tr.getAttribute('data-pick')); toast('Module loaded'); })); });
+    onAct(root,'inspect', async()=>{ const module=V(root,'module'); if(!module){ toast('Enter a module first','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      const r=await api.post('/api/msf/inspect',{module}); const b=box(root,'opts');
+      if(!r||r.error){ b.innerHTML='<div class="sec-note">'+esc((r&&r.error)||'inspect failed')+'</div>'; return; }
+      const opts=r.options||{}; const req=(r.required||[]);
+      const rows=Object.keys(opts).map(k=>{ const o=opts[k]; return `<tr><td style="color:${req.includes(k)?'var(--acid)':'var(--text)'}">${esc(k)}${req.includes(k)?' *':''}</td><td class="d" style="color:var(--dim)">${esc(o.default==null?'':o.default)}</td><td class="d" style="color:var(--muted)">${esc(o.desc||'')}</td></tr>`; }).join('');
+      const tgts=(r.targets||[]).map(x=>esc(x.index+': '+x.name)).join(' · ');
+      b.innerHTML='<div style="margin-top:14px">'+tbl(['OPTION','DEFAULT','DESCRIPTION'],rows)+(tgts?`<div class="sec-note">TARGETS — ${tgts}</div>`:'')+'</div>'; });
+
+    function opts(root){ return { RHOSTS:V(root,'rhost'), RPORT:V(root,'rport'), LHOST:V(root,'lhost'), LPORT:V(root,'lport') }; }
+    function tgt(root){ const v=V(root,'tidx'); return v===''?null:parseInt(v,10); }
+    function drawResult(res){ const el=t(); clearTerm(el);
+      if(!res||res.status==='error'){ termLine(el,'[!] '+((res&&res.message)||'run failed'),'r'); return; }
+      const out=res.console_output||res.result||''; String(out).split('\n').forEach(l=>termLine(el,l));
+      if(res.check_vulnerable) termLine(el,'[+] CHECK: target appears VULNERABLE','g');
+      else if(res.check_safe) termLine(el,'[-] CHECK: target appears NOT vulnerable','w');
+      if(res.session_confirmed){ termLine(el,'[+] session opened','g'); toast('Session opened — see Sessions / Shell','ok'); }
+      else if(res.session_unconfirmed) termLine(el,'[*] exploit reported a session but it was not confirmed live','w'); }
+
+    onAct(root,'check', async()=>{ const module=V(root,'module'); if(!module){ toast('Enter a module','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      termLine(t(),`[H3x-Dash] CHECK ${module}`,'c'); const r=await api.post('/api/msf/check',{module,options:opts(root),target:tgt(root)}); drawResult(r); });
+    onAct(root,'run', async()=>{ const module=V(root,'module'); if(!module){ toast('Enter a module','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      termLine(t(),`[H3x-Dash] RUN ${module}`,'c');
+      const r=await api.post('/api/msf/run',{ module, options:opts(root), payload:V(root,'payload')||null, target:tgt(root), action:'exploit', auto_migrate: !!(EL(root,'automig')&&EL(root,'automig').checked) }); drawResult(r); });
+    onAct(root,'cbverify', async()=>{ const r=await api.post('/api/network/callback-verify',{ rhost:V(root,'rhost'), rport:V(root,'rport')||null, lhost:V(root,'lhost'), lport:V(root,'lport'), payload:V(root,'payload')||null });
+      const el=t(); termLine(el,'[H3x-Dash] callback path check:','c'); String(JSON.stringify(r,null,1)).split('\n').forEach(l=>termLine(el,'  '+l,'d')); });
+  }
+};
+
+// ── VALIDATE ────────────────────────────────────────────────────────────────
+PANES.validate = {
+  body(){ return (
+    sec('MSF VALIDATION',
+      `<div class="controls">${fld('TARGET IP',inp('ip',firstIp(),'scanned host','160px'))}${btn('◇ START VALIDATION','go','start')}${btn('■ STOP','stop','stop')}</div>
+       <div class="sec-note">Batch-runs each candidate module's check logic — separates what's <span style="color:var(--text)">possible</span> (a module exists) from what's <span style="color:var(--text)">feasible</span> (the target's preconditions are met).</div>
+       ${statusline('IDLE','no validation running')}
+       <div class="term" data-term="val" style="margin-top:14px"><span class="d">// verdicts stream here</span></div>`)
+    +sec('VERDICTS',`<div data-box="verdicts"><div class="sec-note">No verdicts yet.</div></div>`)
+  );},
+  async mount(root){
+    const sl=root.querySelector('[data-statusline]');
+    const setStatus=(t,run)=>{ if(!sl)return; sl.querySelector('.sdot').className='sdot '+(run?'run':''); const b=sl.querySelector('b'); b.textContent=t; b.style.color=run?'var(--acid)':'var(--dim)'; };
+    const drawVerdicts=v=>{ const b=box(root,'verdicts'); if(!b)return; const V2=(v&&v.verdicts)||{};
+      const keys=Object.keys(V2); if(!keys.length){ b.innerHTML='<div class="sec-note">No verdicts yet.</div>'; return; }
+      b.innerHTML=tbl(['MODULE','VERDICT','DETAIL'], keys.map(k=>{ const x=V2[k]; const vd=(x.verdict||'').toUpperCase();
+        const pc=vd==='VULNERABLE'?'no':vd==='DETECTED'?'warn':'muted';
+        return `<tr><td>${esc(k)}</td><td><span class="pill ${pc}">${esc(vd||'—')}</span></td><td class="d" style="color:var(--dim)">${esc(x.detail||'')}</td></tr>`; }).join('')); };
+    const ip0=firstIp(); if(ip0) drawVerdicts(await api.get('/api/msf/validate/results?ip='+encodeURIComponent(ip0)));
+    onAct(root,'start', async()=>{ const ip=V(root,'ip'); if(!ip){ toast('Enter a host IP','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      const el=term(root,'val'); clearTerm(el); termLine(el,`[H3x-Dash] validating candidates for ${ip}…`,'c'); setStatus('VALIDATING',true);
+      await api.stream('/api/msf/validate/start',{ip},'/api/msf/validate/stream',
+        { term:el, onEvent:m=>{ if(m.type==='verdict'&&m.verdict){ const v=m.verdict; termLine(el,`  → ${v.module||''}: ${v.verdict||''} ${v.detail?('· '+v.detail):''}`, v.verdict==='VULNERABLE'?'g':'d'); } },
+          onDone: async m=>{ setStatus('COMPLETE · '+(m.vulnerable_count??0)+'/'+(m.total??0)+' vulnerable',false); toast('Validation complete','ok'); drawVerdicts(await api.get('/api/msf/validate/results?ip='+encodeURIComponent(ip))); } }); });
+    onAct(root,'stop', ()=>setStatus('IDLE',false));
+  }
+};
+
+// ── SESSIONS / SHELL ────────────────────────────────────────────────────────
+PANES.shell = {
+  body(){ return sec('ACTIVE SESSIONS',
+    `<div class="stabs" data-box="stabs"><span class="sec-note">loading sessions…</span></div>
+     <div class="term" data-term="sh" style="max-height:300px"><span class="d">// select a session, type a command, SEND</span></div>
+     <div class="controls" style="margin-top:14px">${fld('COMMAND',inp('cmd','','whoami · sysinfo · shell','320px'))}${btn('SEND ▶','go','send')}${btn('REFRESH','ghost','refresh')}${btn('KILL SESSION','stop','kill')}${btn('KILL ALL','ghost','killall')}</div>`); },
+  async mount(root){
+    const t=()=>term(root,'sh');
+    async function load(){ const r=await api.get('/api/msf/sessions'); const b=box(root,'stabs'); const ss=(r&&r.sessions)||[];
+      if(!ss.length){ b.innerHTML='<span class="sec-note">No active sessions. Land one from the Exploit tab.</span>'; S._sid=null; return; }
+      if(!S._sid || !ss.find(s=>String(s.id)===String(S._sid))) S._sid=ss[0].id;
+      b.innerHTML=ss.map(s=>`<div class="stab ${String(s.id)===String(S._sid)?'active':''}" data-sid="${esc(s.id)}"><span class="sid">#${esc(s.id)}</span> ${esc(s.type||'?')} · ${esc(s.target||'')}</div>`).join('');
+      b.querySelectorAll('[data-sid]').forEach(el=>el.addEventListener('click',()=>{ S._sid=el.getAttribute('data-sid'); load(); })); }
+    await load();
+    onAct(root,'refresh', async()=>{ await load(); const r=await api.get('/api/msf/session/'+encodeURIComponent(S._sid)+'/read'); const el=t(); const out=(r&&(r.data||r.output||''))||''; if(out) String(out).split('\n').forEach(l=>termLine(el,l)); });
+    onAct(root,'send', async()=>{ if(!S._sid){ toast('No session selected','warn'); return; } const cmd=V(root,'cmd'); if(!cmd) return;
+      const el=t(); termLine(el,'> '+cmd,'d'); setV(root,'cmd','');
+      const r=await api.post('/api/msf/session/'+encodeURIComponent(S._sid)+'/run',{command:cmd,timeout:20});
+      const out=(r&&(r.output||r.result||r.data))||''; if(out) String(out).split('\n').forEach(l=>termLine(el,l)); else if(r&&r.status==='error') termLine(el,'[!] '+(r.message||'error'),'r'); });
+    onAct(root,'kill', async()=>{ if(!S._sid){ toast('No session selected','warn'); return; } await api.post('/api/msf/session/'+encodeURIComponent(S._sid)+'/kill',{}); toast('Session #'+S._sid+' killed','warn'); S._sid=null; await load(); });
+    onAct(root,'killall', async()=>{ await api.post('/api/msf/sessions/kill-all',{}); toast('All sessions killed','warn'); S._sid=null; await load(); });
+  }
+};
+
+// ── LOOT CREDS (credentials + reports) ──────────────────────────────────────
+const CREDTYPES=['password','ntlm_hash','kerberos_spn','ssh_key','hash','token'];
+PANES.loot = {
+  body(){ return (
+    sec('RECOVERED CREDENTIALS',`<div data-box="creds"><div class="sec-note">loading credentials…</div></div>`)
+    +sec('ADD CREDENTIAL',`<div class="controls">${fld('TYPE',sel('ctype',CREDTYPES,'140px'))}${fld('USERNAME',inp('cuser','','user','150px'))}${fld('SECRET',inp('cval','','password / hash','180px'))}${fld('HOST',inp('chost','','10.10.10.5','130px'))}${btn('+ ADD','go','add')}</div>`)
+    +sec('REPORTS',
+      `<div class="controls" style="margin-bottom:14px">${btn('◎ GENERATE REPORT','pri','gen')}${fld('FORMAT',sel('fmt',['html','json'],'110px'))}</div>
+       <div data-box="reports"><div class="sec-note">loading reports…</div></div>`)
+  );},
+  async mount(root){
+    const drawCreds=r=>{ const b=box(root,'creds'); if(!b)return; const cs=(r&&r.credentials)||[];
+      if(!cs.length){ b.innerHTML='<div class="sec-note">No credentials captured yet. They populate from enum findings, exploitation, and manual entry.</div>'; return; }
+      b.innerHTML=tbl(['TYPE','USERNAME','HOST','SECRET','VERIFIED','SOURCE',''], cs.map(c=>{
+        const ver=c.verified?'<span class="pill ok">VERIFIED</span>':'<span class="pill muted">unverified</span>';
+        return `<tr><td style="color:var(--violet)">${esc(c.type||'')}</td><td style="color:#fff">${esc(c.username||'')}</td><td style="color:var(--cyan)">${esc(c.host_ip||c.host||'')}</td><td>${esc(mask(c.value||c.secret||c.password))}</td><td>${ver}</td><td class="d" style="color:var(--dim)">${esc(c.source_tool||'')}</td><td>${btn('✓','ghost sm','verify:'+esc(c.id))} ${btn('✕','ghost sm','del:'+esc(c.id))}</td></tr>`;
+      }).join(''));
+      cs.forEach(c=>{ onAct(root,'verify:'+c.id, async()=>{ await api.post('/api/creds/'+encodeURIComponent(c.id)+'/verify',{success:true}); toast('Marked verified'); drawCreds(await api.get('/api/creds')); });
+                      onAct(root,'del:'+c.id, async()=>{ await fetch('/api/creds/'+encodeURIComponent(c.id),{method:'DELETE'}); toast('Credential removed','warn'); drawCreds(await api.get('/api/creds')); }); }); };
+    drawCreds(await api.get('/api/creds'));
+    const drawReports=r=>{ const b=box(root,'reports'); if(!b)return; const rs=(r&&r.reports)||[];
+      if(!rs.length){ b.innerHTML='<div class="sec-note">No reports generated yet.</div>'; return; }
+      b.innerHTML=tbl(['FILENAME','FORMAT','SIZE','CREATED',''], rs.map(rp=>{ const fn=rp.filename||rp.name||'';
+        return `<tr><td style="color:var(--cyan)">${esc(fn)}</td><td class="d" style="color:var(--dim)">${esc((rp.format||fn.split('.').pop()||'').toUpperCase())}</td><td class="num">${esc(rp.size||'')}</td><td class="d" style="color:var(--dim)">${esc(rp.created||'')}</td><td><a class="btn ghost sm" href="/api/loot/download/${encodeURIComponent(fn)}">DOWNLOAD</a></td></tr>`; }).join('')); };
+    drawReports(await api.get('/api/loot/reports'));
+    onAct(root,'add', async()=>{ const type=V(root,'ctype'), username=V(root,'cuser'), value=V(root,'cval'), host_ip=V(root,'chost');
+      if(!value&&!username){ toast('Enter at least a username or secret','warn'); return; }
+      const r=await api.post('/api/creds',{type,username,value,host_ip}); if(r&&(r.status==='added')){ toast('Credential added'); setV(root,'cuser','');setV(root,'cval',''); drawCreds(await api.get('/api/creds')); } else toast((r&&r.error)||'add failed','err'); });
+    onAct(root,'gen', async()=>{ toast('Generating report…'); const r=await api.post('/api/loot/generate',{format:V(root,'fmt')});
+      if(r&&(r.filename||r.status)){ toast('Report generated','ok'); drawReports(await api.get('/api/loot/reports')); } else toast('report failed','err'); });
+  }
+};
+
+// ── ENGAGEMENT REPORT ───────────────────────────────────────────────────────
+PANES.engagement = {
+  body(){ return sec('ENGAGEMENT REPORT',
+    `<div class="controls" style="margin-bottom:14px">${fld('CLIENT',inp('client','Acme Range','','160px'))}${fld('SCOPE',inp('scope',S.target,'','160px'))}${fld('OPERATOR',inp('op','Null-H3x','','140px'))}${fld('FORMAT',sel('fmt',['html','json'],'110px'))}<label class="chip" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="secrets" style="vertical-align:-1px"> include secrets</label>${btn('◎ GENERATE','go','gen')}</div>
+     <div class="sec-note">Cross-references scan, credentials, exploit outcomes, validator verdicts and ATT&CK coverage into one client-deliverable SPECTR report — masked by default.</div>
+     <div data-box="out" style="margin-top:16px"></div>`); },
+  async mount(root){
+    onAct(root,'gen', async()=>{ toast('Assembling engagement report…');
+      const r=await api.post('/api/report/full',{ client:V(root,'client'), scope:V(root,'scope'), operator:V(root,'op'), format:V(root,'fmt'), include_secrets: !!(EL(root,'secrets')&&EL(root,'secrets').checked) });
+      const b=box(root,'out'); const fn=r&&(r.filename||r.name);
+      if(fn){ b.innerHTML='<div class="controls">'+`<a class="btn pri" href="/api/loot/download/${encodeURIComponent(fn)}">DOWNLOAD ${esc(fn)}</a>`+'</div>'; toast('Report ready','ok'); }
+      else b.innerHTML='<div class="sec-note">'+esc((r&&(r.message||r.error))||'Report generated (no filename returned).')+'</div>'; });
+  }
+};
+
+// ── DETECTION COVERAGE (live ATT&CK from findings) ──────────────────────────
+PANES.coverage = {
+  body(){ return sec('COVERAGE',`<div data-box="cov"><div class="sec-note">loading ATT&CK coverage from findings…</div></div>`); },
+  async mount(root){
+    const r=await api.get('/api/mitre/findings'); const b=box(root,'cov'); if(!b)return;
+    if(!r){ b.innerHTML='<div class="sec-note">Could not load coverage.</div>'; return; }
+    const matrix=r.matrix||{}; const cov=r.coverage||{};
+    const techs=Object.keys(matrix).filter(k=>k!=='unmapped');
+    const rows=techs.map(t=>{ const fs=matrix[t]||[]; const labels=[...new Set(fs.flatMap(f=>f.attack_labels||[]))].join(', ');
+      return `<tr><td><span class="chip att" style="padding:2px 8px">${esc(t)}</span></td><td style="color:#fff">${esc(labels||'—')}</td><td class="num">${fs.length}</td></tr>`; }).join('')
+      || '<tr><td colspan="3" class="d" style="color:var(--muted)">No mapped findings yet — run enumeration to populate the matrix.</td></tr>';
+    const unmapped=(matrix.unmapped||[]).length;
+    b.innerHTML =
+      `<div class="stats">${stat('var(--cyan)',techs.length,'TECHNIQUES SEEN')}${stat('var(--violet)',(r.findings||[]).length,'FINDINGS MAPPED')}${stat('var(--warn)',unmapped,'UNMAPPED')}${stat('#fff',cov.techniques_labeled??'—','LABELS AVAILABLE')}</div>`
+      + `<div class="detstrip" style="margin-top:18px"><div class="dh"><span class="eye">◎</span> PURPLE NOTE</div><div style="padding:13px 16px" class="sec-note" style="margin:0">This matrix is built live from current findings annotated with ATT&CK. Full red-vs-blue reconciliation (what fired vs. what Security Onion flagged) is a purple-team roll-up this build doesn't yet track server-side — the SIEM diff view is on the roadmap. Wire target: a detections index the emulation panes emit into.</div></div>`
+      + sec('TECHNIQUE → FINDINGS', tbl(['TECHNIQUE','ATT&CK LABEL(S)','FINDINGS'],rows));
+  }
+};
+
+// ── PAYLOADS (implants, class=payload) ──────────────────────────────────────
+PANES.payloads = {
+  body(){ return (
+    sec('IMPLANT INSTANCES',`<div data-box="tree"><div class="sec-note">loading implant inventory…</div></div>`)
+    +sec('ADD INSTANCE',`<div class="controls">${fld('PRODUCT',sel('prod',[['bashbunny','Bash Bunny'],['omg','O.MG Cable'],['pineapple','WiFi Pineapple']],'160px'))}${fld('DEVICE IP / (usb)',inp('host','','172.16.64.1 or usb','160px'))}${fld('DEVICE ID',inp('did','','optional','130px'))}${btn('⟳ CONNECT & ADD','go','add')}</div>`)
+    +sec('PAYLOAD SOURCES',`<div class="controls" style="margin-bottom:14px">${btn('⟲ UPDATE FROM GITHUB','ghost','update')}</div><div data-box="sources"><div class="sec-note">loading vetted sources…</div></div>`)
+  );},
+  async mount(root){
+    const drawTree=r=>{ const b=box(root,'tree'); if(!b)return; const nodes=(r&&r.tree)||[];
+      const withInst=nodes.filter(n=>(n.instances||[]).length);
+      if(!withInst.length){ b.innerHTML='<div class="sec-note">No implant instances yet — connect one below (Hak5 Bash Bunny / O.MG / Pineapple).</div>'; return; }
+      const rows=[]; withInst.forEach(n=>(n.instances||[]).forEach(i=>{
+        const state=i.armed_payload?'<span class="pill ok">ARMED</span>':i.online?'<span class="pill info">ONLINE</span>':'<span class="pill muted">offline</span>';
+        rows.push(`<tr><td style="color:#fff">${esc(i.device_id||i.id||'')}</td><td class="d" style="color:var(--dim)">${esc(n.name||'')}</td><td>${esc(i.armed_payload||'—')}</td><td style="color:var(--cyan)">${esc(i.host||i.transport_label||'')}</td><td>${state}</td></tr>`); }));
+      b.innerHTML=tbl(['INSTANCE','PRODUCT','PAYLOAD','CALLBACK','STATE'],rows.join('')); };
+    drawTree(await api.get('/api/implants/tree?class=payload'));
+    const drawSources=r=>{ const b=box(root,'sources'); if(!b)return; const ss=(r&&r.sources)||[];
+      if(!ss.length){ b.innerHTML='<div class="sec-note">No sources configured.</div>'; return; }
+      b.innerHTML=tbl(['SOURCE','REPOSITORY','PRODUCTS'], ss.map(s=>`<tr><td style="color:#fff">${esc(s.id||s.name||'')}</td><td style="color:var(--cyan)">${esc(s.repo||s.url||'')}</td><td class="num">${num(s.count||s.payloads)}</td></tr>`).join('')); };
+    drawSources(await api.get('/api/implants/sources'));
+    onAct(root,'add', async()=>{ const product_id=V(root,'prod'); const host=V(root,'host'); const device_id=V(root,'did');
+      const body={product_id}; if(host&&host!=='usb') body.host=host; if(device_id) body.device_id=device_id;
+      const r=await api.post('/api/implants/connect-add',body);
+      if(r&&r.error){ toast(r.error,'err'); return; } if(r&&r.status==='unreachable'){ toast('Unreachable: '+(r.detail||''),'warn'); return; }
+      toast('Instance added'); drawTree(await api.get('/api/implants/tree?class=payload')); });
+    onAct(root,'update', async()=>{ toast('Updating from vetted GitHub sources…'); await api.post('/api/implants/sources/update',{}); drawSources(await api.get('/api/implants/sources')); toast('Sources updated','ok'); });
+  }
+};
+
+// ── SPECTRUM (wireless) ─────────────────────────────────────────────────────
+PANES.spectrum = {
+  body(){ return (
+    sec('DEVICE',`<div class="controls">${fld('DEVICE',inp('dev','pineapple-vii','device name','160px'))}${fld('PASSWORD',pwd('pw',''))}${btn('⟳ CONNECT','go','connect')}${btn('DISCONNECT','ghost','disconnect')}</div>
+      <div class="controls" style="margin-top:14px">${btn('▶ RECON SWEEP','pri','recon')}</div>
+      ${statusline('IDLE','WiFi survey + handshake harvest')}`)
+    +sec('WIRELESS SURVEY',`<div data-box="survey"><div class="sec-note">loading survey…</div></div>`)
+  );},
+  async mount(root){
+    const sl=root.querySelector('[data-statusline]');
+    const setStatus=(t)=>{ if(sl){ const b=sl.querySelector('b'); b.textContent=t; } };
+    const drawSurvey=r=>{ const b=box(root,'survey'); if(!b)return; const aps=(r&&r.aps)||[];
+      setStatus((r&&r.online?'ONLINE':'OFFLINE')+' · '+((r&&r.ap_count)||0)+' AP · '+((r&&r.handshakes)||0)+' handshake(s)');
+      if(!aps.length){ b.innerHTML='<div class="sec-note">No access points surveyed.</div>'; return; }
+      b.innerHTML=tbl(['SSID','BSSID','BAND','CH','ENC','CLIENTS','HS'], aps.map(a=>
+        `<tr><td style="color:#fff">${esc(a.ssid||'')}</td><td class="num d" style="color:var(--dim)">${esc(a.bssid||'')}</td><td class="num">${esc(a.band||'')}</td><td class="num">${esc(a.channel||'')}</td><td>${esc(a.enc||'')}</td><td class="num">${num(a.clients)}</td><td>${a.handshake?'<span class="pill ok">✓</span>':'<span class="d" style="color:var(--muted)">—</span>'}</td></tr>`).join('')); };
+    drawSurvey(await api.get('/api/wireless/recon'));
+    onAct(root,'recon', async()=>{ toast('Running recon sweep…'); drawSurvey(await api.get('/api/wireless/recon')); });
+    onAct(root,'connect', async()=>{ const r=await api.post('/api/wireless/api-connect',{device:V(root,'dev'),password:V(root,'pw')}); toast((r&&r.status)||'connect attempted'); drawSurvey(await api.get('/api/wireless/recon')); });
+    onAct(root,'disconnect', async()=>{ await api.post('/api/wireless/api-disconnect',{}); toast('Disconnected','warn'); });
+  }
+};
+
+// ── ROADMAP CARD (panes with no backend endpoint in this build) ─────────────
+function roadmap(mod){
+  const m=META[mod.id]||{};
+  const tools=(m.tools||[]).map(t=>`<span class="chip src">${esc(t)}</span>`).join('') || '<span class="d" style="color:var(--muted)">—</span>';
+  return detStrip(m)
+    + `<section class="sec"><div class="eyebrow"><i></i>NOT WIRED IN THIS BUILD</div>
+        <div class="detstrip" style="background:var(--surface2)">
+          <div class="dh"><span class="eye" style="color:var(--warn)">◆</span> ROADMAP MODULE — no API endpoint in the current h3x-dash backend</div>
+          <div style="padding:15px 16px">
+            <div class="sec-note" style="margin:0 0 12px">This pane is part of the console's designed surface but the framework doesn't yet expose a route to drive it. It's shown here as a wiring target rather than faked with dead controls — the panes that <span style="color:var(--acid)">do</span> have endpoints (Scan, Enum, MSF Scanners, Exploit, Validate, Sessions, Loot, Payloads, Spectrum, Coverage) are fully live.</div>
+            <div class="dk" style="font-size:8px;letter-spacing:.2em;color:var(--muted);margin-bottom:8px">TOOLS THIS WILL ORCHESTRATE</div>
+            <div class="chips">${tools}</div>
+          </div>
+        </div></section>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════════════════════════
+function render(){
+  (S._streams||[]).forEach(es=>{try{es.close();}catch(e){}}); S._streams=[];
+  (S._timers||[]).forEach(t=>clearInterval(t)); S._timers=[];
+  renderTabs(); renderSide();
+  const w=WS.find(x=>x.id===S.ws)||WS[0];
+  const mod=w.modules.find(m=>m.id===S.mod)||w.modules[0];
+  const pane=PANES[mod.id];
+  const desc=(META[mod.id]||{}).d||'';
+  const body = pane ? pane.body(mod) : roadmap(mod);
+  wrap.innerHTML =
+    `<div class="crumb"><b>${esc(w.label)}</b> &nbsp;/&nbsp; ${esc(mod.label.toUpperCase())}</div>
+     <div class="phead"><h1>${esc(mod.icon)}&nbsp;&nbsp;${esc(mod.label)}</h1>${mod.isnew?`<span class="tag-new" style="position:relative;top:-2px">${pane?'NEW MODULE':'ROADMAP'}</span>`:''}</div>
+     ${desc?`<div class="pdesc">${esc(desc)}</div>`:''}
+     <div class="divider"></div>${body}`;
+  if(pane && pane.mount){ Promise.resolve().then(()=>pane.mount(wrap,mod)).catch(err=>{ console.error(err); toast('Panel error: '+err.message,'err'); }); }
+  main.scrollTop=0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════════════
+(async function boot(){
+  await refreshMsf();
+  await refreshHosts();
+  // keep the topbar MSF indicator fresh
+  S._boot = setInterval(refreshMsf, 15000);
+  render();
+})();
+</script>
+</body>
+</html>
