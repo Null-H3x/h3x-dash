@@ -61,6 +61,17 @@ class H3xConfig:
     NMAP_DIR   = BASE_DIR / 'scans'
     LOG_DIR    = BASE_DIR / 'logs'
 
+    # ── Adversary emulation (purple team) ─────────────────────────────────────
+    # Invoke-AtomicRedTeam + MITRE CALDERA are wrapped as the *real* execution
+    # backends — no synthetic telemetry. Point these at your lab install.
+    ATOMICS_PATH     = os.environ.get('ATOMICS_PATH', str(Path.home() / 'AtomicRedTeam' / 'atomics'))
+    PWSH_BIN         = os.environ.get('PWSH_BIN', 'pwsh')
+    CALDERA_URL      = os.environ.get('CALDERA_URL', 'http://127.0.0.1:8888')
+    CALDERA_API_KEY  = os.environ.get('CALDERA_API_KEY', '')
+    # Correlation window: how long after a technique fires a Security Onion
+    # detection may still land and still count as a catch (SIEM lag tolerance).
+    RECONCILE_WINDOW_S = int(os.environ.get('RECONCILE_WINDOW_S', 900))
+
     # ── Scan defaults ─────────────────────────────────────────────────────────
     DEFAULT_TIMING  = 'T4'
     DEFAULT_PORTS   = 'driveby'
