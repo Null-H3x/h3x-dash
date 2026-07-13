@@ -366,24 +366,24 @@ Several offline and online checks ship with the codebase. Run them after any cha
 
 | Script | Mode | What it checks |
 |--------|------|----------------|
-| `python3 audit_chain.py` | Offline | Internal consistency of `modules/cve_chain.py`: entry shape, severity discipline, no dead routes / orphan keys / duplicate (CVE, module) tuples, SMB-pipe DCERPC port-override correctness, suggestion-dict shape matches HTML expectations, auto-confirmation regressions |
-| `python3 audit_enum.py` | Offline | Every TOOL_LABELS entry has a backing `_run_<id>` method (and vice-versa), every tier-mapped tool is labeled, port/service references resolve, `available_tools()` covers every dispatchable tool, tier-discipline dispatch simulation against representative hosts |
-| `python3 audit_exploit.py` | Offline | Exploit session-survival wiring: payload selection, staged vs stageless migration, foreground non-interacting launch, session wait loop, check-mode guards |
-| `python3 audit_msf_runner.py` | Offline | Mock-RPC exercise of the exploit runner: missing module, missing options, RPORT auto-correct, payload hardening, session detection |
-| `python3 audit_scan.py` | Offline | Scan-mode wiring: web port profile, Layer-7 helpers, target expansion |
-| `python3 audit_payload_sources.py` | Offline | Vetted GitHub payload sources + Access flows: allowlist shape + enforcement, URL validation, git-tree → payload parsing, description extraction, synced-payload merge, new-device wiring, arm/deploy state, validate-connect guards, callback port match, Pineapple api-connect gating |
-| `python3 audit_credentials.py` | Offline | Credential store + parsers: `unix_hash` type, shadow coverage ($6$/yescrypt/bcrypt), hash counts, corrupt-JSON tolerance, resolver `value` mapping, capture-route guards |
-| `python3 audit_loot.py` | Offline | Loot reports + download: session/scan HTML escaping (stored-XSS), case-insensitive format, `size_kb`, non-file skip, download filename whitelist + `is_file()`, safe loot.html rendering |
-| `python3 audit_msf_session.py` | Offline | Shell session listing robustness: bytes decode, junk-skip, retry-once, RPC serialization (no concurrent `client.call`), health-check tolerance |
+| `python3 audit/audit_chain.py` | Offline | Internal consistency of `modules/cve_chain.py`: entry shape, severity discipline, no dead routes / orphan keys / duplicate (CVE, module) tuples, SMB-pipe DCERPC port-override correctness, suggestion-dict shape matches HTML expectations, auto-confirmation regressions |
+| `python3 audit/audit_enum.py` | Offline | Every TOOL_LABELS entry has a backing `_run_<id>` method (and vice-versa), every tier-mapped tool is labeled, port/service references resolve, `available_tools()` covers every dispatchable tool, tier-discipline dispatch simulation against representative hosts |
+| `python3 audit/audit_exploit.py` | Offline | Exploit session-survival wiring: payload selection, staged vs stageless migration, foreground non-interacting launch, session wait loop, check-mode guards |
+| `python3 audit/audit_msf_runner.py` | Offline | Mock-RPC exercise of the exploit runner: missing module, missing options, RPORT auto-correct, payload hardening, session detection |
+| `python3 audit/audit_scan.py` | Offline | Scan-mode wiring: web port profile, Layer-7 helpers, target expansion |
+| `python3 audit/audit_payload_sources.py` | Offline | Vetted GitHub payload sources + Access flows: allowlist shape + enforcement, URL validation, git-tree → payload parsing, description extraction, synced-payload merge, new-device wiring, arm/deploy state, validate-connect guards, callback port match, Pineapple api-connect gating |
+| `python3 audit/audit_credentials.py` | Offline | Credential store + parsers: `unix_hash` type, shadow coverage ($6$/yescrypt/bcrypt), hash counts, corrupt-JSON tolerance, resolver `value` mapping, capture-route guards |
+| `python3 audit/audit_loot.py` | Offline | Loot reports + download: session/scan HTML escaping (stored-XSS), case-insensitive format, `size_kb`, non-file skip, download filename whitelist + `is_file()`, safe loot.html rendering |
+| `python3 audit/audit_msf_session.py` | Offline | Shell session listing robustness: bytes decode, junk-skip, retry-once, RPC serialization (no concurrent `client.call`), health-check tolerance |
 | `python3 validate_chain.py` | Online | Connects to your local msfrpcd and verifies every module path in the chain actually exists in your MSF install. Catches renames, version drift, and typos that offline audits cannot see. |
 | `python3 shell_doctor.py` | Online | Live Shell/session diagnostic. Run it in a second terminal while you drive the UI to localize an "Active Sessions" failure across stages: msfrpcd reachability (A), raw session list (B), session persistence/lifetime (C), probe responsiveness (D), and MsfEngine parity (E). `--watch` tracks land→lifetime→death untouched; `--probe <sid>` deep-probes one session; `--watch --probe-newest` shows whether probing itself kills a fragile session. |
 
 **Typical workflow when extending the chain:**
 
 ```bash
-python3 audit_chain.py          # internal consistency, 0 FAIL required
+python3 audit/audit_chain.py          # internal consistency, 0 FAIL required
 python3 validate_chain.py       # MSF reality check, 0 missing required
-python3 audit_enum.py           # only if you touched enum_engine.py
+python3 audit/audit_enum.py           # only if you touched enum_engine.py
 ```
 
 ---
@@ -426,11 +426,7 @@ h3x-dash/
 ├── requirements.txt                  pip dependencies (non-Kali environments)
 ├── Nmap-Configurabulator.py          <- bundled enumeration engine (Layer 3/4)
 ├── web_scan.py                       <- bundled Layer 7 web scanner
-├── audit_chain.py                    CVE chain internal-consistency audit
-├── audit_enum.py                     Enum-engine wiring audit
-├── audit_exploit.py                  Exploit session-survival audit
-├── audit_msf_runner.py               Mock-RPC exploit runner audit
-├── audit_scan.py                     Scan-mode wiring audit
+├── audit/                            Offline paranoia audit suite — `python3 audit/audit_all.py` runs them all
 ├── validate_chain.py                 Online msfrpcd module-path validator
 │
 ├── modules/
@@ -518,7 +514,7 @@ Other properties:
 
 The Payload page covers the arm-and-deploy Hak5 family — **USB Rubber Ducky, Bash Bunny, Shark Jack, LAN Turtle, Packet Squirrel, Key Croc, Signal Owl,** and the **O.MG Plug / Adapter / UnBlocker / Cable** — each backed by its vetted GitHub payload source above. The Spectrum page covers the capture/monitor family — **WiFi Pineapple** (full REST flow: recon, evil portal, deauth) plus **Screen Crab, Plunder Bug,** and **WiFi Coconut** as connect-to-add inventory/loot devices. Payload-class devices are seeded into the inventory on first run (and any newly shipped device is added on the next start without disturbing existing entries); Spectrum-class devices are registered via the connect-to-add flow, which validates connectivity first.
 
-Run `python3 audit_payload_sources.py` to verify the allowlist shape, URL validation, tree-parsing, and library merge offline (no network required).
+Run `python3 audit/audit_payload_sources.py` to verify the allowlist shape, URL validation, tree-parsing, and library merge offline (no network required).
 
 ---
 

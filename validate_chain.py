@@ -46,7 +46,9 @@ def main() -> int:
     if args.offline:
         import subprocess
         print("[*] --offline: running audit_chain.py (internal consistency only)\n")
-        rc = subprocess.call([sys.executable, 'audit_chain.py'])
+        rc = subprocess.call([sys.executable,
+                              str(Path(__file__).resolve().parent
+                                  / 'audit' / 'audit_chain.py')])
         return 0 if rc == 0 else 1
 
     eng = MsfEngine()
