@@ -1308,6 +1308,40 @@ PANES.lateral = {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  SYNTHETIC C2 BEACON (LCE) — benign detection-validation traffic generator.
+//  Emits jittered HTTP(S)/DNS heartbeats to an operator-controlled sink.
+// ═══════════════════════════════════════════════════════════════════════════
+PANES.c2 = {
+  body(){ return (
+    detStrip(META.c2)
+    + sec('SYNTHETIC C2 BEACON',`
+        <div class="detstrip" style="background:var(--surface2);margin-bottom:14px"><div class="dh"><span class="eye" style="color:var(--acid)">◎</span> DETECTION-VALIDATION ONLY</div><div class="sec-note" style="padding:13px 16px;margin:0">Emits benign, jittered heartbeats to a sink <b style="color:var(--acid)">you control</b> — no command channel, no payload, no data transfer. Point it at your canary/listener and confirm your SIEM/IDS flags the beaconing pattern.</div></div>
+        <div class="controls" style="margin-bottom:12px">${fld('TRANSPORT',sel('transport',[['https','HTTPS'],['http','HTTP'],['dns','DNS']],'120px'))}${fld('CALLBACK SINK',inp('target','','https://canary.you.net or domain','260px'))}${fld('PROFILE',sel('profile',[['','— loading —']],'220px'))}</div>
+        <div class="controls" style="margin-bottom:12px">${fld('INTERVAL (s)',inp('interval','30','','90px'))}${fld('JITTER (%)',inp('jitter','20','','90px'))}${fld('MAX BEACONS (0=∞)',inp('max','0','','140px'))}</div>
+        <div class="controls">${btn('▶ START BEACON','go','run')}${btn('■ STOP','stop','stop')}</div>
+        ${statusline('IDLE','beacon down')}
+        <div data-box="stats" style="margin-top:12px"></div>
+        <div class="term" data-term="c2" style="margin-top:14px"><span class="d">// beacon log streams here</span></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let cid=null; let sent=0,okc=0,err=0;
+    const prof=await api.get('/api/c2/profiles'); const ps=(prof&&prof.profiles)||[]; const psel=EL(root,'profile');
+    if(psel) psel.innerHTML = ps.length ? ps.map(p=>`<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('') : '<option value="generic">Generic heartbeat</option>';
+    const drawStats=(nextS)=>{ const b=box(root,'stats'); if(!b)return;
+      b.innerHTML=`<div class="stats">${stat('var(--cyan)',sent,'BEACONS SENT')}${stat('var(--acid)',okc,'OK')}${stat('#ff3b6b',err,'ERR')}${stat('var(--violet)',(nextS!=null?nextS+'s':'—'),'NEXT IN')}</div>`; };
+    drawStats(null);
+    onAct(root,'stop', async()=>{ if(cid){ await api.post('/api/c2/stop',{client_id:cid}); toast('Beacon stopped','warn'); setStatus('STOPPED',false);} });
+    onAct(root,'run', async()=>{ const target=V(root,'target'); if(!target){ toast('Enter a callback sink you control','warn'); return; }
+      sent=0;okc=0;err=0; cid='c2_'+Math.random().toString(16).slice(2,10);
+      const t=term(root,'c2'); clearTerm(t); termLine(t,'[H3x-Dash] beacon up — heartbeating…','c'); setStatus('BEACONING',true); drawStats(null);
+      await api.stream('/api/c2/start',{transport:V(root,'transport'),target,profile:V(root,'profile'),interval_s:parseFloat(V(root,'interval')||'30'),jitter_pct:parseFloat(V(root,'jitter')||'20'),max_beacons:parseInt(V(root,'max')||'0',10),client_id:cid},'/api/c2/stream',
+        { term:t,
+          onEvent:m=>{ if(m.type==='beacon'){ sent++; if(m.ok)okc++; else err++; drawStats(m.next_s); termLine(t,`  ⟳ #${m.seq} [${m.code}] ${m.detail||''} · next ${m.next_s}s`, m.ok?'a':'w'); } },
+          onDone:m=>{ setStatus('STOPPED · '+(m.sent??sent)+' sent',false); toast('Beacon stopped','ok'); } }); });
+  }
+};
+
 // ── ROADMAP CARD (panes with no backend endpoint in this build) ─────────────
 function roadmap(mod){
   const m=META[mod.id]||{};
