@@ -1086,6 +1086,190 @@ PANES.caldera = {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  CRED & AD (real tools — Responder / Impacket / Certipy / BloodHound /
+//  coercion). Credential context is pulled from the captured store only.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function adGate(status, toolkey, label){
+  const t = status && status[toolkey];
+  if(t && t.available) return {ok:true, banner:''};
+  return {ok:false, banner:`<div class="detstrip" style="background:var(--surface2);margin-bottom:14px"><div class="dh"><span class="eye" style="color:var(--warn)">◆</span> TOOL NOT ON PATH</div><div style="padding:14px 16px" class="sec-note">This module wraps <b style="color:var(--cyan)">${esc(label)}</b> and will not fake it. ${esc((t&&t.detail)||('install '+label))}.</div></div>`};
+}
+async function adLoadCreds(root){
+  const r=await api.get('/api/creds'); const cs=((r&&r.credentials)||[]).filter(c=>['password','ntlm_hash'].includes(c.type));
+  const sel=EL(root,'cred'); if(!sel) return cs.length;
+  sel.innerHTML = cs.length
+    ? cs.map(c=>`<option value="${esc(c.id)}">${esc((c.domain?c.domain+'\\':'')+(c.username||'?'))} · ${esc(c.type)} · ${esc(mask(c.value))}</option>`).join('')
+    : '<option value="">— no captured creds (capture in Loot first) —</option>';
+  return cs.length;
+}
+
+PANES.roast = {
+  body(){ return (
+    detStrip(META.roast)
+    + sec('KERBEROAST / AS-REP ROAST',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('MODE',sel('mode',[['kerberoast','Kerberoast (SPN → TGS)'],['asrep','AS-REP Roast']],'200px'))}</div>
+        <div class="sec-note" style="margin-bottom:10px">Requests roastable tickets with a captured domain credential; hashes are written to a loot file for hashcat.</div>
+        <div class="controls">${btn('▶ ROAST','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no roast running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// impacket output streams here</span></div>`)
+    + sec('RESULT',`<div data-box="res"><div class="sec-note">Run a roast to collect hashes.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false};
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'getuserspns','impacket GetUserSPNs/GetNPUsers'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner; await adLoadCreds(root); };
+    await load();
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Tool not available','err'); return; }
+      const cid=V(root,'cred'); if(!cid){ toast('Select a captured credential','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] roasting…','c'); setStatus('ROASTING',true);
+      await api.stream('/api/ad/start',{tool:'roast',cred_id:cid,dc_ip:V(root,'dc'),mode:V(root,'mode')},'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE · '+(m.count??0)+' hash(es)',false);
+            const b=box(root,'res'); const rs=(m.results)||[];
+            b.innerHTML = rs.length ? (m.loot_file?`<div class="controls" style="margin-bottom:10px"><a class="btn ghost sm" href="/api/ad/download/${encodeURIComponent(m.loot_file)}">DOWNLOAD ${esc(m.loot_file)}</a></div>`:'')
+              + tbl(['ACCOUNT','KIND'],rs.map(h=>`<tr><td style="color:#fff">${esc(h.username||'?')}</td><td class="d" style="color:var(--dim)">${esc(h.kind||'')}</td></tr>`).join(''))
+              : '<div class="sec-note">No roastable accounts returned.</div>';
+            toast((m.count??0)+' hash(es) collected','ok'); } }); });
+  }
+};
+
+PANES.impacket = {
+  body(){ return (
+    detStrip(META.impacket)
+    + sec('SECRETSDUMP — DCSYNC',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('TARGET / DC',inp('dc',firstIp(),'DC for DCSync','180px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}</div>
+        <div class="sec-note" style="margin-bottom:10px">Extracts NTLM hashes via DCSync (<code>-just-dc-ntlm</code>). Recovered hashes flow straight into the credential store.</div>
+        <div class="controls">${btn('▶ DUMP','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no dump running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// secretsdump output streams here</span></div>`)
+    + sec('RESULT',`<div data-box="res"><div class="sec-note">Recovered hashes appear here and in the Loot tab.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false};
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'secretsdump','impacket secretsdump'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner; await adLoadCreds(root); };
+    await load();
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Tool not available','err'); return; }
+      const cid=V(root,'cred'); if(!cid){ toast('Select a captured credential','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] secretsdump…','c'); setStatus('DUMPING',true);
+      await api.stream('/api/ad/start',{tool:'secretsdump',cred_id:cid,dc_ip:V(root,'dc')},'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE · '+(m.count??0)+' hash(es)',false);
+            const b=box(root,'res'); const rs=(m.results)||[];
+            b.innerHTML = rs.length ? tbl(['USER','NT HASH'],rs.map(c=>`<tr><td style="color:#fff">${esc(c.username||'')}</td><td class="d" style="color:var(--dim)">${esc(mask(c.value))}</td></tr>`).join('')) : '<div class="sec-note">No hashes recovered.</div>';
+            toast((m.count??0)+' NTLM hash(es) → credential store','ok'); } }); });
+  }
+};
+
+PANES.certipy = {
+  body(){ return (
+    detStrip(META.certipy)
+    + sec('CERTIPY — ADCS ABUSE',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}<label class="chip" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="vuln" checked style="vertical-align:-1px"> vulnerable only</label></div>
+        <div class="sec-note" style="margin-bottom:10px">Enumerates AD CS and flags ESC1–ESC8 certificate-template misconfigurations.</div>
+        <div class="controls">${btn('▶ FIND','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no scan running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// certipy output streams here</span></div>`)
+    + sec('ESC FINDINGS',`<div data-box="res"><div class="sec-note">Run certipy to enumerate ADCS.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false};
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'certipy','Certipy'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner; await adLoadCreds(root); };
+    await load();
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Tool not available','err'); return; }
+      const cid=V(root,'cred'); if(!cid){ toast('Select a captured credential','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] certipy find…','c'); setStatus('ENUMERATING',true);
+      await api.stream('/api/ad/start',{tool:'certipy',cred_id:cid,dc_ip:V(root,'dc'),vulnerable_only:!!(EL(root,'vuln')&&EL(root,'vuln').checked)},'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE · '+(m.count??0)+' finding(s)',false);
+            const b=box(root,'res'); const rs=(m.results)||[];
+            b.innerHTML = rs.length ? tbl(['ESC','DETAIL'],rs.map(e=>`<tr><td><span class="pill warn">${esc(e.esc)}</span></td><td>${esc(e.detail)}</td></tr>`).join('')) : '<div class="sec-note">No ESC misconfigurations flagged.</div>';
+            toast((m.count??0)+' ADCS finding(s)','ok'); } }); });
+  }
+};
+
+PANES.bloodhound = {
+  body(){ return (
+    detStrip(META.bloodhound)
+    + sec('BLOODHOUND COLLECTION',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC HOST / IP',inp('dc',firstIp(),'dc01.corp.local','200px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('COLLECTION',sel('col',[['All','All'],['DCOnly','DCOnly'],['Session','Session'],['ACL','ACL']],'150px'))}</div>
+        <div class="sec-note" style="margin-bottom:10px">Runs bloodhound-python and packages the graph as a zip for the BloodHound UI.</div>
+        <div class="controls">${btn('▶ COLLECT','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no collection running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// bloodhound-python output streams here</span></div>`)
+    + sec('GRAPH DATA',`<div data-box="res"><div class="sec-note">Collected graph zips appear here.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false};
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'bloodhound','bloodhound-python'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner; await adLoadCreds(root); };
+    await load();
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Tool not available','err'); return; }
+      const cid=V(root,'cred'); if(!cid){ toast('Select a captured credential','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] bloodhound-python…','c'); setStatus('COLLECTING',true);
+      await api.stream('/api/ad/start',{tool:'bloodhound',cred_id:cid,dc_ip:V(root,'dc'),collection:V(root,'col')},'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE',false); const b=box(root,'res');
+            b.innerHTML = m.loot_file ? `<div class="controls"><a class="btn ghost sm" href="/api/ad/download/${encodeURIComponent(m.loot_file)}">DOWNLOAD ${esc(m.loot_file)}</a></div>` : '<div class="sec-note">Collection finished — no zip captured in output (check the DC host).</div>';
+            toast('Collection complete','ok'); } }); });
+  }
+};
+
+PANES.responder = {
+  body(){ return (
+    detStrip(META.responder)
+    + sec('RESPONDER — LLMNR/NBT-NS POISONING',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('INTERFACE',inp('iface','eth0','listen interface','150px'))}<label class="chip" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="analyze" style="vertical-align:-1px"> analyze only (no poisoning)</label></div>
+        <div class="sec-note" style="margin-bottom:10px">Long-running listener. Captured NetNTLMv2 hashes are written to a loot file and raised as findings. Stop when done.</div>
+        <div class="controls">${btn('▶ START LISTENER','go','run')}${btn('■ STOP','stop','stop')}</div>
+        ${statusline('IDLE','listener down')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// responder output streams here</span></div>`)
+    + sec('CAPTURES',`<div data-box="res"><div class="sec-note">Captured hashes appear here as they arrive.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false}; let cid=null; const captured=[];
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'responder','Responder'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner; };
+    await load();
+    const drawCaps=()=>{ const b=box(root,'res'); if(!b)return; b.innerHTML = captured.length ? tbl(['ACCOUNT'],captured.map(u=>`<tr><td style="color:#fff">${esc(u)}</td></tr>`).join('')) : '<div class="sec-note">No captures yet.</div>'; };
+    onAct(root,'stop', async()=>{ if(cid){ await api.post('/api/ad/stop',{client_id:cid}); toast('Listener stopped','warn'); setStatus('STOPPED',false); } });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Responder not available','err'); return; }
+      cid='ad_'+Math.random().toString(16).slice(2,10);
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] responder up — poisoning…','c'); setStatus('LISTENING',true);
+      await api.stream('/api/ad/start',{tool:'responder',iface:V(root,'iface'),analyze:!!(EL(root,'analyze')&&EL(root,'analyze').checked),client_id:cid},'/api/ad/stream',
+        { term:t, onEvent:m=>{ if(m.type==='output'&&/captured NetNTLMv2/.test(m.data||'')){ const u=(m.data.split('::')[1]||'').trim(); if(u){ captured.push(u); drawCaps(); } } },
+          onDone: m=>{ setStatus('STOPPED · '+((m.count)??captured.length)+' capture(s)',false); toast('Responder stopped','ok'); } }); });
+  }
+};
+
+PANES.coercion = {
+  body(){ return (
+    detStrip(META.coercion)
+    + sec('AUTH COERCION',`<div data-box="gate"></div>
+        <div class="controls" style="margin-bottom:12px">${fld('LISTENER IP',inp('listener','','your relay/responder','170px'))}${fld('TARGET IP',inp('target',firstIp(),'host to coerce','170px'))}${fld('METHOD',sel('method',[['petitpotam','PetitPotam (EFSRPC)'],['printerbug','PrinterBug (MS-RPRN)']],'220px'))}</div>
+        <div class="controls" style="margin-bottom:12px">${fld('CREDENTIAL (optional)',sel('cred',[['','— none (unauth) —']],'320px'))}</div>
+        <div class="sec-note" style="margin-bottom:10px">Forces the target machine account to authenticate to your listener — pair with Responder/ntlmrelayx.</div>
+        <div class="controls">${btn('▶ COERCE','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
+        ${statusline('IDLE','no coercion running')}
+        <div class="term" data-term="ad" style="margin-top:14px"><span class="d">// coercion output streams here</span></div>`)
+    + sec('RESULT',`<div data-box="res"><div class="sec-note">Coercion verdict appears here.</div></div>`)
+  );},
+  async mount(root){
+    const setStatus=emuStatusSetter(root); let gate={ok:false};
+    const load=async()=>{ const s=await api.get('/api/ad/tools'); gate=adGate(s,'petitpotam','PetitPotam / PrinterBug'); const g=box(root,'gate'); if(g)g.innerHTML=gate.banner;
+      const r=await api.get('/api/creds'); const cs=((r&&r.credentials)||[]).filter(c=>['password','ntlm_hash'].includes(c.type)); const sel=EL(root,'cred');
+      if(sel) sel.innerHTML='<option value="">— none (unauth) —</option>'+cs.map(c=>`<option value="${esc(c.id)}">${esc((c.domain?c.domain+'\\':'')+(c.username||'?'))} · ${esc(c.type)}</option>`).join(''); };
+    await load();
+    onAct(root,'recheck', async()=>{ await load(); toast('Rechecked'); });
+    onAct(root,'run', async()=>{ if(!gate.ok){ toast('Coercion tool not available','err'); return; }
+      if(!V(root,'listener')||!V(root,'target')){ toast('Listener + target required','warn'); return; }
+      const t=term(root,'ad'); clearTerm(t); termLine(t,'[H3x-Dash] coercing…','c'); setStatus('COERCING',true);
+      const body={tool:'coercion',listener_ip:V(root,'listener'),target_ip:V(root,'target'),method:V(root,'method')}; const cid=V(root,'cred'); if(cid) body.cred_id=cid;
+      await api.stream('/api/ad/start',body,'/api/ad/stream',
+        { term:t, onDone: m=>{ setStatus('COMPLETE',false); const v=(m.results&&m.results[0])||{}; const b=box(root,'res');
+            const cls=v.coerced===true?'ok':(v.coerced===false?'crit':'muted'); b.innerHTML=`<div class="statusline"><span class="pill ${cls}">${v.coerced===true?'COERCED':(v.coerced===false?'BLOCKED':'UNCLEAR')}</span> <span class="sec-note" style="margin:0">${esc(v.detail||'')}</span></div>`;
+            toast('Coercion complete','ok'); } }); });
+  }
+};
+
 // ── ROADMAP CARD (panes with no backend endpoint in this build) ─────────────
 function roadmap(mod){
   const m=META[mod.id]||{};
