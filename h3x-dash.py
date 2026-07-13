@@ -42,6 +42,8 @@ from modules.implant_engine import (
 )
 from modules.payload_sources import PayloadSourceManager
 from modules import report_engine
+from modules.emulation_engine import EmulationEngine, DetectionLedger
+from modules.ad_engine import AdEngine
 
 # ── App init ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +106,24 @@ msf_validator = MsfValidator(msf_engine, H3xConfig.LOOT_DIR)
 
 from modules.scanner_runner import ScannerRunner, is_scanner_module
 scanner_runner = ScannerRunner(msf_engine)
+
+# ── Adversary emulation (purple team) ─────────────────────────────────────────
+# Real Atomic Red Team + CALDERA wrappers write every fired technique into a
+# persistent ledger; a Security Onion export is then ingested and reconciled
+# back against it (red-vs-blue). The engine refuses to run when its backing tool
+# is absent — no synthetic telemetry.
+emulation_ledger = DetectionLedger(H3xConfig.LOOT_DIR / 'emulation_ledger.json')
+if _FRESH:
+    emulation_ledger.clear()
+emulation_engine = EmulationEngine(emulation_ledger, H3xConfig)
+
+# ── Active Directory / credential-access engine (Cred & AD panes) ─────────────
+# Wraps real installed AD tooling — Responder, Impacket, Certipy, BloodHound,
+# PetitPotam/PrinterBug coercion. Credential context comes exclusively from the
+# captured store; recovered NT hashes flow back into it, roastable / NetNTLM
+# material to loot files, and ADCS / coercion outcomes to findings. Refuses when
+# a tool is absent — nothing offensive is bundled.
+ad_engine = AdEngine(cred_store, H3xConfig.LOOT_DIR)
 
 
 # ── Template context — runs on every render_template ──────────────────────────
@@ -268,6 +288,18 @@ def dashboard():
     recent   = scan_engine.get_recent_activity()
     msf_conn = msf_engine.is_connected()
     return render_template('dashboard.html', stats=stats, recent=recent, msf_conn=msf_conn)
+
+
+@app.route('/console')
+def purple_console():
+    """Purple Ops Console — single-page live UI wired to the JSON API.
+
+    Served raw (send_file, not render_template) so the client-side ${...}
+    template literals and { } object literals pass through untouched — Jinja
+    never parses them. The existing multi-page UI is completely unaffected;
+    this is a parallel front-end over the same /api/* endpoints.
+    """
+    return send_file(H3xConfig.BASE_DIR / 'templates' / 'console.html')
 
 
 @app.route('/scan')
@@ -2226,6 +2258,202 @@ def api_mitre_findings():
 @app.route('/api/mitre/coverage')
 def api_mitre_coverage():
     return jsonify(mitre_mapping.coverage_stats())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ADVERSARY EMULATION — purple team: real Atomic Red Team + CALDERA, then
+#  reconcile fired techniques against a Security Onion detection export.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/emulation/tools')
+def api_emulation_tools():
+    """Backing-tool availability — drives the honest 'is this wired?' state."""
+    return jsonify(emulation_engine.tool_status())
+
+
+@app.route('/api/emulation/catalog')
+def api_emulation_catalog():
+    return jsonify(emulation_engine.catalog(request.args.get('source', 'atomic')))
+
+
+@app.route('/api/emulation/ledger')
+def api_emulation_ledger():
+    return jsonify({'entries': emulation_engine.ledger.list(
+        source=request.args.get('source'),
+        technique=request.args.get('technique'))})
+
+
+@app.route('/api/emulation/start', methods=['POST'])
+def api_emulation_start():
+    data      = request.get_json(silent=True) or {}
+    client_id = data.get('client_id') or str(uuid.uuid4())
+    q         = _get_queue(client_id)
+
+    def on_output(line):
+        try: q.put_nowait({'type': 'output', 'data': line})
+        except Exception: pass
+
+    def on_fired(entry):
+        try: q.put_nowait({'type': 'fired', 'entry': entry})
+        except Exception: pass
+
+    def on_complete(result):
+        try: q.put_nowait({'type': 'complete', **result})
+        except Exception: pass
+
+    started, msg = emulation_engine.start_run(data, on_output, on_fired, on_complete)
+    if not started:
+        _drop_queue(client_id)
+        return jsonify({'status': 'error', 'message': msg}), 409
+    return jsonify({'status': 'started', 'client_id': client_id})
+
+
+@app.route('/api/emulation/stream')
+def api_emulation_stream():
+    client_id = request.args.get('client_id', 'default')
+    q         = _get_queue(client_id)
+
+    def generate():
+        try:
+            while True:
+                try:
+                    event = q.get(timeout=25)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get('type') in ('complete', 'error'):
+                        break
+                except queue.Empty:
+                    yield f"data: {json.dumps({'type':'heartbeat'})}\n\n"
+        finally:
+            _drop_queue(client_id)
+
+    return Response(stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/emulation/stop', methods=['POST'])
+def api_emulation_stop():
+    emulation_engine.stop()
+    return jsonify({'status': 'stopping'})
+
+
+@app.route('/api/emulation/clear', methods=['POST'])
+def api_emulation_clear():
+    emulation_engine.ledger.clear()
+    return jsonify({'status': 'cleared'})
+
+
+@app.route('/api/emulation/ingest', methods=['POST'])
+def api_emulation_ingest():
+    """Ingest a Security Onion export (JSON body or uploaded file), then reconcile.
+
+    Accepts a JSON body ({detections|events|hits: [...], rule_map?}) or a
+    multipart upload under 'file' carrying the same JSON.
+    """
+    payload = None
+    if request.files.get('file'):
+        try:
+            payload = json.loads(request.files['file'].read().decode('utf-8', 'replace'))
+        except Exception as exc:
+            return jsonify({'status': 'error', 'message': f'bad upload: {exc}'}), 400
+    else:
+        payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({'status': 'error', 'message': 'no JSON body or file provided'}), 400
+    result = emulation_engine.ingest_siem(payload)
+    return jsonify(result), (200 if result.get('status') == 'ok' else 400)
+
+
+@app.route('/api/report/reconcile')
+def api_report_reconcile():
+    """Red-vs-blue purple-team roll-up — the report-section capstone."""
+    return jsonify(emulation_engine.reconcile())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ACTIVE DIRECTORY / CREDENTIAL ACCESS — Responder, Impacket, Certipy,
+#  BloodHound, coercion. Wraps real installed tools; creds from the store only.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_AD_ACTIONS = {'responder', 'roast', 'secretsdump', 'certipy', 'bloodhound', 'coercion', 'lateral'}
+
+
+@app.route('/api/ad/tools')
+def api_ad_tools():
+    return jsonify(ad_engine.tool_status())
+
+
+@app.route('/api/ad/start', methods=['POST'])
+def api_ad_start():
+    data   = request.get_json(silent=True) or {}
+    action = data.get('tool')
+    if action not in _AD_ACTIONS:
+        return jsonify({'status': 'error', 'message': f'unknown tool {action}'}), 400
+    client_id = data.get('client_id') or str(uuid.uuid4())
+    data['client_id'] = client_id
+    q = _get_queue(client_id)
+
+    def on_output(line):
+        try: q.put_nowait({'type': 'output', 'data': line})
+        except Exception: pass
+
+    def on_complete(result):
+        try: q.put_nowait({'type': 'complete', **result})
+        except Exception: pass
+
+    started, msg = ad_engine.start(action, data, on_output, on_complete)
+    if not started:
+        _drop_queue(client_id)
+        return jsonify({'status': 'error', 'message': msg, 'client_id': client_id}), 409
+    return jsonify({'status': 'started', 'client_id': client_id})
+
+
+@app.route('/api/ad/stream')
+def api_ad_stream():
+    client_id = request.args.get('client_id', 'default')
+    q = _get_queue(client_id)
+
+    def generate():
+        try:
+            while True:
+                try:
+                    event = q.get(timeout=25)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get('type') in ('complete', 'error'):
+                        break
+                except queue.Empty:
+                    yield f"data: {json.dumps({'type':'heartbeat'})}\n\n"
+        finally:
+            _drop_queue(client_id)
+
+    return Response(stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/ad/stop', methods=['POST'])
+def api_ad_stop():
+    data = request.get_json(silent=True) or {}
+    stopped = ad_engine.stop(data.get('client_id', ''))
+    return jsonify({'status': 'stopped' if stopped else 'not-running'})
+
+
+@app.route('/api/ad/loot')
+def api_ad_loot():
+    return jsonify({'files': ad_engine.loot_files(), 'findings': ad_engine.findings()})
+
+
+_AD_LOOT_RX = re.compile(r'^[A-Za-z0-9._-]+\.(txt|zip|json)$')
+
+
+@app.route('/api/ad/download/<name>')
+def api_ad_download(name):
+    if not _AD_LOOT_RX.match(name):
+        return jsonify({'status': 'error', 'message': 'bad filename'}), 400
+    path = ad_engine.loot_dir / name
+    if not path.is_file():
+        return jsonify({'status': 'error', 'message': 'not found'}), 404
+    return send_file(path, as_attachment=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
