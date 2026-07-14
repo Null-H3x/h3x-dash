@@ -305,6 +305,7 @@ def dashboard():
 
 
 @app.route('/console')
+@app.route('/ops')
 def purple_console():
     """Purple Ops Console — single-page live UI wired to the JSON API.
 
@@ -2650,4 +2651,8 @@ if __name__ == '__main__':
     # server wasn't restarted (stale process serving old code).
     print(f"  [H3x-Dash] v{H3xConfig.VERSION} starting — "
           f"http://0.0.0.0:5000  (sidebar should read v{H3xConfig.VERSION})\n")
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    # NOTE: use_evalex=False is required — with it on, Werkzeug's debugger
+    # reserves /console for its own interactive Python REPL, which both shadows
+    # our console route and exposes unauthenticated RCE on 0.0.0.0. Off, /console
+    # reaches the app and the REPL is gone. The reloader + tracebacks still work.
+    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True, use_evalex=False)
