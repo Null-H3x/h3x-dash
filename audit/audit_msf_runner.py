@@ -894,8 +894,28 @@ class MockSessionsMgr:
 
 
 class KillAllClient:
+    """Models the real MsfRpcClient.call() low-level RPC interface the production
+    kill path actually uses — client.call('session.stop', [sid]) — not just the
+    high-level .sessions wrapper. session.list drops a session once it's stopped,
+    and session.stop routes to the underlying MockSession so .stopped flips (which
+    is what the assertions below check)."""
     def __init__(self, session_ids):
         self.sessions = MockSessionsMgr(session_ids)
+
+    def call(self, method, params=None):
+        params = params or []
+        if method == 'session.list':
+            return {sid: {'type': 'meterpreter'}
+                    for sid, s in self.sessions._sessions.items()
+                    if not s.stopped}
+        if method == 'session.stop':
+            sid = str(params[0])
+            s = self.sessions._sessions.get(sid)
+            if s is None or s.stopped:
+                raise RuntimeError(f'Session ID ({sid}) does not exist')
+            s.stop()
+            return {'result': 'success'}
+        raise RuntimeError(f'unimplemented mock RPC method: {method}')
 
 
 eng_kill = MsfEngine()
@@ -933,12 +953,22 @@ else:
     fail(f"kill_session single-target: {res_one}, "
          f"origin={eng_one._session_origin}")
 
-# Already-gone session should still report ok (desired end state reached)
-class GoneSessionsMgr(MockSessionsMgr):
-    def session(self, sid):
-        raise RuntimeError(f'Session ID ({sid}) does not exist')
+# Already-gone session should still report ok (desired end state reached).
+# Models a real race: the session still shows in session.list, but session.stop
+# comes back reporting it gone — kill_session must treat that as success.
+class GoneClient:
+    def __init__(self, session_ids):
+        self.sessions = MockSessionsMgr(session_ids)
+
+    def call(self, method, params=None):
+        params = params or []
+        if method == 'session.list':
+            return {sid: {'type': 'meterpreter'} for sid in self.sessions._sessions}
+        if method == 'session.stop':
+            raise RuntimeError(f'Session ID ({params[0]}) does not exist')
+        raise RuntimeError(f'unimplemented mock RPC method: {method}')
 eng_gone = MsfEngine()
-eng_gone._client = type('C', (), {'sessions': GoneSessionsMgr(['4'])})()
+eng_gone._client = GoneClient(['4'])
 eng_gone._connected = True
 res_gone = eng_gone.kill_session('4')
 if res_gone.get('status') == 'ok' and 'already gone' in res_gone.get('message', ''):
