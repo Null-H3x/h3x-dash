@@ -244,9 +244,8 @@ const WS = [
     {id:'roast',label:'Kerberoast / AS-REP',icon:'⛨',isnew:true},{id:'bloodhound',label:'BloodHound',icon:'⌖',isnew:true},
     {id:'impacket',label:'Impacket-AD',icon:'⊟',isnew:true},{id:'certipy',label:'Certipy / ADCS',icon:'⬡',isnew:true},
     {id:'coercion',label:'Coercion',icon:'⇄',isnew:true}]},
-  {id:'lce',label:'LATERAL / C2 / EXFIL',modules:[
-    {id:'lateral',label:'Lateral Movement',icon:'⇉',isnew:true},{id:'c2',label:'C2 Beacon Emulator',icon:'◕',isnew:true},
-    {id:'exfil',label:'Exfil & Tunneling',icon:'⤢',isnew:true}]},
+  {id:'lce',label:'LATERAL / C2',modules:[
+    {id:'lateral',label:'Lateral Movement',icon:'⇉',isnew:true},{id:'c2',label:'C2 Beacon Emulator',icon:'◕',isnew:true}]},
   {id:'emulation',label:'EMULATION',modules:[
     {id:'atomic',label:'Atomic Red Team',icon:'⚛',isnew:true},{id:'caldera',label:'CALDERA',icon:'⬢',isnew:true},
     {id:'playbooks',label:'Scenario Playbooks',icon:'❑',isnew:true}]},
@@ -286,10 +285,6 @@ const META = {
   c2:{d:'Synthetic C2 beaconing — jittered HTTP/HTTPS/DNS callbacks with tunable sleep + malleable profiles.',
     tech:['T1071.001','T1571','T1573'],src:['Zeek conn / JA3','RITA score'],det:[['RITA: interval beacon','hit'],['Suricata: JA3','part'],['Zeek: long-conn','pend']],
     tools:['synthetic beacon emitter']},
-  exfil:{d:'Staged exfil + tunneling — HTTPS POST, DNS (dnscat2/iodine), ICMP with adjustable volume/timing.',
-    tech:['T1041','T1048.003','T1071.004'],src:['Zeek dns (entropy)','Suricata ET DNS','conn bytes-out'],
-    det:[['Sigma: DNS tunneling','hit'],['ET DNS exfil','part'],['DLP egress volume','miss']],
-    tools:['dnscat2','iodine']},
   atomic:{d:'Atomic Red Team — invoke-atomicredteam runs portable, ATT&CK-mapped atomics built for detection validation.',
     tech:['T1218.011','T1059.001','T1547.001'],src:['Sysmon 1 / 11 / 13','4688'],
     det:[['Sigma: rundll32 LOLBAS','hit'],['Sigma: PS script block','hit'],['Sigma: Run-key persist','hit']],
