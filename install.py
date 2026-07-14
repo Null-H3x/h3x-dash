@@ -326,6 +326,99 @@ ENUM_ALIASES = {
 }
 
 
+# ── AD / lateral / C2 tooling — drives the Cred & AD + LCE console panes ───────
+# Wrapped by modules/ad_engine.py (roast, secretsdump, certipy, bloodhound,
+# coercion, lateral) and modules/c2_engine.py. netexec is already covered in
+# ENUM_TOOLS. impacket-scripts provides the whole impacket-* family used by
+# roast / secretsdump / lateral (psexec/wmiexec/smbexec/atexec/dcomexec).
+AD_C2_TOOLS = {
+    'responder':            {'method': 'apt',  'pkg': 'responder'},
+    'impacket-secretsdump': {'method': 'apt',  'pkg': 'impacket-scripts'},
+    'certipy':              {'method': 'pipx', 'pkg': 'certipy-ad'},
+    'bloodhound-python':    {'method': 'apt',  'pkg': 'bloodhound.py'},
+    'evil-winrm':           {'method': 'apt',  'pkg': 'evil-winrm'},
+}
+AD_C2_ALIASES = {
+    'impacket-secretsdump': ['impacket-secretsdump', 'secretsdump.py'],
+    'certipy':              ['certipy', 'certipy-ad'],
+    'bloodhound-python':    ['bloodhound-python', 'bloodhound.py'],
+}
+AD_C2_FALLBACKS = {
+    'impacket-secretsdump': 'installs the full impacket-* family (GetUserSPNs, GetNPUsers, '
+                            'psexec, wmiexec, smbexec, atexec, dcomexec, secretsdump)',
+    'evil-winrm':           'netexec winrm -x also covers one-shot WinRM exec',
+    'certipy':              'ADCS enumeration (ESC1-8) for the Certipy pane',
+    'responder':            'LLMNR/NBT-NS poisoning for the Responder pane',
+    'bloodhound-python':    'AD graph collection for the BloodHound pane',
+}
+# Auth-coercion (PetitPotam / PrinterBug) has no clean apt package — netexec's
+# coerce modules cover it, and standalone scripts can be dropped on PATH.
+AD_C2_NOTES = {
+    'coercion': 'PetitPotam / PrinterBug are standalone scripts — use netexec '
+                '(coerce_plus module) or drop petitpotam.py / printerbug.py on PATH',
+}
+
+
+def _check_toolset(tools, aliases, fallbacks):
+    """Generic PATH check for a tool dict (mirrors check_enum_tools)."""
+    checks = []
+    for tool, spec in tools.items():
+        candidates = aliases.get(tool, [tool])
+        found = next((which(c) for c in candidates if which(c)), None)
+        method = spec.get('method', 'apt')
+        pkg    = spec.get('pkg', tool)
+        if found:
+            checks.append(Check(tool, PASS, found,
+                                apt_pkg=pkg if method == 'apt' else None,
+                                critical=False, install_spec=spec))
+            continue
+        fix = f'pipx install {pkg}' if method == 'pipx' else f'sudo apt-get install {pkg}'
+        note = fallbacks.get(tool, '')
+        msg = f'{tool} not found — that pane will report "tool not on PATH"'
+        if note:
+            msg += f' ({note})'
+        checks.append(Check(tool, WARN, msg, fix=fix,
+                            apt_pkg=pkg if method == 'apt' else None,
+                            critical=False, install_spec=spec))
+    return checks
+
+
+def check_ad_tools():
+    return _check_toolset(AD_C2_TOOLS, AD_C2_ALIASES, AD_C2_FALLBACKS)
+
+
+def check_emulation_stack():
+    """Informational checks for the emulation panes (manual installs, not auto)."""
+    checks = []
+    pwsh = which('pwsh')
+    checks.append(Check('powershell (pwsh)', PASS if pwsh else WARN,
+                        pwsh or 'not found — required for the Atomic Red Team pane',
+                        fix='install PowerShell for Linux (Microsoft package repo)',
+                        critical=False))
+    atomics = Path(os.environ.get('ATOMICS_PATH',
+                                  str(Path.home() / 'AtomicRedTeam' / 'atomics')))
+    checks.append(Check('atomic-red-team', PASS if atomics.is_dir() else WARN,
+                        str(atomics) if atomics.is_dir() else f'atomics folder not at {atomics}',
+                        fix='pwsh -c "Install-Module invoke-atomicredteam,powershell-yaml '
+                            '-Scope CurrentUser -Force" then clone the atomics; set ATOMICS_PATH',
+                        critical=False))
+    cal = os.environ.get('CALDERA_URL', '')
+    if cal:
+        host = cal.split('//')[-1].split('/')[0]
+        h, _, p = host.partition(':')
+        up = port_open(h or '127.0.0.1', int(p) if p.isdigit() else 8888)
+        checks.append(Check('caldera', PASS if up else WARN,
+                            f'{cal} reachable' if up else f'{cal} not reachable',
+                            fix='start your CALDERA server; set CALDERA_URL + CALDERA_API_KEY',
+                            critical=False))
+    else:
+        checks.append(Check('caldera', WARN, 'CALDERA_URL not set (CALDERA pane will be idle)',
+                            fix='git clone https://github.com/mitre/caldera --recursive; '
+                                'set CALDERA_URL + CALDERA_API_KEY in .env',
+                            critical=False))
+    return checks
+
+
 # ── Architecture detection for binary downloads ──────────────────────────────
 
 def detect_arch() -> str:
@@ -483,11 +576,12 @@ def check_optional_python_deps():
 def check_project_files():
     checks = []
     required = {
-        'h3x-dash.py':       'Main application',
-        'config.py':         'Configuration',
-        'modules':           'Backend engines (dir)',
-        'templates':         'HTML templates (dir)',
-        'static':            'Client JS/CSS (dir)',
+        'h3x-dash.py':            'Main application',
+        'config.py':              'Configuration',
+        'modules':                'Backend engines (dir)',
+        'templates':              'HTML templates (dir)',
+        'templates/console.html': 'Purple Ops Console UI',
+        'static':                 'Client JS/CSS (dir)',
     }
     for name, desc in required.items():
         p = ROOT / name
@@ -701,7 +795,8 @@ def launch_h3x_dash():
         print(f"{RED}Cannot launch — h3x-dash.py not found.{RST}")
         return
     print(f"\n{GRN}{BOLD}Launching H3x-Dash...{RST}")
-    print(f"{DIM}  Dashboard will be at http://127.0.0.1:5000{RST}\n")
+    print(f"{DIM}  Purple Ops Console → http://127.0.0.1:5000  (/ redirects to /console){RST}")
+    print(f"{DIM}  Legacy multi-page dashboard → http://127.0.0.1:5000/dashboard{RST}\n")
     os.chdir(ROOT)
     os.execvp(sys.executable, [sys.executable, str(target)])
 
@@ -719,6 +814,10 @@ def main():
     ])
     all_checks += run_section('ENUMERATION CHAIN',
                               check_enum_tools() + [check_seclists()])
+    all_checks += run_section('AD / LATERAL / C2 CHAIN',
+                              check_ad_tools())
+    all_checks += run_section('ADVERSARY EMULATION',
+                              check_emulation_stack())
     all_checks += run_section('EXPLOIT CHAIN', [
         check_metasploit(), check_msfrpcd(), check_pymetasploit3(),
     ])

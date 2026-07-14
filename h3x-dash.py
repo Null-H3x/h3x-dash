@@ -285,6 +285,13 @@ def _drop_queue(client_id: str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/')
+def index():
+    # The Purple Ops Console is the primary UI — land there by default.
+    # The legacy multi-page dashboard remains available at /dashboard.
+    return redirect('/console')
+
+
+@app.route('/dashboard')
 def dashboard():
     stats = {
         'hosts':    scan_engine.get_host_count(),
