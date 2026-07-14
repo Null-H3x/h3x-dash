@@ -14,7 +14,7 @@
   --cyan:#0ff0fc; --violet:#9b30ff; --acid:#39ff14;
   --danger:#ff4d4d; --warn:#ff9e2c;
   --text:#b6c2cf; --dim:#6c7686; --muted:#464d5b;
-  --topbar-h:54px; --side-w:224px;
+  --topbar-h:54px; --side-w:clamp(186px,17vw,230px); --dock-h:82px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -57,7 +57,12 @@ h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
 .tab.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;
   background:var(--cyan);box-shadow:0 0 12px rgba(15,240,252,.7)}
 .tab .dotnew{width:5px;height:5px;border-radius:50%;background:var(--violet)}
-.status{display:flex;align-items:center;gap:18px;padding:0 20px;border-left:1px solid var(--line);white-space:nowrap}
+.statusdock{position:fixed;left:0;bottom:0;width:var(--side-w);z-index:41;
+  background:linear-gradient(0deg,rgba(6,6,10,.97),rgba(9,9,13,.82));
+  border-top:1px solid var(--line);border-right:1px solid var(--line);
+  padding:10px 16px;display:flex;flex-direction:column;gap:7px;backdrop-filter:blur(6px)}
+.statusdock .si{width:100%;min-width:0}
+.statusdock .siv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .si{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.1em}
 .si .lbl{color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
@@ -67,7 +72,7 @@ h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
 /* ── SECONDARY AXIS — contextual side-nav + main ────────────────────────── */
 .shell{position:fixed;top:var(--topbar-h);left:0;right:0;bottom:0;display:flex;z-index:1}
 .sidenav{width:var(--side-w);flex:0 0 var(--side-w);overflow-y:auto;
-  background:rgba(9,9,13,.6);border-right:1px solid var(--line);padding:18px 0}
+  background:rgba(9,9,13,.6);border-right:1px solid var(--line);padding:18px 0 calc(var(--dock-h) + 6px)}
 .side-eyebrow{font-family:"Rajdhani",sans-serif;font-size:9.5px;letter-spacing:.28em;
   color:var(--violet);padding:0 20px 12px}
 .mlink{display:flex;align-items:center;gap:12px;padding:8px 20px;cursor:pointer;font-size:12.5px;
@@ -80,7 +85,7 @@ h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
 .tag-new{margin-left:auto;font-size:7.5px;letter-spacing:.14em;color:var(--violet);
   border:1px solid #2f1c44;border-radius:3px;padding:1px 5px}
 
-.main{flex:1;overflow-y:auto;padding:26px 34px 70px}
+.main{flex:1;overflow-y:auto;min-width:0;padding:clamp(16px,2.4vw,28px) clamp(16px,3vw,36px) 80px}
 .wrap{max-width:1020px}
 .crumb{font-size:10px;letter-spacing:.18em;color:var(--muted);margin-bottom:7px}
 .crumb b{color:var(--violet);font-weight:400}
@@ -189,7 +194,8 @@ tbody tr:hover td{background:rgba(15,240,252,.02)}
 .proto-flag{position:fixed;bottom:13px;right:15px;z-index:70;font-size:8.5px;letter-spacing:.16em;
   color:var(--warn);border:1px solid #3a2600;background:rgba(20,12,0,.85);border-radius:6px;padding:6px 11px}
 
-@media (max-width:840px){:root{--side-w:172px} .brand .sub{display:none} .si.hide{display:none} .main{padding:20px 18px 60px}}
+@media (max-width:840px){:root{--side-w:168px;--dock-h:78px} .brand .sub{display:none} .main{padding:18px 16px 84px}}
+@media (max-width:560px){:root{--side-w:138px} .brand{padding:0 12px} .brand .mark{font-size:15px} .tab{padding:0 12px} .statusdock{padding:8px 10px;gap:5px} .statusdock .si{font-size:9px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
@@ -201,12 +207,13 @@ tbody tr:hover td{background:rgba(15,240,252,.02)}
     <div class="sub">PURPLE OPS CONSOLE</div>
   </div></div>
   <nav class="tabs" id="tabs"></nav>
-  <div class="status">
-    <div class="si"><span class="lbl">MSF&nbsp;RPC</span><span class="dot" id="msfDot"></span><span id="msfText" style="color:var(--dim)">checking…</span></div>
-    <div class="si hide"><span class="lbl">SIEM</span><span class="dot watch"></span><span style="color:var(--cyan)">MONITORING</span></div>
-    <div class="si hide"><span class="lbl">TGT</span><span id="tgtText" style="color:var(--dim)">10.10.10.0/24</span></div>
-  </div>
 </header>
+
+<aside class="statusdock" aria-label="system status">
+  <div class="si"><span class="lbl">MSF&nbsp;RPC</span><span class="dot" id="msfDot"></span><span id="msfText" class="siv" style="color:var(--dim)">checking…</span></div>
+  <div class="si"><span class="lbl">SIEM</span><span class="dot watch"></span><span class="siv" style="color:var(--cyan)">MONITORING</span></div>
+  <div class="si"><span class="lbl">TGT</span><span id="tgtText" class="siv" style="color:var(--dim)">10.10.10.0/24</span></div>
+</aside>
 
 <div class="shell">
   <aside class="sidenav" id="sidenav"></aside>
@@ -426,11 +433,17 @@ function detStrip(m){
 const PANES = {};
 
 // ── MSF status (topbar + reused) ────────────────────────────────────────────
+function msfVersionStr(v){
+  if(!v) return '';
+  if(typeof v === 'string') return v;
+  if(typeof v === 'object') return v.version || v.ver || v.api || v.framework || '';
+  return String(v);
+}
 async function refreshMsf(){
   const st = await api.get('/api/msf/status');
   const dot=document.getElementById('msfDot'), txt=document.getElementById('msfText');
   const connected = !!(st && st.connected);
-  S.msf.connected = connected; S.msf.version = (st&&st.version)||'';
+  S.msf.connected = connected; S.msf.version = msfVersionStr(st && st.version);
   if(dot) dot.className = 'dot '+(connected?'on':'');
   if(txt){ txt.textContent = connected ? (S.msf.version||'CONNECTED') : (st&&st.last_error? 'OFFLINE' : 'DISCONNECTED');
            txt.style.color = connected ? 'var(--acid)' : 'var(--dim)'; }
@@ -459,7 +472,7 @@ PANES.dashboard = {
     // connection block
     const drawConn = st=>{ const b=box(root,'msfconn'); if(!b) return;
       const on=!!(st&&st.connected);
-      b.innerHTML=`<span class="dot ${on?'on':''}"></span><span style="color:${on?'var(--acid)':'var(--dim)'};font-size:12px">${on?esc(st.version||'CONNECTED'):'DISCONNECTED'}</span>`; };
+      b.innerHTML=`<span class="dot ${on?'on':''}"></span><span style="color:${on?'var(--acid)':'var(--dim)'};font-size:12px">${on?esc(msfVersionStr(st.version)||'CONNECTED'):'DISCONNECTED'}</span>`; };
     drawConn(await refreshMsf());
     // posture
     const hist = await api.get('/api/scan/history');
@@ -477,7 +490,7 @@ PANES.dashboard = {
     // wiring
     onAct(root,'connect', async()=>{ setTarget(V(root,'target'));
       toast('Connecting to msfrpcd…'); const r=await api.post('/api/msf/connect',{});
-      if(r&&(r.status==='connected')) toast('MSF RPC connected · '+(r.version||''),'ok'); else toast((r&&r.message)||'connect failed','err');
+      if(r&&(r.status==='connected')) toast('MSF RPC connected · '+(msfVersionStr(r.version)||''),'ok'); else toast((r&&r.message)||'connect failed','err');
       drawConn(await refreshMsf()); });
     onAct(root,'disconnect', async()=>{ await api.post('/api/msf/disconnect',{}); toast('Disconnected from MSF RPC','warn'); drawConn(await refreshMsf()); });
     onAct(root,'synckev', async()=>{ toast('Syncing CISA KEV catalog…'); const r=await api.post('/api/cve_intel/sync',{});
