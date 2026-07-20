@@ -296,6 +296,8 @@ class EnumEngine:
         self._findings    = {}   # {ip: [finding_dict, ...]}
         self._tool_status = {}   # {ip: {tool_id: 'pending'|'running'|'done'|'error'|'skip'}}
         self._lock        = threading.Lock()
+        self._stop_evt    = threading.Event()   # set by stop_all() → halts enum
+        self._active      = set()                # live subprocess.Popen handles
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -307,6 +309,7 @@ class EnumEngine:
             self._state       = EnumState.RUNNING
             self._findings    = {}
             self._tool_status = {}
+            self._stop_evt.clear()
 
         threading.Thread(
             target  = self._run,
@@ -315,6 +318,33 @@ class EnumEngine:
             name    = 'h3x-enum',
         ).start()
         return True
+
+    def stop_all(self) -> dict:
+        """Operator / CEASE halt for enumeration.
+
+        Sets the stop flag (which suppresses any pending tool launches inside
+        _run_cmd) then process-group-kills every in-flight subprocess so the
+        grandchildren (rpcclient, smbclient, polenum, …) die with their parent.
+        Returns an honest count of what was actually killed — never fabricated.
+        """
+        import os, signal
+        with self._lock:
+            self._stop_evt.set()
+            procs = list(self._active)
+            self._active.clear()
+            self._state = EnumState.IDLE
+        killed = 0
+        for p in procs:
+            try:
+                os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                killed += 1
+            except Exception:
+                try:
+                    p.kill()
+                    killed += 1
+                except Exception:
+                    pass
+        return {'stopped': True, 'killed': killed, 'count': killed}
 
     def get_status(self) -> dict:
         return {
@@ -570,6 +600,13 @@ class EnumEngine:
         """
         import re as _re
         import os, signal
+
+        # CEASE: once stop_all() has fired, suppress any further tool launches so
+        # the enum unwinds instead of marching through its remaining tool list.
+        if self._stop_evt.is_set():
+            emit(f'[CEASE] {cmd[0]} suppressed — enum halted')
+            return -4, []
+
         _ansi = _re.compile(r'\x1b\[[0-9;]*[mGKHF]')
 
         lines: list[str] = []
@@ -595,6 +632,8 @@ class EnumEngine:
                 errors='replace',
                 start_new_session=True,    # own process group → killpg reaches kids
             )
+            with self._lock:
+                self._active.add(proc)     # tracked so stop_all() can killpg it
 
             def _kill():
                 _timed_out.set()
@@ -625,6 +664,9 @@ class EnumEngine:
             emit(f'[ERROR] {cmd[0]}: {exc}')
             return -3, lines
         finally:
+            if proc is not None:
+                with self._lock:
+                    self._active.discard(proc)
             if proc and proc.poll() is None:
                 _kill_tree(proc)
 

@@ -99,6 +99,14 @@ class BeaconEmitter:
             return True
         return False
 
+    def stop_all(self) -> dict:
+        """CEASE halt: signal every running beacon job to stop. Returns an
+        honest count of jobs signalled (workers exit on their next tick)."""
+        with self._lock:
+            ids = list(self._jobs.keys())
+        stopped = sum(1 for cid in ids if self.stop(cid))
+        return {'stopped': stopped, 'count': stopped}
+
     # injectable senders (overridden in tests so no real network is needed)
     def _send_http(self, method: str, url: str, headers: dict, timeout: float = 4.0):
         if requests is None:
