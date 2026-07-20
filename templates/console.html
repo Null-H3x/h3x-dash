@@ -232,7 +232,7 @@ tbody tr:hover td{background:rgba(15,240,252,.02)}
 //  build render an honest "not wired" roadmap card instead of faking controls.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24',
+const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24', thost:'',
             msf:{connected:false, version:''}, _streams:[], _timers:[] };
 
 // ── Workspaces (primary tabs → contextual modules) ──────────────────────────
@@ -243,10 +243,11 @@ const WS = [
     {id:'scan',label:'Scan',icon:'◉'},{id:'topology',label:'Topology',icon:'◭'},
     {id:'webscan',label:'Web Scan',icon:'◍'},{id:'enum',label:'Enum Suite',icon:'⚙'},
     {id:'msfscan',label:'MSF Scanners',icon:'▦'}]},
+  {id:'hardware',label:'HARDWARE',modules:[
+    {id:'payloads',label:'Payloads / Implants',icon:'❏'},{id:'spectrum',label:'Spectrum',icon:'∿'}]},
   {id:'access',label:'ACCESS',modules:[
     {id:'exploit',label:'Exploit',icon:'⚡'},{id:'validate',label:'Validate',icon:'◇'},
-    {id:'shell',label:'Sessions / Shell',icon:'▸'},{id:'payloads',label:'Payloads',icon:'❏'},
-    {id:'spectrum',label:'Spectrum',icon:'∿'}]},
+    {id:'shell',label:'Sessions / Shell',icon:'▸'}]},
   {id:'credsad',label:'CREDS & AD',modules:[
     {id:'loot',label:'Loot Creds',icon:'🔑'},{id:'responder',label:'Responder + Relay',icon:'☰',isnew:true},
     {id:'roast',label:'Kerberoast / AS-REP',icon:'⛨',isnew:true},{id:'bloodhound',label:'BloodHound',icon:'⌖',isnew:true},
@@ -450,7 +451,25 @@ async function refreshMsf(){
            txt.style.color = connected ? 'var(--acid)' : 'var(--dim)'; }
   return st;
 }
-function setTarget(t){ if(!t) return; S.target=t; const e=document.getElementById('tgtText'); if(e) e.textContent=t; }
+// TGT dock shows the selected single target host once one is chosen, else the
+// scan scope. Scope (a host/CIDR/URL) is what you scan; thost is what Access hits.
+function paintTgt(){ const e=document.getElementById('tgtText'); if(e) e.textContent = S.thost || S.target || '—'; }
+function setTarget(t){ if(!t) return; S.target=t; paintTgt(); }
+function setThost(ip){ S.thost = ip||''; paintTgt(); }
+const hostIps = ()=> (S._hosts||[]).map(h=>h.ip).filter(Boolean);
+// A <select> of discovered hosts with optional preselect + optional leading entry.
+function hostOpts(selected, lead){ const ips=hostIps(); const opts=[]; if(lead) opts.push(lead); ips.forEach(ip=>opts.push([ip,ip]));
+  return opts.map(o=>{const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o;
+    return `<option value="${esc(v)}"${String(v)===String(selected==null?'':selected)?' selected':''}>${esc(l)}</option>`;}).join('');}
+function hostSel(k, selected, lead, w='200px'){
+  const ips=hostIps();
+  if(!ips.length && !lead) return `<select class="sel" data-k="${k}" style="min-width:${w}" disabled><option>run a scan first</option></select>`;
+  return `<select class="sel" data-k="${k}" style="min-width:${w}">`+hostOpts(selected,lead)+`</select>`;}
+// Refill a host <select> in place after hosts change (keeps current selection if still present).
+function fillHostSel(root,k,selected,lead){ const el=EL(root,k); if(!el||el.tagName!=='SELECT') return;
+  const keep = selected!=null?selected:el.value; const ips=hostIps();
+  el.disabled = !ips.length && !lead;
+  el.innerHTML = (ips.length||lead)? hostOpts(keep,lead) : '<option>run a scan first</option>'; }
 
 // ── DASHBOARD ───────────────────────────────────────────────────────────────
 PANES.dashboard = {
@@ -527,7 +546,7 @@ PANES.scan = {
   body(){ return (
     sec('SCAN CONFIG',
       `<div class="controls">
-        ${fld('TARGET',inp('target',S.target,'host · CIDR · URL'))}
+        ${fld('SCAN SCOPE',inp('target',S.target,'host · CIDR · URL — a range is fine'))}
         ${fld('TIMING',sel('timing',TIMING,'220px'))}
         ${fld('PORT PROFILE',sel('ports',PORTPROF,'200px'))}
         ${fld('SCRIPTS',sel('scripts',SCRIPTPROF,'130px'))}
@@ -562,7 +581,7 @@ PANES.scan = {
       await api.stream('/api/scan/start',
         { target, timing:V(root,'timing'), port_profile:V(root,'ports'), scripts:V(root,'scripts'), scan_mode, extra_args: extra?extra.split(/\s+/):[] },
         '/api/scan/stream',
-        { term:t, onDone: async m=>{ setStatus('COMPLETE · '+(m.host_count??0)+' host(s)',false); toast('Scan complete · '+(m.host_count??0)+' host(s)','ok'); drawPorts(await api.get('/api/scan/results')); } });
+        { term:t, onDone: async m=>{ setStatus('COMPLETE · '+(m.host_count??0)+' host(s)',false); toast('Scan complete · '+(m.host_count??0)+' host(s)','ok'); drawPorts(await api.get('/api/scan/results')); await refreshHosts(); } });
     });
     onAct(root,'abort', async()=>{ await api.post('/api/scan/stop',{}); setStatus('ABORTED',false); toast('Scan aborted','warn'); });
     onAct(root,'clear', ()=>{ clearTerm(term(root,'scan')); termLine(term(root,'scan'),'// cleared','d'); });
@@ -573,26 +592,62 @@ PANES.scan = {
 PANES.topology = {
   body(){ return sec('NETWORK TOPOLOGY',
     `<div class="topo" data-box="topo"><div class="sec-note" style="padding:14px">Building graph from scan results…</div></div>
-     <div class="sec-note">Node colour = risk tier (red = critical port, cyan = open ports, violet = domain controller). Run a scan to populate.</div>`); },
+     <div class="sec-note">Force-directed layout — bubbles repel so hosts never crowd. <b style="color:var(--text)">Drag any bubble</b> to reposition; release and it floats back into balance. Bubble size = open-port count, colour = risk tier (red = critical, orange = warn, cyan = open, violet = gateway).</div>`); },
   async mount(root){
     const res=await api.get('/api/scan/results'); const hosts=((res&&res.hosts)||[]).filter(h=>(h.ports||[]).length);
     const b=box(root,'topo'); if(!b) return;
     if(!hosts.length){ b.innerHTML='<div class="sec-note" style="padding:14px">No hosts with open ports yet — run a scan first.</div>'; return; }
-    const W=640, cx=W/2, top=54, rowY=190, n=hosts.length;
-    const xs = n===1?[cx]:hosts.map((_,i)=>90 + i*((W-180)/(n-1)));
-    const risk=h=>{ const rs=(h.ports||[]).map(p=>p.risk); if(rs.includes('danger'))return '#ff4d4d'; if(rs.includes('warn'))return '#ff9e2c'; return '#0ff0fc'; };
-    const lines=hosts.map((h,i)=>`<line x1="${cx}" y1="${top+18}" x2="${xs[i]}" y2="${rowY-18}" stroke="#22222f" stroke-width="1.5"/>`).join('');
-    const nodes=hosts.map((h,i)=>{ const c=risk(h); const nports=(h.ports||[]).length;
-      return `<circle cx="${xs[i]}" cy="${rowY}" r="17" fill="#0f0f15" stroke="${c}" stroke-width="1.5"/>`
-        +`<text x="${xs[i]}" y="${rowY+34}" fill="${c}" text-anchor="middle" font-size="10">${esc(h.ip)}</text>`
-        +`<text x="${xs[i]}" y="${rowY+3}" fill="${c}" text-anchor="middle" font-size="9">${nports}</text>`; }).join('');
-    const H = rowY+60;
-    b.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
-      ${lines}
-      <g font-family="Share Tech Mono">
-        <circle cx="${cx}" cy="${top}" r="20" fill="#0f0f15" stroke="#9b30ff" stroke-width="1.5"/><text x="${cx}" y="${top+38}" fill="#9b30ff" text-anchor="middle" font-size="10">gateway</text>
-        ${nodes}
-      </g></svg>`;
+
+    const W=900, H=480, cx=W/2, cy=H/2, NS='http://www.w3.org/2000/svg';
+    const riskColor=h=>{ const rs=(h.ports||[]).map(p=>p.risk); if(rs.includes('danger'))return '#ff4d4d'; if(rs.includes('warn'))return '#ff9e2c'; return '#0ff0fc'; };
+
+    const nodes=[{id:'__gw',gw:true,label:'gateway',color:'#9b30ff',r:22,x:cx,y:cy,vx:0,vy:0,fixed:false}];
+    hosts.forEach((h,i)=>{ const np=(h.ports||[]).length; const ang=(i/hosts.length)*Math.PI*2;
+      nodes.push({id:h.ip,label:h.ip,ports:np,color:riskColor(h),r:14+Math.min(16,np*1.4),
+        x:cx+Math.cos(ang)*190+(Math.random()*24-12), y:cy+Math.sin(ang)*150+(Math.random()*24-12),
+        vx:0,vy:0,fixed:false}); });
+    const links=nodes.slice(1).map(n=>({a:nodes[0],b:n}));
+
+    b.innerHTML='';
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`); svg.setAttribute('width','100%');
+    svg.style.display='block'; svg.style.height=H+'px'; svg.style.touchAction='none'; svg.style.cursor='grab';
+    b.appendChild(svg);
+    const gL=document.createElementNS(NS,'g'); svg.appendChild(gL);
+    const gN=document.createElementNS(NS,'g'); gN.setAttribute('font-family','Share Tech Mono'); svg.appendChild(gN);
+
+    const lineEls=links.map(()=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('stroke','#22222f'); l.setAttribute('stroke-width','1.5'); gL.appendChild(l); return l; });
+    nodes.forEach(n=>{ const g=document.createElementNS(NS,'g'); g.style.cursor='grab';
+      const c=document.createElementNS(NS,'circle'); c.setAttribute('r',n.r); c.setAttribute('fill','#0f0f15'); c.setAttribute('stroke',n.color); c.setAttribute('stroke-width',n.gw?2:1.6);
+      const t1=document.createElementNS(NS,'text'); t1.setAttribute('text-anchor','middle'); t1.setAttribute('fill',n.color); t1.setAttribute('font-size',n.gw?11:10); t1.setAttribute('y',n.r+15); t1.textContent=n.label;
+      g.appendChild(c); g.appendChild(t1);
+      if(!n.gw){ const t2=document.createElementNS(NS,'text'); t2.setAttribute('text-anchor','middle'); t2.setAttribute('fill',n.color); t2.setAttribute('font-size',9); t2.setAttribute('y',4); t2.textContent=n.ports; g.appendChild(t2); }
+      gN.appendChild(g); n._g=g; });
+
+    let drag=null;
+    const toLocal=e=>{ const r=svg.getBoundingClientRect(); return { x:(e.clientX-r.left)/r.width*W, y:(e.clientY-r.top)/r.height*H }; };
+    nodes.forEach(n=>{ n._g.addEventListener('pointerdown', e=>{ drag=n; n.fixed=true; n._g.style.cursor='grabbing'; try{n._g.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); }); });
+    svg.addEventListener('pointermove', e=>{ if(!drag)return; const p=toLocal(e); drag.x=p.x; drag.y=p.y; drag.vx=0; drag.vy=0; });
+    const endDrag=()=>{ if(!drag)return; drag.fixed=false; drag._g.style.cursor='grab'; drag=null; };
+    svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag); svg.addEventListener('pointerleave', endDrag);
+
+    const REPULSE=2600, SPRING=0.02, REST=165, DAMP=0.86;
+    function tick(){
+      for(let i=0;i<nodes.length;i++){ for(let j=i+1;j<nodes.length;j++){ const a=nodes[i],b2=nodes[j];
+        let dx=a.x-b2.x, dy=a.y-b2.y, d2=dx*dx+dy*dy||0.01, d=Math.sqrt(d2), minD=a.r+b2.r+20;
+        let f=REPULSE/d2; if(d<minD) f+=(minD-d)*0.28;
+        const fx=(dx/d)*f, fy=(dy/d)*f;
+        if(!a.fixed){ a.vx+=fx; a.vy+=fy; } if(!b2.fixed){ b2.vx-=fx; b2.vy-=fy; } } }
+      links.forEach(l=>{ let dx=l.b.x-l.a.x, dy=l.b.y-l.a.y, d=Math.sqrt(dx*dx+dy*dy)||0.01, f=(d-REST)*SPRING, fx=(dx/d)*f, fy=(dy/d)*f;
+        if(!l.a.fixed){ l.a.vx+=fx; l.a.vy+=fy; } if(!l.b.fixed){ l.b.vx-=fx; l.b.vy-=fy; } });
+      nodes.forEach(n=>{ if(n.fixed)return; const g=n.gw?0.03:0.006; n.vx+=(cx-n.x)*g; n.vy+=(cy-n.y)*g;
+        n.vx*=DAMP; n.vy*=DAMP; n.x+=n.vx; n.y+=n.vy;
+        n.x=Math.max(n.r+4,Math.min(W-n.r-4,n.x)); n.y=Math.max(n.r+4,Math.min(H-n.r-4,n.y)); });
+      links.forEach((l,i)=>{ const e=lineEls[i]; e.setAttribute('x1',l.a.x); e.setAttribute('y1',l.a.y); e.setAttribute('x2',l.b.x); e.setAttribute('y2',l.b.y); });
+      nodes.forEach(n=>{ n._g.setAttribute('transform',`translate(${n.x},${n.y})`); });
+    }
+    for(let i=0;i<70;i++) tick();          // pre-settle before first paint
+    S._timers.push(setInterval(tick,32));  // registered so leaving the pane stops it
   }
 };
 
@@ -627,7 +682,8 @@ const DEPTHS=[['2','Standard'],['1','Recon'],['3','Deep']];
 PANES.enum = {
   body(){ return (
     sec('TOOL SELECTION',
-      `<div class="controls" style="margin-bottom:14px">${fld('TARGET IP',inp('ip',firstIp(),'blank = all scanned hosts','200px'))}${fld('SWEEP DEPTH',sel('tier',DEPTHS,'150px'))}${btn('RECHECK TOOLS','ghost sm','recheck')}</div>
+      `<div class="controls" style="margin-bottom:14px">${fld('TARGET HOST',hostSel('ip',S.thost,['','— all scanned hosts —']))}${fld('SWEEP DEPTH',sel('tier',DEPTHS,'150px'))}${btn('RECHECK TOOLS','ghost sm','recheck')}</div>
+       <div class="sec-note" style="margin-bottom:10px">Pick a single host to focus enumeration and set it as the <b style="color:var(--acid)">Access target</b>, or run all scanned hosts.</div>
        <div class="sec-note" style="margin-bottom:10px">Tools fire automatically based on detected services and the selected depth. Green = installed locally, dim = not found on PATH.</div>
        <div class="chips" data-box="tools"><span class="chip">loading tool availability…</span></div>
        <div class="controls" style="margin-top:16px">${btn('⚙ ENUMERATE','go','start')}${btn('■ STOP','stop','stop')}</div>
@@ -636,6 +692,8 @@ PANES.enum = {
     +sec('FINDINGS',`<div data-box="findings"><div class="sec-note">No findings yet.</div></div>`)
   );},
   async mount(root){
+    await refreshHosts(); fillHostSel(root,'ip',S.thost,['','— all scanned hosts —']);
+    const ipEl=EL(root,'ip'); if(ipEl) ipEl.addEventListener('change',()=>{ if(ipEl.value){ setThost(ipEl.value); toast('Access target set → '+ipEl.value); } });
     const drawTools=t=>{ const b=box(root,'tools'); if(!b)return; const tools=(t&&t.tools)||{};
       const keys=Object.keys(tools); if(!keys.length){ b.innerHTML='<span class="chip">no tool data</span>'; return; }
       b.innerHTML=keys.map(k=>`<span class="chip ${tools[k]?'on':''}">${esc(k)}</span>`).join(''); };
@@ -695,12 +753,15 @@ const firstIp = ()=> (S._hosts && S._hosts[0] && S._hosts[0].ip) || '';
 // ── EXPLOIT ─────────────────────────────────────────────────────────────────
 PANES.exploit = {
   body(){ return (
-    sec('MODULE',
+    sec('TARGET',
+      `<div class="controls">${fld('TARGET HOST',hostSel('thost',S.thost||firstIp(),null,'220px'))}${btn('⟳ REFRESH','ghost sm','refreshhosts')}</div>
+       <div class="sec-note">The host Access will hit. Populated from discovered hosts (pick one here or in Enum Suite); drives RHOST below.</div>`)
+    +sec('MODULE',
       `<div class="controls">${fld('MSF MODULE',inp('module','','search or paste — e.g. exploit/windows/smb/ms17_010_eternalblue','380px'))}${btn('RECOMMEND','pri','recommend')}${btn('SEARCH','ghost','search')}${btn('INSPECT','ghost','inspect')}</div>
        <div data-box="sugg"></div>`)
     +sec('OPTIONS',
       `<div class="controls">
-        ${fld('RHOST',inp('rhost',firstIp(),'','140px'))}${fld('RPORT',inp('rport','445','','90px'))}${fld('TARGET',inp('tidx','0','idx','80px'))}
+        ${fld('RHOST',inp('rhost',S.thost||firstIp(),'','140px'))}${fld('RPORT',inp('rport','445','','90px'))}${fld('TARGET IDX',inp('tidx','0','idx','80px'))}
         ${fld('LHOST',inp('lhost','','auto-detect on RHOST blur','160px'))}${fld('LPORT',inp('lport','4444','','90px'))}
       </div>
       <div class="controls" style="margin-top:14px">${fld('PAYLOAD',inp('payload','','blank = module default','240px'))}<label class="chip on" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="automig" checked style="vertical-align:-1px"> AUTO-MIGRATE</label></div>
@@ -710,12 +771,18 @@ PANES.exploit = {
        <div class="term" data-term="exp"><span class="d">// module console output streams here</span></div>`)
   );},
   async mount(root){
-    setV(root,'rhost',firstIp());
+    await refreshHosts(); fillHostSel(root,'thost',S.thost||firstIp());
     const t=()=>term(root,'exp');
-    // auto-fill LHOST from routing when RHOST changes
     const rhostEl=EL(root,'rhost');
-    if(rhostEl) rhostEl.addEventListener('blur', async()=>{ const rh=rhostEl.value.trim(); if(!/^(\d{1,3}\.){3}\d{1,3}$/.test(rh))return;
-      const r=await api.get('/api/network/lhost?rhost='+encodeURIComponent(rh)); if(r&&r.lhost){ setV(root,'lhost',r.lhost); } });
+    const autoLhost=async()=>{ const rh=(rhostEl&&rhostEl.value.trim())||''; if(!/^(\d{1,3}\.){3}\d{1,3}$/.test(rh))return;
+      const r=await api.get('/api/network/lhost?rhost='+encodeURIComponent(rh)); if(r&&r.lhost) setV(root,'lhost',r.lhost); };
+    setV(root,'rhost',S.thost||firstIp());
+    // target-host dropdown drives RHOST and the global Access target
+    const thEl=EL(root,'thost');
+    if(thEl) thEl.addEventListener('change',()=>{ const v=thEl.value; if(!v)return; setThost(v); setV(root,'rhost',v); autoLhost(); toast('Access target → '+v); });
+    onAct(root,'refreshhosts', async()=>{ const cur=thEl?thEl.value:S.thost; await refreshHosts(); fillHostSel(root,'thost',cur); toast('Hosts refreshed'); });
+    // auto-fill LHOST from routing when RHOST changes
+    if(rhostEl) rhostEl.addEventListener('blur', autoLhost);
     onAct(root,'recommend', async()=>{ const ip=V(root,'rhost'); if(!ip){ toast('Set RHOST to a scanned host first','warn'); return; }
       toast('Fetching MSF suggestions for '+ip+'…'); const r=await api.post('/api/cve/suggest',{ip}); const b=box(root,'sugg');
       const s=(r&&r.suggestions)||[];
