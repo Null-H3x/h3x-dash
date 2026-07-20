@@ -238,6 +238,7 @@ const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24',
 // ── Workspaces (primary tabs → contextual modules) ──────────────────────────
 const WS = [
   {id:'overview',label:'OVERVIEW',modules:[{id:'dashboard',label:'Dashboard',icon:'◈'}]},
+  {id:'exercise',label:'EXERCISE',modules:[{id:'msel',label:'MSEL Scheduler',icon:'◷',isnew:true}]},
   {id:'recon',label:'RECON & ENUM',modules:[
     {id:'scan',label:'Scan',icon:'◉'},{id:'topology',label:'Topology',icon:'◭'},
     {id:'webscan',label:'Web Scan',icon:'◍'},{id:'enum',label:'Enum Suite',icon:'⚙'},
@@ -1369,6 +1370,142 @@ function roadmap(mod){
 // ═══════════════════════════════════════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════════════════════════════════════
+// ── MSEL Inject Scheduler pane ──────────────────────────────────────────────
+const MSEL_STCOL = {pending:'var(--muted)', armed:'var(--cyan)', firing:'var(--violet)',
+  complete:'var(--acid)', failed:'var(--danger)', aborted:'var(--warn)'};
+const mselClock = s => { if(s==null) return 'T+00:00:00';
+  s=Math.max(0,Math.floor(s)); const p=n=>String(n).padStart(2,'0');
+  return `T+${p(Math.floor(s/3600))}:${p(Math.floor(s%3600/60))}:${p(s%60)}`; };
+const mselTrig = t => { if(!t) return 'manual';
+  if(t.type==='offset') return `T+${t.seconds}s`;
+  if(t.type==='absolute') return '@ '+(t.at||'?');
+  if(t.type==='after') return `after ${String(t.inject_id||'').slice(0,8)}+${t.delay||0}s`;
+  return t.type; };
+
+PANES.msel = {
+  body(){
+    return sec('Exercise Control',
+        `<div class="statusline" data-box="msel-state"><span class="sdot"></span><b style="color:var(--dim);font-weight:400">idle</b></div>
+         <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
+           <div data-stat="clock" style="font-size:26px;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:.05em;min-width:9ch">T+00:00:00</div>
+           ${btn('Arm','go','arm')}${btn('Pause','ghost','pause')}${btn('Resume','ghost','resume')}
+           ${btn('■ ABORT','stop','abort')}${btn('Reset','ghost sm','reset')}${btn('Save','ghost sm','save')}${btn('Load','ghost sm','load')}
+         </div>
+         <div data-box="msel-counts" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:16px"></div>
+         <div data-box="msel-handlers" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px"></div>
+         <div style="color:var(--muted);font-size:11px;margin-top:8px;font-style:italic">Green handler = wired to a real tool. Red = that inject type fails HANDLER_NOT_REGISTERED (never faked).</div>`)
+      + sec('Scenario Events', `<div data-box="msel-table"></div>`)
+      + sec('Author Inject',
+        `<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+          ${fld('Name', inp('name','','Recon sweep BDE-1','200px'))}
+          ${fld('Type', sel('type',['ping','scan','enum','beacon','shell','pivot','custom'],'120px'))}
+          ${fld('Target', inp('target','','10.20.0.0/24','160px'))}
+          ${fld('Unit', inp('unit','','1-BDE','110px'))}
+          ${fld('Phase', inp('phase','','recon','110px'))}
+          ${fld('Trigger', sel('trig',[['manual','manual'],['offset','offset (T+)'],['absolute','absolute time'],['after','after inject']],'150px'))}
+          <span data-trigfield="offset" style="display:none">${fld('Offset s', inp('offset','60','','90px'))}</span>
+          <span data-trigfield="absolute" style="display:none">${fld('At (ISO)', inp('abs','','2026-07-20T14:00:00Z','180px'))}</span>
+          <span data-trigfield="after" style="display:none">${fld('After', '<select class="sel" data-k="after" style="min-width:160px"></select>')}</span>
+          <span data-trigfield="after" style="display:none">${fld('Delay s', inp('delay','30','','80px'))}</span>
+          ${btn('+ Add to MSEL','pri','add')}
+        </div>`)
+      + sec('Ground-Truth Timeline <span style="color:var(--muted);font-weight:400;font-size:10px;letter-spacing:.1em">&nbsp;&mdash; append-only &middot; deconfliction record</span>',
+        `<div data-box="msel-feed" style="max-height:340px;overflow:auto"></div>`);
+  },
+  mount(root){
+    const B='/api/msel';
+    const act=(op,body)=>api.post(B+op,body).then(()=>{ pollStatus(); pollFeed(); });
+    onAct(root,'arm',    ()=>act('/arm'));
+    onAct(root,'pause',  ()=>act('/pause'));
+    onAct(root,'resume', ()=>act('/resume'));
+    onAct(root,'abort',  ()=>{ if(confirm('MASTER ABORT — halt all injects now?')) act('/abort',{reason:'operator abort (console)'}); });
+    onAct(root,'reset',  ()=>{ if(confirm('Reset runtime state? (keeps authored MSEL + timeline)')) act('/reset'); });
+    onAct(root,'save',   async()=>{ const r=await api.post(B+'/save'); toast('Saved: '+((r&&r.path)||'msel.json'),'ok'); });
+    onAct(root,'load',   async()=>{ const r=await api.post(B+'/load'); toast('Loaded '+((r&&r.loaded)||0)+' injects','ok'); pollStatus(); });
+
+    const trigEl=EL(root,'trig');
+    const syncTrig=()=>{ const v=trigEl?trigEl.value:'manual';
+      root.querySelectorAll('[data-trigfield]').forEach(s=>{ s.style.display=(s.getAttribute('data-trigfield')===v)?'':'none'; }); };
+    if(trigEl){ trigEl.addEventListener('change',syncTrig); syncTrig(); }
+
+    onAct(root,'add', async()=>{
+      const type=trigEl?trigEl.value:'manual'; const trigger={type};
+      if(type==='offset') trigger.seconds=Number(V(root,'offset')||0);
+      if(type==='absolute') trigger.at=V(root,'abs');
+      if(type==='after'){ trigger.inject_id=((EL(root,'after')||{}).value)||''; trigger.delay=Number(V(root,'delay')||0); }
+      const body={ name:V(root,'name'), inject_type:((EL(root,'type')||{}).value)||'custom',
+        target:V(root,'target'), unit:V(root,'unit'), phase:V(root,'phase'), trigger };
+      if(!body.name){ toast('inject name required','warn'); return; }
+      const r=await api.post(B+'/inject',body);
+      if(r&&r.error){ toast('Add failed: '+r.error,'err'); return; }
+      setV(root,'name',''); setV(root,'target',''); pollStatus();
+    });
+
+    const tableBox=box(root,'msel-table');
+    if(tableBox) tableBox.addEventListener('click', async e=>{
+      const b=e.target.closest('button[data-id]'); if(!b) return;
+      const id=b.getAttribute('data-id'), op=b.getAttribute('data-op');
+      if(op==='fire'){ const r=await api.post(`${B}/inject/${id}/fire`); if(r&&r.error) toast(r.error,'err'); pollStatus(); pollFeed(); }
+      if(op==='del'){ await fetch(`${B}/inject/${id}`,{method:'DELETE'}); pollStatus(); }
+    });
+
+    async function pollStatus(){
+      const st=await api.get(B+'/status'); if(!st) return;
+      const clk=root.querySelector('[data-stat="clock"]');
+      if(clk){ clk.textContent=mselClock(st.clock_s); clk.style.color=(st.armed&&!st.aborted)?'var(--acid)':'var(--muted)'; }
+      const sl=box(root,'msel-state');
+      if(sl){ let txt='idle',run=false;
+        if(st.aborted) txt='aborted'; else if(st.armed&&st.paused) txt='paused'; else if(st.armed){ txt='armed'; run=true; }
+        sl.innerHTML=`<span class="sdot ${run?'run':''}"></span><b style="color:${run?'var(--acid)':'var(--dim)'};font-weight:400">${txt}</b>`; }
+      const setDis=(op,d)=>{ const el=root.querySelector(`[data-act="${op}"]`); if(el) el.disabled=d; };
+      setDis('arm',st.armed); setDis('pause',!st.armed||st.paused); setDis('resume',!st.armed||!st.paused); setDis('abort',!st.armed);
+      const cb=box(root,'msel-counts');
+      if(cb){ const order=['pending','armed','firing','complete','failed','aborted'];
+        cb.innerHTML=order.map(k=>stat(MSEL_STCOL[k], st.counts[k]||0, k)).join(''); }
+      const hb=box(root,'msel-handlers');
+      if(hb){ const known=['ping','scan','enum','beacon','shell','pivot','custom']; const reg=new Set(st.registered_types||[]);
+        hb.innerHTML=known.map(t=>{ const on=reg.has(t);
+          return `<span style="border:1px solid ${on?'var(--acid)':'var(--danger)'};color:${on?'var(--acid)':'var(--danger)'};border-radius:3px;padding:2px 9px;font-size:11px;letter-spacing:.05em">${t} ${on?'✓':'✗'}</span>`; }).join(''); }
+      if(tableBox){
+        const rows=(st.injects||[]).map(i=>{ const c=MSEL_STCOL[i.status]||'var(--dim)';
+          const pill=`<span style="border:1px solid ${c};color:${c};border-radius:11px;padding:2px 9px;font-size:10px;letter-spacing:.06em;text-transform:uppercase">${esc(i.status)}</span>`;
+          const err=i.error?`<div style="color:var(--danger);font-size:10px;margin-top:3px">${esc(i.error)}</div>`:'';
+          const fire=`<button class="btn go sm" data-id="${i.id}" data-op="fire"${i.status==='firing'?' disabled':''}>Fire</button>`;
+          const del=`<button class="btn ghost sm" data-id="${i.id}" data-op="del">Del</button>`;
+          return `<tr><td style="color:var(--muted);font-size:11px">${esc(i.id)}</td><td style="color:var(--cyan)">${esc(i.name)}</td>`
+            + `<td style="color:var(--violet);text-transform:uppercase;font-size:11px">${esc(i.inject_type)}</td>`
+            + `<td style="color:var(--acid);font-size:12px">${esc(i.target||'—')}</td>`
+            + `<td style="font-size:11px">${esc(i.unit||'—')}<br><span style="color:var(--muted)">${esc(i.phase||'')}</span></td>`
+            + `<td style="color:var(--dim);font-size:11px">${esc(mselTrig(i.trigger))}</td>`
+            + `<td>${pill}${err}</td><td><div style="display:flex;gap:6px">${fire}${del}</div></td></tr>`; }).join('');
+        tableBox.innerHTML=(st.injects&&st.injects.length)
+          ? tbl(['ID','Name','Type','Target','Unit','Trigger','Status','Act'], rows)
+          : `<div style="color:var(--muted);font-size:12px">No injects authored yet. Add one below.</div>`;
+      }
+      const af=EL(root,'after');
+      if(af){ const cur=af.value; af.innerHTML=(st.injects||[]).map(i=>`<option value="${esc(i.id)}">${esc(i.name)}</option>`).join(''); if(cur) af.value=cur; }
+    }
+    async function pollFeed(){
+      const r=await api.get(B+'/timeline?limit=200'); if(!r) return;
+      const fb=box(root,'msel-feed'); if(!fb) return;
+      const tagcol={arm:'var(--cyan)',fire:'var(--violet)',complete:'var(--acid)',error:'var(--danger)',ABORT:'var(--warn)',aborted:'var(--warn)',pause:'var(--violet)',resume:'var(--violet)'};
+      fb.innerHTML=(r.events||[]).slice().reverse().map(e=>{ const col=tagcol[e.event]||'var(--dim)';
+        const ts=String(e.ts||'').replace('T',' ').replace(/\..*/,'');
+        const line=[e.name, e.type&&`[${e.type}]`, e.target, e.reason, e.error, (e.duration_s!=null?e.duration_s+'s':null), (e.manual?'(manual)':null)].filter(Boolean).map(esc).join(' ');
+        return `<div style="display:grid;grid-template-columns:auto auto 1fr;gap:10px;padding:4px 2px;border-bottom:1px solid var(--line-faint)">`
+          + `<span style="color:var(--muted);font-size:11px;white-space:nowrap">${esc(ts)}</span>`
+          + `<span style="border:1px solid ${col};color:${col};border-radius:3px;padding:1px 8px;font-size:10px;height:fit-content;text-transform:uppercase;letter-spacing:.05em">${esc(e.event)}</span>`
+          + `<span style="color:var(--text);font-size:12px">${line}</span></div>`; }).join('')
+        || `<div style="color:var(--muted)">No events yet.</div>`;
+    }
+
+    pollStatus(); pollFeed();
+    S._timers.push(setInterval(pollStatus,1000));
+    S._timers.push(setInterval(pollFeed,2000));
+  }
+};
+
+
 function render(){
   (S._streams||[]).forEach(es=>{try{es.close();}catch(e){}}); S._streams=[];
   (S._timers||[]).forEach(t=>clearInterval(t)); S._timers=[];
@@ -1398,5 +1535,6 @@ function render(){
   render();
 })();
 </script>
+<script src="/static/cease.js"></script>
 </body>
 </html>
