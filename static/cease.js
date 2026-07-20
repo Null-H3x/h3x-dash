@@ -11,7 +11,7 @@
   window.__h3xCease = true;
 
   var CSS = ''
-    + '#h3x-cease-btn{position:fixed;left:24px;bottom:24px;z-index:99998;'
+    + '#h3x-cease-btn{position:fixed;top:calc(var(--topbar-h,54px) + 16px);left:calc((var(--side-w,220px) - 104px)/2);z-index:99998;'
     + 'width:104px;height:104px;border:none;cursor:pointer;border-radius:50%;'
     + 'background:radial-gradient(circle at 50% 38%,#ff5a6e 0%,#ff2d55 42%,#b30028 100%);'
     + 'box-shadow:0 0 0 4px #2a0009,0 0 0 7px #ff2d55,0 0 26px 6px rgba(255,45,85,.55),inset 0 -6px 14px rgba(0,0,0,.45);'
