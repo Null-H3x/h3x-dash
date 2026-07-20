@@ -232,7 +232,7 @@ tbody tr:hover td{background:rgba(15,240,252,.02)}
 //  build render an honest "not wired" roadmap card instead of faking controls.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24', thost:'',
+const S = { ws:'overview', mod:'dashboard', target:'10.10.10.0/24', thost:'', dc:'',
             msf:{connected:false, version:''}, _streams:[], _timers:[] };
 
 // ── Workspaces (primary tabs → contextual modules) ──────────────────────────
@@ -247,7 +247,7 @@ const WS = [
     {id:'payloads',label:'Payloads / Implants',icon:'❏'},{id:'spectrum',label:'Spectrum',icon:'∿'}]},
   {id:'access',label:'ACCESS',modules:[
     {id:'exploit',label:'Exploit',icon:'⚡'},{id:'validate',label:'Validate',icon:'◇'},
-    {id:'shell',label:'Sessions / Shell',icon:'▸'}]},
+    {id:'shell',label:'Sessions / Shell',icon:'▸'},{id:'harvest',label:'Post-Ex Harvest',icon:'⛏',isnew:true}]},
   {id:'credsad',label:'CREDS & AD',modules:[
     {id:'loot',label:'Loot Creds',icon:'🔑'},{id:'responder',label:'Responder + Relay',icon:'☰',isnew:true},
     {id:'roast',label:'Kerberoast / AS-REP',icon:'⛨',isnew:true},{id:'bloodhound',label:'BloodHound',icon:'⌖',isnew:true},
@@ -267,6 +267,10 @@ const META = {
   topology:{d:'Live graph of discovered hosts, risk-tiered ports, and their relationships.'},
   webscan:{d:'Layer-7 web scan — response headers, tech fingerprint, and http-NSE surface.'},
   msfscan:{d:'Metasploit auxiliary scanner modules for post-recon confirmation.'},
+  harvest:{d:'Post-exploitation credential harvest — dump a live session (hashdump / kiwi / shadow) into the captured-credential store that every Creds & AD pane draws from.',
+    tech:['T1003.001','T1003.002','T1003.005','T1003.008'],src:['Sysmon 10 (LSASS access)','4688','4624 / 4672'],
+    det:[['Sigma: LSASS access (mimikatz)','hit'],['Sigma: SAM / hashdump read','part'],['ET credential dump','part']],
+    tools:['meterpreter hashdump','kiwi / mimikatz','shadow read']},
   spectrum:{d:'RF / wireless operations — device control, recon sweeps, and handshake capture.'},
   responder:{d:'LLMNR / NBT-NS / mDNS poisoning with SMB/LDAP/ADCS relay via Responder + ntlmrelayx.',
     tech:['T1557.001','T1187'],src:['Zeek dns / mdns','Suricata ET','Sysmon 4624'],
@@ -470,6 +474,9 @@ function fillHostSel(root,k,selected,lead){ const el=EL(root,k); if(!el||el.tagN
   const keep = selected!=null?selected:el.value; const ips=hostIps();
   el.disabled = !ips.length && !lead;
   el.innerHTML = (ips.length||lead)? hostOpts(keep,lead) : '<option>run a scan first</option>'; }
+// Jump to another workspace/module (used for the Post-Ex → Creds & AD handoff).
+function goto(ws,mod){ const w=WS.find(x=>x.id===ws); if(!w) return; S.ws=ws;
+  S.mod = (mod && w.modules.find(m=>m.id===mod)) ? mod : w.modules[0].id; render(); }
 
 // ── DASHBOARD ───────────────────────────────────────────────────────────────
 PANES.dashboard = {
@@ -551,8 +558,9 @@ PANES.scan = {
         ${fld('PORT PROFILE',sel('ports',PORTPROF,'200px'))}
         ${fld('SCRIPTS',sel('scripts',SCRIPTPROF,'130px'))}
       </div>
-      <div class="controls" style="margin-top:14px">${fld('EXTRA FLAGS',inp('extra','','e.g. --open --min-rate 500','280px'))}${btn('▶ INITIATE SCAN','go','start')}${btn('■ ABORT','stop','abort')}${btn('CLEAR','ghost','clear')}</div>
-      ${statusline('IDLE','no scan running')}`)
+      <div class="controls" style="margin-top:14px">${fld('EXTRA FLAGS',inp('extra','','e.g. --open --min-rate 500','280px'))}${btn('▶ INITIATE SCAN','go','start')}${btn('⌂ FROM ENDPOINT','pri','endpoint')}${btn('■ ABORT','stop','abort')}${btn('CLEAR','ghost','clear')}</div>
+      ${statusline('IDLE','no scan running')}
+      <div data-box="neigh"></div>`)
     +sec('LIVE OUTPUT',`<div class="term" data-term="scan"><span class="d">// configure a target and INITIATE SCAN — output streams here via SSE</span></div>`)
     +sec('OPEN PORTS',`<div data-box="ports"><div class="sec-note">No results yet. Results load automatically when a scan completes; you can also revisit prior results here.</div></div>`)
   );},
@@ -585,6 +593,12 @@ PANES.scan = {
     });
     onAct(root,'abort', async()=>{ await api.post('/api/scan/stop',{}); setStatus('ABORTED',false); toast('Scan aborted','warn'); });
     onAct(root,'clear', ()=>{ clearTerm(term(root,'scan')); termLine(term(root,'scan'),'// cleared','d'); });
+    onAct(root,'endpoint', async()=>{ const nb=box(root,'neigh'); if(nb) nb.innerHTML='<div class="sec-note" style="margin-top:10px">scanning local endpoint (ARP / neighbor table)…</div>';
+      const r=await api.get('/api/network/endpoint-scan'); const ns=(r&&r.neighbors)||[]; if(!nb) return;
+      if(!ns.length){ nb.innerHTML='<div class="sec-note" style="margin-top:10px">No neighbors found via '+esc((r&&r.method)||'arp')+' on '+esc((r&&r.os)||'?')+'.</div>'; return; }
+      nb.innerHTML='<div class="sec-note" style="margin:12px 0 6px">'+esc(r.os||'')+' · '+esc(r.method||'')+' · '+ns.length+' neighbor(s) — click an IP to set it as the scan scope</div>'
+        + tbl(['IP','MAC'], ns.map(x=>`<tr data-nip="${esc(x.ip)}" style="cursor:pointer"><td style="color:var(--cyan)">${esc(x.ip)}</td><td class="d" style="color:var(--dim)">${esc(x.mac)}</td></tr>`).join(''));
+      nb.querySelectorAll('[data-nip]').forEach(tr=>tr.addEventListener('click',()=>{ const ip=tr.getAttribute('data-nip'); setV(root,'target',ip); setTarget(ip); toast('Scan scope → '+ip); })); });
   }
 };
 
@@ -872,12 +886,64 @@ PANES.shell = {
       b.querySelectorAll('[data-sid]').forEach(el=>el.addEventListener('click',()=>{ S._sid=el.getAttribute('data-sid'); load(); })); }
     await load();
     onAct(root,'refresh', async()=>{ await load(); const r=await api.get('/api/msf/session/'+encodeURIComponent(S._sid)+'/read'); const el=t(); const out=(r&&(r.data||r.output||''))||''; if(out) String(out).split('\n').forEach(l=>termLine(el,l)); });
-    onAct(root,'send', async()=>{ if(!S._sid){ toast('No session selected','warn'); return; } const cmd=V(root,'cmd'); if(!cmd) return;
-      const el=t(); termLine(el,'> '+cmd,'d'); setV(root,'cmd','');
+    async function doSend(){ if(!S._sid){ toast('No session selected','warn'); return; } const cmd=V(root,'cmd'); if(!cmd) return;
+      const el=t(); termLine(el,'> '+cmd,'d'); setV(root,'cmd',''); const ci=EL(root,'cmd'); if(ci) ci.focus();
       const r=await api.post('/api/msf/session/'+encodeURIComponent(S._sid)+'/run',{command:cmd,timeout:20});
-      const out=(r&&(r.output||r.result||r.data))||''; if(out) String(out).split('\n').forEach(l=>termLine(el,l)); else if(r&&r.status==='error') termLine(el,'[!] '+(r.message||'error'),'r'); });
+      const out=(r&&(r.output||r.result||r.data))||''; if(out) String(out).split('\n').forEach(l=>termLine(el,l)); else if(r&&r.status==='error') termLine(el,'[!] '+(r.message||'error'),'r'); }
+    onAct(root,'send', doSend);
+    const cmdEl=EL(root,'cmd'); if(cmdEl) cmdEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); doSend(); } });
     onAct(root,'kill', async()=>{ if(!S._sid){ toast('No session selected','warn'); return; } await api.post('/api/msf/session/'+encodeURIComponent(S._sid)+'/kill',{}); toast('Session #'+S._sid+' killed','warn'); S._sid=null; await load(); });
     onAct(root,'killall', async()=>{ await api.post('/api/msf/sessions/kill-all',{}); toast('All sessions killed','warn'); S._sid=null; await load(); });
+  }
+};
+
+// ── POST-EX HARVEST (session creds → store → Creds & AD) ────────────────────
+PANES.harvest = {
+  body(){ return (
+    detStrip(META.harvest)
+    + sec('POST-EX CREDENTIAL HARVEST',
+      `<div class="controls" style="margin-bottom:12px">${fld('SESSION',sel('sid',[['','— loading sessions —']],'320px'))}${btn('⛏ DUMP CREDS','go','dump')}${btn('HOST / DOMAIN RECON','pri','recon')}${btn('REFRESH','ghost sm','refresh')}</div>
+       <div class="sec-note" style="margin-bottom:10px">Dumps credentials from the selected session — Meterpreter <b>hashdump</b>, kiwi/LSASS fallback, or <b>/etc/shadow</b> on Linux — straight into the captured-credential store. Requires an active session landed from Exploit.</div>
+       ${statusline('IDLE','no harvest running')}
+       <div class="term" data-term="harv" style="margin-top:14px"><span class="d">// dump + recon output streams here</span></div>`)
+    + sec('CAPTURED → CREDS & AD',
+      `<div class="controls" style="margin-bottom:12px">${fld('DC IP (optional)',inp('dc',S.dc,'pre-fills the AD panes','190px'))}${btn('→ KERBEROAST','ghost','toroast')}${btn('→ DCSYNC','ghost','toimpacket')}${btn('→ BLOODHOUND','ghost','tobh')}</div>
+       <div class="sec-note" style="margin-bottom:10px">Harvested credentials land in the store and become selectable by every Creds & AD pane. The handoff buttons jump there with the DC pre-filled.</div>
+       <div data-box="creds"><div class="sec-note">Store is empty. Dump a session to populate it.</div></div>`)
+  );},
+  async mount(root){
+    const t=()=>term(root,'harv'); const setStatus=emuStatusSetter(root);
+    async function loadSessions(){ const r=await api.get('/api/msf/sessions'); const ss=(r&&r.sessions)||[]; const el=EL(root,'sid'); if(!el)return;
+      el.innerHTML = ss.length ? ss.map(s=>`<option value="${esc(s.id)}">#${esc(s.id)} · ${esc(s.type||'?')} · ${esc(s.target||'')}</option>`).join('')
+        : '<option value="">no active sessions — land one from Exploit</option>';
+      el.disabled = !ss.length; }
+    async function drawCreds(){ const r=await api.get('/api/creds'); const cs=((r&&r.credentials)||[]); const b=box(root,'creds'); if(!b)return;
+      b.innerHTML = cs.length ? tbl(['USERNAME','TYPE','VALUE','HOST','SOURCE'], cs.slice(0,60).map(c=>{ const val=String(c.value||'');
+        return `<tr><td style="color:#fff">${esc(c.username||c.user||'?')}</td><td class="d" style="color:var(--cyan)">${esc(c.type||'')}</td><td class="d" style="color:var(--dim)">${esc(val.slice(0,26))}${val.length>26?'…':''}</td><td class="num">${esc(c.host_ip||'')}</td><td class="d" style="color:var(--muted)">${esc(c.source_tool||'')}</td></tr>`;}).join(''))
+        : '<div class="sec-note">Store is empty. Dump a session to populate it.</div>'; }
+    await loadSessions(); await drawCreds();
+    onAct(root,'refresh', async()=>{ await loadSessions(); await drawCreds(); toast('Refreshed'); });
+    onAct(root,'dump', async()=>{ const sid=V(root,'sid'); if(!sid){ toast('No session selected — land one from Exploit','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      const el=t(); termLine(el,`[H3x-Dash] dumping credentials from session #${sid}…`,'c'); setStatus('DUMPING',true);
+      const r=await api.post('/api/msf/session/'+encodeURIComponent(sid)+'/capture_creds',{});
+      if(!r || r.status==='error'){ setStatus('ERROR',false); termLine(el,'[!] '+((r&&r.message)||'capture failed'),'r'); return; }
+      const n=r.captured??0; termLine(el,`[+] captured ${n} credential(s) into the store`,'g');
+      (r.sample||[]).forEach(c=>termLine(el,'    '+(c.username||'?')+' ['+(c.type||'')+']'+(c.host_ip?(' @ '+c.host_ip):''),'d'));
+      (r.errors||[]).forEach(e=>termLine(el,'    ! '+e,'w'));
+      setStatus('COMPLETE · '+n+' cred(s)',false); toast(n+' credential(s) captured','ok'); await drawCreds(); });
+    onAct(root,'recon', async()=>{ const sid=V(root,'sid'); if(!sid){ toast('No session selected','warn'); return; }
+      if(!S.msf.connected){ toast('Connect to Metasploit RPC first','warn'); return; }
+      const el=t(); termLine(el,`[H3x-Dash] host / domain recon on session #${sid}…`,'c'); setStatus('RECON',true);
+      for(const cmd of ['getuid','sysinfo','run post/windows/gather/enum_domain']){
+        termLine(el,'> '+cmd,'d');
+        const r=await api.post('/api/msf/session/'+encodeURIComponent(sid)+'/run',{command:cmd,timeout:25});
+        const out=(r&&(r.output||r.result||r.data))||''; if(out) String(out).split('\n').forEach(l=>{ if(l.trim()) termLine(el,'  '+l); }); }
+      setStatus('RECON COMPLETE',false); });
+    const jump=(ws,mod)=>{ const dc=V(root,'dc'); if(dc) S.dc=dc; goto(ws,mod); };
+    onAct(root,'toroast', ()=>jump('credsad','roast'));
+    onAct(root,'toimpacket', ()=>jump('credsad','impacket'));
+    onAct(root,'tobh', ()=>jump('credsad','bloodhound'));
   }
 };
 
@@ -1185,7 +1251,7 @@ PANES.roast = {
   body(){ return (
     detStrip(META.roast)
     + sec('KERBEROAST / AS-REP ROAST',`<div data-box="gate"></div>
-        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('MODE',sel('mode',[['kerberoast','Kerberoast (SPN → TGS)'],['asrep','AS-REP Roast']],'200px'))}</div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',S.dc||firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('MODE',sel('mode',[['kerberoast','Kerberoast (SPN → TGS)'],['asrep','AS-REP Roast']],'200px'))}</div>
         <div class="sec-note" style="margin-bottom:10px">Requests roastable tickets with a captured domain credential; hashes are written to a loot file for hashcat.</div>
         <div class="controls">${btn('▶ ROAST','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
         ${statusline('IDLE','no roast running')}
@@ -1214,7 +1280,7 @@ PANES.impacket = {
   body(){ return (
     detStrip(META.impacket)
     + sec('SECRETSDUMP — DCSYNC',`<div data-box="gate"></div>
-        <div class="controls" style="margin-bottom:12px">${fld('TARGET / DC',inp('dc',firstIp(),'DC for DCSync','180px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}</div>
+        <div class="controls" style="margin-bottom:12px">${fld('TARGET / DC',inp('dc',S.dc||firstIp(),'DC for DCSync','180px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}</div>
         <div class="sec-note" style="margin-bottom:10px">Extracts NTLM hashes via DCSync (<code>-just-dc-ntlm</code>). Recovered hashes flow straight into the credential store.</div>
         <div class="controls">${btn('▶ DUMP','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
         ${statusline('IDLE','no dump running')}
@@ -1241,7 +1307,7 @@ PANES.certipy = {
   body(){ return (
     detStrip(META.certipy)
     + sec('CERTIPY — ADCS ABUSE',`<div data-box="gate"></div>
-        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}<label class="chip" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="vuln" checked style="vertical-align:-1px"> vulnerable only</label></div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC IP',inp('dc',S.dc||firstIp(),'domain controller','170px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'320px'))}<label class="chip" style="cursor:pointer;padding:8px 12px"><input type="checkbox" data-k="vuln" checked style="vertical-align:-1px"> vulnerable only</label></div>
         <div class="sec-note" style="margin-bottom:10px">Enumerates AD CS and flags ESC1–ESC8 certificate-template misconfigurations.</div>
         <div class="controls">${btn('▶ FIND','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
         ${statusline('IDLE','no scan running')}
@@ -1268,7 +1334,7 @@ PANES.bloodhound = {
   body(){ return (
     detStrip(META.bloodhound)
     + sec('BLOODHOUND COLLECTION',`<div data-box="gate"></div>
-        <div class="controls" style="margin-bottom:12px">${fld('DC HOST / IP',inp('dc',firstIp(),'dc01.corp.local','200px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('COLLECTION',sel('col',[['All','All'],['DCOnly','DCOnly'],['Session','Session'],['ACL','ACL']],'150px'))}</div>
+        <div class="controls" style="margin-bottom:12px">${fld('DC HOST / IP',inp('dc',S.dc||firstIp(),'dc01.corp.local','200px'))}${fld('CREDENTIAL',sel('cred',[['','— loading —']],'300px'))}${fld('COLLECTION',sel('col',[['All','All'],['DCOnly','DCOnly'],['Session','Session'],['ACL','ACL']],'150px'))}</div>
         <div class="sec-note" style="margin-bottom:10px">Runs bloodhound-python and packages the graph as a zip for the BloodHound UI.</div>
         <div class="controls">${btn('▶ COLLECT','go','run')}${btn('RECHECK','ghost sm','recheck')}</div>
         ${statusline('IDLE','no collection running')}
