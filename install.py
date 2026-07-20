@@ -337,6 +337,7 @@ AD_C2_TOOLS = {
     'certipy':              {'method': 'pipx', 'pkg': 'certipy-ad'},
     'bloodhound-python':    {'method': 'apt',  'pkg': 'bloodhound.py'},
     'evil-winrm':           {'method': 'apt',  'pkg': 'evil-winrm'},
+    'hashcat':              {'method': 'apt',  'pkg': 'hashcat'},
 }
 AD_C2_ALIASES = {
     'impacket-secretsdump': ['impacket-secretsdump', 'secretsdump.py'],
@@ -350,6 +351,8 @@ AD_C2_FALLBACKS = {
     'certipy':              'ADCS enumeration (ESC1-8) for the Certipy pane',
     'responder':            'LLMNR/NBT-NS poisoning for the Responder pane',
     'bloodhound-python':    'AD graph collection for the BloodHound pane',
+    'hashcat':              'cracks the Kerberoast / AS-REP hashes the roast pane collects '
+                            '(john the ripper — apt: john — is an alternative)',
 }
 # Auth-coercion (PetitPotam / PrinterBug) has no clean apt package — netexec's
 # coerce modules cover it, and standalone scripts can be dropped on PATH.
@@ -383,8 +386,26 @@ def _check_toolset(tools, aliases, fallbacks):
     return checks
 
 
+def check_coercion_tools():
+    """PetitPotam / PrinterBug have no clean apt package, so they never appear in
+    AD_C2_TOOLS. Surface their PATH status anyway — the Coercion pane wraps them,
+    and without this the preflight is silent about a pane that will fail at runtime."""
+    checks = []
+    for tool, cands, note in (
+        ('petitpotam', ['petitpotam.py', 'PetitPotam.py', 'petitpotam'],
+         'netexec coerce_plus module, or drop petitpotam.py on PATH'),
+        ('printerbug', ['printerbug.py', 'dementor.py'],
+         'netexec coerce_plus module, or drop printerbug.py / dementor.py on PATH'),
+    ):
+        found = next((which(c) for c in cands if which(c)), None)
+        checks.append(Check(tool, PASS if found else WARN,
+                            found or f'{tool} not on PATH — the Coercion pane will report it missing',
+                            fix=note, critical=False))
+    return checks
+
+
 def check_ad_tools():
-    return _check_toolset(AD_C2_TOOLS, AD_C2_ALIASES, AD_C2_FALLBACKS)
+    return _check_toolset(AD_C2_TOOLS, AD_C2_ALIASES, AD_C2_FALLBACKS) + check_coercion_tools()
 
 
 def check_emulation_stack():
