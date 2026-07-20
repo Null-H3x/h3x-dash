@@ -9,14 +9,15 @@
 
 <div align="center">
 
-**Automated Penetration Testing Framework**
+**Offensive Security and Purple-Team Operations Console**
 
-`// SCAN > ENUMERATE > EXPLOIT > LOOT // AUTHORIZED USE ONLY //`
+`// RECON > ACCESS > CREDS > LATERAL > EMULATE > RECONCILE // AUTHORIZED USE ONLY //`
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-0ff0fc?style=flat-square&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.0-9b30ff?style=flat-square&logo=flask&logoColor=white)
 ![Metasploit](https://img.shields.io/badge/Metasploit-RPC-39ff14?style=flat-square)
 ![Nmap](https://img.shields.io/badge/Nmap-7.x%2B-39ff14?style=flat-square)
+![ATT&CK](https://img.shields.io/badge/MITRE-ATT%26CK--mapped-9b30ff?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-0ff0fc?style=flat-square)
 ![Kali](https://img.shields.io/badge/Kali-Supported-9b30ff?style=flat-square&logo=kalilinux&logoColor=white)
 ![Parrot](https://img.shields.io/badge/Parrot-Supported-9b30ff?style=flat-square)
@@ -27,64 +28,115 @@
 
 ## Overview
 
-H3x-Dash is a Flask-based penetration testing dashboard that automates the full offensive security pipeline in a single browser interface. It wires together network enumeration, vulnerability identification, exploit execution, and loot reporting into one cohesive workflow, with state that persists across tabs so you are never clicking back into an empty screen. Scan, enumerate, pop a shell, collect the loot, write the report, repeat.
+H3x-Dash is a Flask-based console that drives an entire offensive and purple-team pipeline from one browser tab. It wires together network discovery, deep enumeration, vulnerability identification, exploitation, credential capture, Active Directory attack paths, lateral movement, adversary emulation, and detection reconciliation, with state that persists across panes so you are never clicking back into an empty screen.
 
-Built by a cybersecurity professional for operators who already understand the tools they are running and just want them in one place that does not fight back.
+The default interface is the **Purple Ops Console**, a single-page live UI that talks to a JSON API of real engines. It does not invent capability. Every action is carried out by a standard, separately installed tool (nmap, netexec, Impacket, Responder, Certipy, BloodHound, CALDERA, Atomic Red Team, Metasploit, and the rest). The console schedules those tools, streams their real output, stores their real findings, and reconciles them against detections. There is no synthetic telemetry. If a tool is not installed or not reachable, the pane shows a clear "TOOL NOT ON PATH" state instead of faking a result.
 
-**It is not** a one-click root button. **It is not** authorized for use outside explicitly controlled environments. It connects real tools, executes real commands, and produces real results against real systems. The dashboard is friendly. The consequences of pointing it at the wrong network are not.
+Built for people who already understand the tools they are running and just want them in one place that does not fight back. Scan, enumerate, get access, capture credentials, move, emulate, then reconcile what fired against what did not.
 
----
-
-## Pipeline
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         H3x-Dash Pipeline                            │
-├──────────────┬──────────────┬──────────────┬─────────────────────────┤
-│   DASHBOARD  │     SCAN     │  ENUMERATE   │        EXPLOIT          │
-│              │              │              │                         │
-│ Live stats   │ Configura-   │ 35 tool      │ CVE > MSF module        │
-│ MSF connect  │ bulator      │ runners      │ chain (96 entries)      │
-│ Scan history │ + web_scan   │ across 3     │ Auto-confirmation       │
-│ Preflight    │ (L7 module)  │ sweep tiers  │ Verbose runner          │
-│ Quick launch │ PTY stream   │ Parallel     │ Session polling         │
-├──────────────┴──────────────┴──────────────┴─────────────────────────┤
-│                              LOOT                                    │
-│   Session management · Command relay · HTML/JSON report export       │
-├──────────────────────────────────────────────────────────────────────┤
-│                          MSF MODULES                                 │
-│  3,000+ local modules indexed · CVE cross-reference · Search         │
-└──────────────────────────────────────────────────────────────────────┘
-```
+**It is not** a one-click root button. **It is not** authorized for use outside explicitly controlled environments. It connects real tools, executes real commands, and produces real results against real systems. The console is friendly. The consequences of pointing it at the wrong network are not.
 
 ---
 
-## Features
+## The Console
 
-### Dashboard
-- Live stat cards (hosts found, danger ports, active sessions, scans run) that auto-refresh every 4 seconds without a page reload
-- Metasploit RPC connection panel with auto-connect on startup, background retry loop, and last-error display
-- Scan history table with target, host count, and status
-- Quick scan launcher (driveby / T4 / banner) without leaving the dashboard
-- **Pre-flight status panel**: environment checks run on every startup, displayed with pass/warn/fail and fix commands (see [Pre-flight Checks](#pre-flight-checks))
-- **Authorization modal**: a liability statement gating every session with a mandatory checkbox acknowledgment. Decline and the page wipes itself.
+The Purple Ops Console (`templates/console.html`) is served at `/` and `/console`. It is one page, grouped into workspaces, over the same `/api/*` endpoints the rest of the app exposes.
 
-### Scan
-- Full integration with the **Nmap Configurabulator**: port profiles (`driveby`, `spyglass`, `web`, `full`), timing templates T1 to T5, NSE script profiles from banner-only to full vulnerability sweep
-- Three scan modes: Network (multi-service discovery), Web Services (HTTP/S ports plus Layer 7 fingerprint), and Layer-7 Only (skip nmap, go straight to the web scanner)
-- Bundled **Layer 7 web scanner** (`web_scan.py`): auto-runs on discovered web ports for HTTP fingerprinting, TLS/cert inspection, content surface, and optional nmap http-NSE orchestration (see [Web Scanning](#web-scanning))
-- Live PTY output stream, filtered to relevant findings only (host discovery headers, open port lines, NSE output, scan completion stats). Banners, spinners, and blank lines get dropped on the floor where they belong.
-- Host classification by device type (gateway, server, workstation, IoT, switch), OS detection, and port risk scoring (danger / warning / info)
-- Results persist on tab navigation. Revisiting the Scan page restores the last scan without re-running.
-- Target validation: shell metacharacters and path traversal patterns are rejected server-side before any subprocess runs
+```
+OVERVIEW      Dashboard
+EXERCISE      Scenario Scheduler (timed / manual events)
+RECON & ENUM  Scan · Topology · Web Scan · Enum Suite · MSF Scanners
+ACCESS        Exploit · Validate · Sessions / Shell · Payloads · Spectrum
+CREDS & AD    Loot · Responder+Relay · Kerberoast/AS-REP · BloodHound ·
+              Impacket-AD · Certipy/ADCS · Coercion
+LATERAL / C2  Lateral Movement · C2 Beacon Emulator
+EMULATION     Atomic Red Team · CALDERA · Scenario Playbooks
+REPORT        Engagement Report · Detection Coverage
+```
 
-### Enumerate
-- **35 tool runners** across three operator-selectable sweep tiers (see [Sweep Depth Tiers](#sweep-depth-tiers))
-- Dispatched automatically based on discovered open ports. Runs up to 8 hosts in parallel with a semaphore cap; tools run serially per host with a timer-based hard kill on timeout, so one wedged scanner never takes the whole run hostage.
-- Structured findings output: severity-scored (CRITICAL / HIGH / MEDIUM / LOW / INFO), CVE-tagged, cross-referenced to locally installed MSF modules in real time
-- Full-width findings table with a `LOCAL MSF MODULES` column. Matching modules appear inline; clicking any sends it straight to the Exploit tab via sessionStorage.
-- Tool availability grouped into purpose-based columns with pass/fail badges on page load; missing tools show the exact `apt-get install` command
-- Findings auto-promote chain entries via the `enum_confirmed` system. A Log4Shell CVE-2021-44228 hit, a Drupal banner, an SMBv1-enabled flag, and friends all elevate the matching MSF module to the top of the exploit suggestions.
+Two console-wide features:
+
+- **Global halt.** A stop control is present on every screen. One confirm halts every active subsystem at once (scan, enumeration, all Metasploit sessions, emulation, beacons, and the scheduler), then shows an honest per-subsystem report of what stopped. When in doubt, hit it.
+- **Fixed scale.** The UI renders at a consistent apparent size across resolutions, so a 4K workstation and a 1280x800 VM show the same proportions rather than a layout that looks tiny on one and cramped on the other. A single design-width constant tunes it.
+
+The legacy multi-page interface (`/dashboard`, `/scan`, `/enumerate`, `/exploit`, `/shell`, `/loot`, `/modules`, and friends) remains available and runs over the same API, so nothing you built against it breaks.
+
+---
+
+## Operating Principles
+
+Four rules govern safe use, and they are enforced in the code, not just written here:
+
+1. **Authorized scope only.** Run H3x-Dash only against systems you are cleared to assess, on the network and ports named in your authorization. The scenario timeline records every target you touch.
+2. **Captured credentials only.** The Active Directory and lateral movement panes pull secrets from the loot store. There is no free-text secret entry. You capture or extract a credential first, then reuse it.
+3. **The beacon is a detection emitter, not real command and control.** The C2 pane sends known-signature callbacks so defenders can practice catching them. It is scoped for detection validation, not stealth, and has no post-exploitation capability.
+4. **Real tools or an honest gap.** Missing tooling surfaces as a clear "not on path" state. The console never fabricates telemetry to paper over an absent binary.
+
+---
+
+## Capabilities by Workspace
+
+### Exercise: Scenario Scheduler
+
+Fires timed or manual events on an exercise clock and records a ground-truth timeline of what happened and when. Each event type dispatches to a real engine already wired in the console (scan, enumeration, and beacon are wired out of the box). Unwired types fail honestly rather than reporting a fake success. Arm, pause, resume, abort, reset, save, and load control the run. The append-only timeline under `logs/` is the authoritative record for the debrief and for detection reconciliation.
+
+### Recon and Enum
+
+- **Scan.** Port and service discovery built on the bundled **Nmap Configurabulator**: port profiles (`driveby`, `spyglass`, `web`, `full`), timing templates T1 to T5, NSE script profiles from banner-only to full vulnerability sweep, three scan modes (network, web services, Layer-7 only), and stealth levels 0 to 3 that layer evasion flags. Live PTY output filtered to real findings, host classification by device type, and port risk scoring. Results persist across tab navigation.
+- **Topology.** A live D3 graph of discovered hosts, risk-tiered ports, and their relationships. The same graphic embeds into the engagement report.
+- **Web Scan.** The bundled Layer-7 scanner (`web_scan.py`): redirect chain, headers, tech fingerprint, TLS and certificate inspection, content surface, and optional nmap http-NSE. See [Web Scanning](#web-scanning).
+- **Enum Suite.** 35 tool runners across three operator-selectable sweep tiers, dispatched automatically by discovered port, up to 8 hosts in parallel with a hard per-tool timeout. Structured, severity-scored, CVE-tagged findings cross-referenced to your local Metasploit modules in real time. See [Sweep Depth Tiers](#sweep-depth-tiers) and the dispatch table.
+- **MSF Scanners.** Metasploit auxiliary scanner modules for post-recon confirmation over the live RPC connection.
+
+### Access
+
+- **Exploit.** Maps discovered services to CVEs and Metasploit modules from a local lookup table (see [CVE Coverage](#cve-coverage)), ranks suggestions enum-confirmed first, and launches with a full options form and verbose output. Session-survival hardening for fragile kernel exploits, module-aware payload handling, and RPC status polling that disables the launch button the moment the connection drops.
+- **Validate.** Confirms outcomes and assigns verdicts (confirmed, unconfirmed, failed) with supporting evidence, so a real foothold is separated from a false positive before you build on it. Verdicts flow into the report and the coverage reconciliation.
+- **Sessions / Shell.** Live session management with inline command relay, per-session tabs, command history, and a kill-all control.
+- **Payloads.** Payload generation and a vetted-source library. See [Vetted Payload Sources](#vetted-payload-sources).
+- **Spectrum.** Radio and wireless operations: device control, recon sweeps, and handshake capture across the supported capture and monitor hardware.
+
+### Creds and AD
+
+The loot store is the single source of truth. Capture or extract a secret, then select it in a downstream pane. Every technique below is mapped to MITRE ATT&CK and wraps its standard tool.
+
+| Pane | What it does | Tools | ATT&CK |
+|------|--------------|-------|--------|
+| **Loot** | Captured credential store that every AD and lateral pane draws from | internal store | - |
+| **Responder + Relay** | LLMNR / NBT-NS / mDNS poisoning with SMB / LDAP / ADCS relay | Responder, ntlmrelayx | T1557.001, T1187 |
+| **Kerberoast / AS-REP** | Request roastable tickets, hand RC4 material to hashcat | impacket GetUserSPNs / GetNPUsers, hashcat | T1558.003, T1558.004 |
+| **BloodHound** | Collect AD data and map attack paths | bloodhound-python, SharpHound, neo4j | T1087.002, T1482 |
+| **Impacket-AD** | secretsdump / DCSync credential extraction against a DC | impacket secretsdump | T1003.006 |
+| **Certipy / ADCS** | Enumerate and abuse ESC1 through ESC8 certificate misconfigurations | Certipy | T1649 |
+| **Coercion** | Force machine authentication via PetitPotam (EFSRPC) or PrinterBug (MS-RPRN) | PetitPotam, printerbug | T1187 |
+
+### Lateral and C2
+
+- **Lateral Movement.** psexec, smbexec, wmiexec, dcomexec, atexec, and evil-winrm, plus pass-the-hash and pass-the-ticket, using credentials drawn only from loot. Tools: impacket exec family, evil-winrm, netexec. ATT&CK T1021.002, T1047, T1053.005, T1550.002.
+- **C2 Beacon Emulator.** Synthetic jittered HTTP, HTTPS, and DNS callbacks with a tunable sleep interval, malleable profiles, and a bounded callback count. It exists so defenders can practice detecting beaconing. It is not a real implant. ATT&CK T1071.001, T1571, T1573.
+
+### Emulation
+
+- **Atomic Red Team.** Runs Invoke-AtomicRedTeam atomics, small portable ATT&CK-mapped tests built for detection validation. Refuses to fake execution if the framework is not installed.
+- **CALDERA.** Autonomous, chained adversary emulation across the ATT&CK matrix via a server and agents.
+- **Scenario Playbooks.** Named-actor and ransomware-precursor chains that sequence an end-to-end emulation. Impact stages stop short of real destruction.
+
+### Report
+
+- **Engagement Report.** A client-deliverable report pulling scan inventory, captured credentials, exploit outcomes, verdicts, and ATT&CK coverage into one document with the topology graphic embedded, exported as HTML or JSON.
+- **Detection Coverage.** Reconciles what you did against what was detected. It maps your actions to ATT&CK techniques and compares them against the detection ledger and SIEM ingest, producing a per-technique verdict of hit, partial, or miss with the source signals listed. A miss is a finding, not an error. That loop is the point of the whole console.
+
+---
+
+## Sweep Depth Tiers
+
+Every enumeration tool is mapped to a tier; the operator selects the maximum tier per sweep. Tools above the selected depth are gated. The philosophy is simple: quality and speed of information beat throwing five tools at the same question.
+
+| Tier | Tools | Profile |
+|------|-------|---------|
+| **1 - Recon** | httpx, whatweb, wafw00f, sslscan, nbtscan, smbclient (null), rpcclient (null), ftp_anon, vnc_check, redis_check, elastic_check, mongo_check, searchsploit | Fast, low-noise. Service probes, HTTP triage, banner grabs, null-session checks. The polite knock before the door comes off. |
+| **2 - Standard** *(default)* | Nikto, GoBuster, SSLyze, enum4linux-ng, smbmap, NetExec, snmp_check, smtp_enum, ldapsearch, ldapdomaindump, dnsrecon, ssh-audit, rdp_check, kerbrute | The default working depth. One quality tool per question, no redundant noise. |
+| **3 - Deep** | nuclei, feroxbuster, testssl.sh, WPScan, droopescan, ffuf, dnsenum | Slow, loud, opt-in. Runs only when explicitly requested. This is the tier the blue team writes tickets about. |
 
 **Tool dispatch by port:**
 
@@ -114,73 +166,24 @@ Built by a cybersecurity professional for operators who already understand the t
 | 27017 | TCP reachability to MongoDB auth warning |
 | Any port with version string | searchsploit to ExploitDB CVE/module lookup |
 
-### Sweep Depth Tiers
-
-Every enumeration tool is mapped to a tier; the operator selects the maximum tier per sweep. Tools above the selected depth are *gated*, meaning they sit it out. The philosophy is simple: quality and speed of information beat throwing five tools at the same question.
-
-| Tier | Tools | Profile |
-|------|-------|---------|
-| **1 - Recon** | httpx, whatweb, wafw00f, sslscan, nbtscan, smbclient (null), rpcclient (null), ftp_anon, vnc_check, redis_check, elastic_check, mongo_check, searchsploit | Fast, low-noise. Service probes, HTTP triage, banner grabs, null-session checks. The polite knock before the door comes off. |
-| **2 - Standard** *(default)* | Nikto, GoBuster, SSLyze, enum4linux-ng, smbmap, NetExec, snmp_check, smtp_enum, ldapsearch, ldapdomaindump, dnsrecon, ssh-audit, rdp_check, kerbrute | The default working depth. One quality tool per question, no redundant noise. |
-| **3 - Deep** | nuclei, feroxbuster, testssl.sh, WPScan, droopescan, ffuf, dnsenum | Slow / loud / opt-in. Runs only when explicitly requested. This is the tier the blue team writes tickets about. |
-
-### Exploit
-- Host selector pre-populated from scan results; selecting a host auto-fetches CVE suggestions from the chain
-- **CveChain** maps every discovered port/service to known CVEs and Metasploit modules from a local lookup table: **96 entries across 29 service families**, no internet required (see [CVE Coverage](#cve-coverage))
-- Module suggestions ranked enum-confirmed first, then severity, then MSF rank (excellent / great / good / normal / average / low / manual)
-- MSF module search queries the live RPC connection and renders results with rank, type, and description
-- Exploit launcher with a full options form: RHOST, RPORT, LHOST, LPORT, payload, and target index
-- Verbose launch output: pre-flight logging, option confirmation, session baseline, execution, and post-launch session polling. You see exactly what Metasploit saw, not a spinner and a shrug.
-- Session-survival hardening for fragile kernel exploits (EternalBlue and friends): staged payloads get PrependMigrate, stageless payloads get spawn-and-migrate, and runs fire as `exploit -z` so the RPC console never auto-attaches to a freshly landed session
-- Module-aware launcher: auxiliary and post modules no longer attach payloads silently. The runner detects the module class, logs the reason a payload is being stripped, and writes "Scanner dispatched" instead of "Exploit dispatched" for clarity.
-- Falsy-return guards on `client.modules.use()` so invalid module/payload paths return a clean error instead of `'bool' object is not subscriptable`
-- `USE >` buttons in CVE suggestions and MSF module search pre-fill the launcher in one click
-- MSF RPC connection status polled every 5 seconds; the launch button disables itself the moment RPC goes offline
-
-### Loot
-- Active session table with inline command relay: send commands to Meterpreter or shell sessions directly from the browser
-- Dedicated Shell tab with per-session tabs, command history, type-aware shortcuts, and a **Kill All Sessions** button for clearing out dead or stale sessions in one click
-- Report generation: timestamped HTML or JSON, saved to `./reports/`
-- HTML reports rendered in full H3x-Dash theme with host cards, port risk tables, session records, web-scan overlay, and CVE stats
-- All user-controlled data HTML-escaped in reports, so there is no injection surface
-- Report list refreshes every 6 seconds; one-click download via a secure path-validated endpoint
-
-### MSF Modules
-- Walks `/usr/share/metasploit-framework/modules/` on startup, parsing each `.rb` file with regex (no Ruby required)
-- Indexes exploits, auxiliary, and post modules; skips payloads, encoders, nops
-- Extracts full module name, display name, description, CVE references, MSBulletin IDs, rank, platform, and architecture
-- Builds a `CVE > [modules]` index for real-time cross-reference in the Enumerate findings table
-- Gzip-compressed JSON cache (~2 MB); auto-rebuilds if older than 24 hours
-- Searchable in the browser by fullname path, display name, CVE, MSBulletin, description, or platform, all at once
-- **USE >** sends any module directly to the Exploit tab
-- Accepts a `?q=` URL parameter for deep-linking from CVE findings (for example `/modules?q=CVE-2017-0144`)
-
 ---
 
 ## Web Scanning
 
-`web_scan.py` is a Layer 7 scanner that attaches to the Configurabulator and produces a dedicated section in the topology report. Pure stdlib, no pip dependencies, to preserve the Configurabulator's single-file, zero-dependency footprint. Nmap maps the ports; this maps the website living behind them.
-
-**Capabilities:**
+`web_scan.py` is a Layer-7 scanner that attaches to the Configurabulator and produces a dedicated section in the topology report. Pure stdlib, no pip dependencies, to preserve the Configurabulator's single-file, zero-dependency footprint. Nmap maps the ports; this maps the website living behind them.
 
 | Capability | Details |
 |------------|---------|
-| Fingerprint & headers | Redirect chain, status, Server / X-Powered-By, page title, tech detection (signature table), security-header audit (HSTS, CSP, X-Frame-Options, etc.), cookie flag analysis (Secure / HttpOnly / SameSite) |
-| TLS & certificate | Subject / issuer / SAN, validity window, self-signed / hostname-mismatch detection, negotiated protocol & cipher, TLS 1.0 / 1.1 legacy probe |
-| Content surface | robots.txt, sitemap.xml, HTTP methods (including active TRACE / XST check), short signature-confirmed path probe (catches `/.git/HEAD`, `/.env`, `/server-status`, and friends, soft-404 aware) |
-| nmap http-NSE | Optional orchestration of `http-enum`, `http-headers`, `http-methods`, `http-title`, `http-vuln*` against the web port, gated behind `--web-nse` for tier discipline |
-
-**Attach modes:**
-- *Auto-run*: every open web port on every discovered host (default behaviour)
-- *Direct*: `--web https://target` runs a web-only scan with no nmap topology
+| Fingerprint and headers | Redirect chain, status, Server / X-Powered-By, page title, tech detection, security-header audit (HSTS, CSP, X-Frame-Options), cookie flag analysis (Secure / HttpOnly / SameSite) |
+| TLS and certificate | Subject / issuer / SAN, validity window, self-signed and hostname-mismatch detection, negotiated protocol and cipher, TLS 1.0 / 1.1 legacy probe |
+| Content surface | robots.txt, sitemap.xml, HTTP methods (including active TRACE / XST check), short signature-confirmed path probe (`/.git/HEAD`, `/.env`, `/server-status`, soft-404 aware) |
+| nmap http-NSE | Optional orchestration of `http-enum`, `http-headers`, `http-methods`, `http-title`, `http-vuln*`, gated behind `--web-nse` for tier discipline |
 
 **Standalone use:**
 
 ```bash
 python3 web_scan.py https://example.com --nse  # JSON to stdout
 ```
-
-Findings land in a clickable header pill (`WEB ◇ N`) on the Configurabulator's HTML report. One card per scanned target, severity-colour-coded by the report's own palette.
 
 ---
 
@@ -190,21 +193,21 @@ Findings land in a clickable header pill (`WEB ◇ N`) on the Configurabulator's
 
 | Service | Highlights |
 |---------|------------|
-| **SMB / Samba** | EternalBlue (CVE-2017-0144), EternalRomance (CVE-2017-0145), SMBGhost (CVE-2020-0796), SambaCry (CVE-2017-7494), Samba usermap (CVE-2007-2447), share / user / SMBv1 enum |
-| **DCERPC** *(port 135)* | Zerologon (CVE-2020-1472), PrintNightmare (CVE-2021-1675/34527), MS03-026 DCOM, endpoint auditor |
-| **WinRM** *(5985/5986)* | Auth-method enum, login brute, WinRM command exec, script exec with valid credentials |
+| **SMB / Samba** | EternalBlue (CVE-2017-0144), EternalRomance (CVE-2017-0145), SMBGhost (CVE-2020-0796), SambaCry (CVE-2017-7494), Samba usermap (CVE-2007-2447) |
+| **DCERPC** *(135)* | Zerologon (CVE-2020-1472), PrintNightmare (CVE-2021-1675/34527), MS03-026 DCOM |
+| **WinRM** *(5985/5986)* | Auth-method enum, login brute, command exec, script exec with valid credentials |
 | **RDP** | BlueKeep (CVE-2019-0708), DejaBlue (CVE-2019-1182), MS12-020 DoS, NLA / CredSSP detection |
-| **HTTP/S** | Shellshock (CVE-2014-6271), Apache path traversal (CVE-2021-41773/42013), Spring4Shell (CVE-2022-22965), Struts2 OGNL (CVE-2017-5638), PHP-FPM (CVE-2019-11043), **Log4Shell (CVE-2021-44228)**, **Confluence OGNL (CVE-2022-26134)**, **GitLab RCE (CVE-2021-22205)**, Jenkins, Tomcat Manager / JSP bypass, **Drupalgeddon2 (CVE-2018-7600)**, WordPress, JBoss, WebDAV |
+| **HTTP/S** | Shellshock (CVE-2014-6271), Apache path traversal (CVE-2021-41773/42013), Spring4Shell (CVE-2022-22965), Struts2 OGNL (CVE-2017-5638), PHP-FPM (CVE-2019-11043), **Log4Shell (CVE-2021-44228)**, **Confluence OGNL (CVE-2022-26134)**, **GitLab RCE (CVE-2021-22205)**, Jenkins, Tomcat, **Drupalgeddon2 (CVE-2018-7600)**, WordPress, JBoss, WebDAV |
 | **AJP** *(8009)* | Ghostcat (CVE-2020-1938) |
 | **Java RMI** *(1099)* | Insecure default config RCE |
-| **IRC** *(6667)* | UnrealIRCd 3.2.8.1 backdoor (CVE-2010-2075), the Metasploitable classic |
-| **distcc** *(3632)* | distccd v1 command exec (CVE-2004-2687), another Metasploitable classic |
+| **IRC** *(6667)* | UnrealIRCd 3.2.8.1 backdoor (CVE-2010-2075) |
+| **distcc** *(3632)* | distccd command exec (CVE-2004-2687) |
 | **FTP** | vsftpd 2.3.4 backdoor (CVE-2011-2523), ProFTPD overflow (CVE-2010-4221), anonymous access |
 | **SSH** | ssh-agent RCE (CVE-2023-38408), username enum (CVE-2018-15473), brute-force |
 | **MSSQL / MySQL** | xp_cmdshell RCE, hash dump, brute, FILE-privilege check, auth bypass (CVE-2012-2122) |
 | **PostgreSQL** | COPY PROGRAM RCE (CVE-2019-9193), brute, hash dump |
-| **Redis** | Unauthenticated replication RCE, Lua sandbox escape (CVE-2022-0543), no-auth config check |
-| **Elasticsearch** | Groovy RCE (CVE-2014-3120), MVEL bypass (CVE-2015-1427), open-cluster detection |
+| **Redis** | Unauthenticated replication RCE, Lua sandbox escape (CVE-2022-0543) |
+| **Elasticsearch** | Groovy RCE (CVE-2014-3120), MVEL bypass (CVE-2015-1427) |
 | **MongoDB** | Unauthenticated access, JS injection / collection enum |
 | **VNC** | No-auth detection, brute-force |
 | **SNMP** | Community string enum, share enum, Cisco IOS RCE (CVE-2017-6736) |
@@ -212,19 +215,18 @@ Findings land in a clickable header pill (`WEB ◇ N`) on the Configurabulator's
 | **DNS** | Zone transfer / AXFR / subdomain harvest |
 | **NFS** | World-readable export enumeration |
 | **Oracle** | Login brute, enumeration |
-| **POP3 / IMAP** | Login brute (POP3), version enum (IMAP). Previously mis-routed to SMTP, now corrected. |
+| **POP3 / IMAP** | Login brute (POP3), version enum (IMAP) |
 | **Telnet** | BSD telnetd overflow (CVE-2011-4862), cleartext credential warning |
 | **SMTP** | User enum (VRFY / EXPN / RCPT), open relay check |
 | **RPC / NetBIOS** | Portmapper enumeration, NFS mount discovery |
-| **Backdoor** *(4444)* | Port 4444 detection to multi/handler suggestion |
 
-Run `python3 validate_chain.py` against your local msfrpcd to verify every module path in the chain exists in your MSF install (see [Validation Tools](#validation-tools)).
+Run `python3 validate_chain.py` against your local msfrpcd to verify every module path in the chain exists in your install.
 
 ---
 
 ## Pre-flight Checks
 
-Checks run at startup in a background thread. Results are cached and displayed on the Dashboard.
+Checks run at startup in a background thread and display on the Dashboard.
 
 | Check | Pass Condition |
 |-------|---------------|
@@ -232,16 +234,16 @@ Checks run at startup in a background thread. Results are cached and displayed o
 | Privileges | Running as root (required for nmap SYN scans) |
 | nmap | Installed and version 7 or newer |
 | Configurabulator | `Nmap-Configurabulator.py` present in project root |
-| Web scan module | `web_scan.py` present (warns if absent, Layer 7 features disabled) |
+| Web scan module | `web_scan.py` present |
 | Metasploit Framework | Module tree found at `/usr/share/metasploit-framework` |
 | Flask | Importable |
-| pymetasploit3 | Importable (warns if absent, MSF RPC features unavailable) |
+| pymetasploit3 | Importable |
 | Output directories | `scans/`, `reports/`, `loot/` exist and are writable |
 | Disk space | 200 MB or more free |
-| Port 5000 | Available (warns if already bound) |
+| Port 5000 | Available |
 | Listen address | Warns that `0.0.0.0:5000` is visible on all interfaces |
-| Enum tools | Reports which of the binary-tracked enumeration tools are installed |
-| SecLists wordlists | Present at `/usr/share/seclists/` (required for ffuf, feroxbuster, kerbrute) |
+| Enum tools | Reports which enumeration tools are installed |
+| SecLists wordlists | Present at `/usr/share/seclists/` |
 
 Available via `GET /api/preflight`. Force-refresh via `POST /api/preflight/refresh`.
 
@@ -252,8 +254,10 @@ Available via `GET /api/preflight`. Force-refresh via `POST /api/preflight/refre
 - **Kali Linux** or **Parrot Security** (recommended), or any Debian-based distribution
 - **Python 3.10+**
 - **nmap 7.x+**: `sudo apt-get install nmap`
-- **Metasploit Framework**: pre-installed on both Kali and Parrot Security
-- **SecLists**: `sudo apt-get install seclists` (required for ffuf / feroxbuster / kerbrute)
+- **Metasploit Framework**: pre-installed on Kali and Parrot
+- **SecLists**: `sudo apt-get install seclists`
+
+The Active Directory, lateral, emulation, and detection panes each wrap their own standard tool (Impacket, Responder, netexec, Certipy, bloodhound-python, hashcat, Invoke-AtomicRedTeam, CALDERA). Install the ones you intend to use; any that are absent surface as a "not on path" state in their pane rather than breaking the console.
 
 ---
 
@@ -267,7 +271,7 @@ Available via `GET /api/preflight`. Force-refresh via `POST /api/preflight/refre
 # Core dependencies
 sudo apt-get install -y python3-flask python3-pymetasploit3
 
-# Enumeration tools, full coverage (Kali and Parrot apt-installable)
+# Enumeration tools, full coverage
 sudo apt-get install -y \
   nikto whatweb gobuster sslyze sslscan \
   enum4linux-ng smbmap netexec smbclient samba-common-bin \
@@ -275,6 +279,10 @@ sudo apt-get install -y \
   ldap-utils ldapdomaindump ssh-audit exploitdb \
   httpx-toolkit nbtscan feroxbuster nuclei testssl.sh \
   wpscan droopescan wafw00f ffuf kerbrute seclists
+
+# Active Directory / lateral / cracking (install what you will use)
+sudo apt-get install -y impacket-scripts responder certipy-ad \
+  bloodhound.py hashcat evil-winrm
 ```
 
 ### Other Debian / Ubuntu
@@ -283,38 +291,36 @@ sudo apt-get install -y \
 pip install -r requirements.txt
 ```
 
-Parrot Security ships most of these tools by default. `sudo apt install parrot-tools-full` pulls the complete set on a fresh Home edition install.
-
 ---
 
-## Setup & Launch
+## Setup and Launch
 
 ```bash
-# 1. Clone. Both the Configurabulator and web_scan are bundled, nothing to place manually.
+# 1. Clone. The Configurabulator and web_scan are bundled.
 git clone https://github.com/Null-H3x/h3x-dash.git
 cd h3x-dash
 
 # 2. Install dependencies
 sudo apt-get install -y python3-flask python3-pymetasploit3
 
-# 3. Validate dependencies & launch
+# 3. Validate dependencies and launch
 sudo python3 install.py
 
-# 4. Open the dashboard
+# 4. Open the console
 #    http://127.0.0.1:5000
 ```
 
-**That is it.** H3x-Dash manages `msfrpcd` automatically:
+H3x-Dash manages `msfrpcd` automatically:
 
-1. On startup, it checks whether `msfrpcd` is already listening on `127.0.0.1:55553`
+1. On startup it checks whether `msfrpcd` is already listening on `127.0.0.1:55553`
 2. If not, it launches `msfrpcd` in a background daemon thread with the configured credentials
 3. Flask starts immediately, so the browser opens while `msfrpcd` initialises in the background
-4. The Dashboard shows a live `msfrpcd` status strip (checking, starting, ready) that updates every 4 seconds
-5. Once the port opens, the MSF RPC auto-connect loop connects and MSF features become available
+4. The Dashboard shows a live `msfrpcd` status strip (checking, starting, ready)
+5. Once the port opens, the RPC auto-connect loop connects and MSF features become available
 
-First startup may take 30 to 90 seconds while Metasploit loads its module tree. Subsequent starts are faster. The MSF module index also builds in the background and is ready within 30 to 90 seconds. Go make coffee; it will be done when you get back.
+First startup may take 30 to 90 seconds while Metasploit loads its module tree and the module index builds in the background. Subsequent starts are faster.
 
-**To skip auto-start** (when managing `msfrpcd` externally or via a supervisor):
+**To skip auto-start** (when managing `msfrpcd` externally):
 
 ```bash
 sudo python3 h3x-dash.py --no-msf
@@ -332,88 +338,68 @@ Or via the API: `POST /api/msf/daemon/stop`
 
 ## Configuration
 
-All defaults work out of the box. Settings are read from real environment
-variables, a local **`.env`** file, or the defaults — in that order (a real env
-var always wins over `.env`).
+All defaults work out of the box. Settings are read from real environment variables, a local **`.env`** file, or the defaults, in that order (a real env var always wins over `.env`).
 
-`install.py` **pre-builds a `.env`** on first run with a randomly generated
-`H3X_SECRET` (and the MSF + GitHub-token settings below), `chmod 600` and owned
-by the invoking user. It never clobbers an existing `.env`, and `.env` is
-gitignored. You can also override any value inline.
+`install.py` pre-builds a `.env` on first run with a randomly generated `H3X_SECRET` (and the MSF and GitHub-token settings below), `chmod 600` and owned by the invoking user. It never clobbers an existing `.env`, and `.env` is gitignored.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `H3X_SECRET` | *(random in `.env`)* | Flask session secret. Generated by `install.py`. |
+| `H3X_SECRET` | *(random in `.env`)* | Flask session secret |
 | `MSF_HOST` | `127.0.0.1` | msfrpcd host |
 | `MSF_PORT` | `55553` | msfrpcd port |
 | `MSF_PASS` | `msfrpc` | msfrpcd password |
 | `MSF_SSL` | `false` | Set `true` if msfrpcd was started without `-S` |
-| `GITHUB_TOKEN` | *(empty)* | Optional. Raises the GitHub API rate limit for the Payload page's vetted-source updater. A read-only/public-repo token suffices. |
+| `GITHUB_TOKEN` | *(empty)* | Optional. Raises the GitHub API rate limit for the Payload page's vetted-source updater. |
 
 ```bash
 MSF_PASS=strongpassword H3X_SECRET=changeme sudo python3 h3x-dash.py
 ```
 
-Optional Python libraries (`paramiko`, `requests`) enable richer Access/Spectrum
-transports; `install.py` offers to install them, and the app falls back to
-stdlib if they are absent.
-
 ---
 
 ## Validation Tools
 
-Several offline and online checks ship with the codebase. Run them after any change to the chain, enum runners, or exploit engine to catch regressions before they reach the dashboard.
+Offline and online checks ship with the codebase. Run them after any change to the chain, enum runners, or exploit engine to catch regressions before they reach the console.
 
 | Script | Mode | What it checks |
 |--------|------|----------------|
-| `python3 audit/audit_chain.py` | Offline | Internal consistency of `modules/cve_chain.py`: entry shape, severity discipline, no dead routes / orphan keys / duplicate (CVE, module) tuples, SMB-pipe DCERPC port-override correctness, suggestion-dict shape matches HTML expectations, auto-confirmation regressions |
-| `python3 audit/audit_enum.py` | Offline | Every TOOL_LABELS entry has a backing `_run_<id>` method (and vice-versa), every tier-mapped tool is labeled, port/service references resolve, `available_tools()` covers every dispatchable tool, tier-discipline dispatch simulation against representative hosts |
-| `python3 audit/audit_exploit.py` | Offline | Exploit session-survival wiring: payload selection, staged vs stageless migration, foreground non-interacting launch, session wait loop, check-mode guards |
-| `python3 audit/audit_msf_runner.py` | Offline | Mock-RPC exercise of the exploit runner: missing module, missing options, RPORT auto-correct, payload hardening, session detection |
-| `python3 audit/audit_scan.py` | Offline | Scan-mode wiring: web port profile, Layer-7 helpers, target expansion |
-| `python3 audit/audit_payload_sources.py` | Offline | Vetted GitHub payload sources + Access flows: allowlist shape + enforcement, URL validation, git-tree → payload parsing, description extraction, synced-payload merge, new-device wiring, arm/deploy state, validate-connect guards, callback port match, Pineapple api-connect gating |
-| `python3 audit/audit_credentials.py` | Offline | Credential store + parsers: `unix_hash` type, shadow coverage ($6$/yescrypt/bcrypt), hash counts, corrupt-JSON tolerance, resolver `value` mapping, capture-route guards |
-| `python3 audit/audit_loot.py` | Offline | Loot reports + download: session/scan HTML escaping (stored-XSS), case-insensitive format, `size_kb`, non-file skip, download filename whitelist + `is_file()`, safe loot.html rendering |
-| `python3 audit/audit_msf_session.py` | Offline | Shell session listing robustness: bytes decode, junk-skip, retry-once, RPC serialization (no concurrent `client.call`), health-check tolerance |
-| `python3 validate_chain.py` | Online | Connects to your local msfrpcd and verifies every module path in the chain actually exists in your MSF install. Catches renames, version drift, and typos that offline audits cannot see. |
-| `python3 shell_doctor.py` | Online | Live Shell/session diagnostic. Run it in a second terminal while you drive the UI to localize an "Active Sessions" failure across stages: msfrpcd reachability (A), raw session list (B), session persistence/lifetime (C), probe responsiveness (D), and MsfEngine parity (E). `--watch` tracks land→lifetime→death untouched; `--probe <sid>` deep-probes one session; `--watch --probe-newest` shows whether probing itself kills a fragile session. |
+| `python3 audit/audit_all.py` | Offline | Runs the full audit suite |
+| `python3 audit/audit_chain.py` | Offline | Internal consistency of `modules/cve_chain.py` |
+| `python3 audit/audit_enum.py` | Offline | Enum runner and tier-dispatch integrity |
+| `python3 audit/audit_exploit.py` | Offline | Exploit session-survival wiring |
+| `python3 audit/audit_msf_runner.py` | Offline | Mock-RPC exercise of the exploit runner |
+| `python3 audit/audit_scan.py` | Offline | Scan-mode wiring |
+| `python3 audit/audit_payload_sources.py` | Offline | Vetted payload allowlist and access flows |
+| `python3 audit/audit_credentials.py` | Offline | Credential store and parsers |
+| `python3 audit/audit_loot.py` | Offline | Loot report generation and download safety |
+| `python3 audit/audit_msf_session.py` | Offline | Shell session listing robustness |
+| `python3 validate_chain.py` | Online | Verifies every chain module path exists in your live MSF install |
+| `python3 shell_doctor.py` | Online | Live Shell/session diagnostic across stages |
 
 **Typical workflow when extending the chain:**
 
 ```bash
-python3 audit/audit_chain.py          # internal consistency, 0 FAIL required
-python3 validate_chain.py       # MSF reality check, 0 missing required
-python3 audit/audit_enum.py           # only if you touched enum_engine.py
+python3 audit/audit_chain.py     # internal consistency, 0 FAIL required
+python3 validate_chain.py        # MSF reality check, 0 missing required
+python3 audit/audit_enum.py      # only if you touched enum_engine.py
 ```
 
 ---
 
-## Session Troubleshooting — `session.py`
+## Session Troubleshooting (`session.py`)
 
-A standalone, clean-terminal tool for inspecting and interacting with the MSF
-sessions h3x-dash creates. It talks **directly to `msfrpcd`** (ground truth)
-and cross-checks the dashboard's API, so you can tell a *hidden-but-live* shell
-apart from a *zombie tab* without guessing. It imports nothing from the app, so
-it works even when the web UI is misbehaving.
+A standalone, clean-terminal tool for inspecting and interacting with the MSF sessions H3x-Dash creates. It talks directly to `msfrpcd` (ground truth) and cross-checks the console's API, so you can tell a hidden-but-live shell apart from a zombie tab without guessing. It imports nothing from the app, so it works even when the web UI is misbehaving.
 
 ```bash
-python3 session.py list              # live sessions + diff against the UI
-python3 session.py doctor            # full msfrpcd ⇄ API ⇄ jobs/handlers report
-python3 session.py watch 2           # flag sessions opening/dying in real time
-python3 session.py info 1            # everything msfrpcd knows about session 1
-python3 session.py run 1 id          # run one command, print the output
-python3 session.py interact 1        # interactive prompt (:info  :raw  :quit)
+python3 session.py list         # live sessions plus diff against the UI
+python3 session.py doctor       # full msfrpcd, API, jobs/handlers report
+python3 session.py watch 2      # flag sessions opening/dying in real time
+python3 session.py info 1       # everything msfrpcd knows about session 1
+python3 session.py run 1 id     # run one command, print the output
+python3 session.py interact 1   # interactive prompt (:info  :raw  :quit)
 ```
 
-Connection uses the same defaults as h3x-dash (`MSF_HOST` `MSF_PORT` `MSF_PASS`
-`MSF_SSL`), overridable with `--host/--port/--password/--ssl`. Add `--no-api`
-to skip the dashboard comparison entirely.
-
-`doctor` and `list` reconcile the two views and call out the two failure modes
-directly: *in msfrpcd but not shown by the UI* (a live session the panel is
-hiding) and *shown by the UI but not in msfrpcd* (a stale tab msfrpcd already
-dropped). `watch` is the fastest way to catch a dropped/racing reverse shell —
-run it in one terminal while you fire the exploit from the dashboard.
+Connection uses the same defaults as H3x-Dash (`MSF_HOST` `MSF_PORT` `MSF_PASS` `MSF_SSL`), overridable with `--host/--port/--password/--ssl`. Add `--no-api` to skip the console comparison entirely.
 
 ---
 
@@ -421,41 +407,52 @@ run it in one terminal while you fire the exploit from the dashboard.
 
 ```
 h3x-dash/
-├── h3x-dash.py                       Flask core: routes, SSE endpoints, API
+├── h3x-dash.py                       Flask core: routes, SSE endpoints, JSON API
 ├── config.py                         Path and connection configuration
 ├── requirements.txt                  pip dependencies (non-Kali environments)
-├── Nmap-Configurabulator.py          <- bundled enumeration engine (Layer 3/4)
-├── web_scan.py                       <- bundled Layer 7 web scanner
-├── audit/                            Offline paranoia audit suite — `python3 audit/audit_all.py` runs them all
-├── validate_chain.py                 Online msfrpcd module-path validator
+├── Nmap-Configurabulator.py          bundled enumeration engine (Layer 3/4)
+├── web_scan.py                       bundled Layer 7 web scanner
+├── validate_chain.py                 online msfrpcd module-path validator
+├── session.py                        standalone MSF session inspector
+├── shell_doctor.py                   live session diagnostic
+├── audit/                            offline audit suite (audit_all.py runs them all)
+├── docs/
+│   └── H3x-Dash-Operator-Guide.md    module-by-module operator guide
 │
 ├── modules/
-│   ├── preflight.py                  Environment validator
+│   ├── preflight.py                  environment validator
 │   ├── nmap_engine.py                Configurabulator wrapper + scan state machine
 │   ├── enum_engine.py                35-tool enumeration dispatcher (tiered)
-│   ├── cve_chain.py                  Port/service to CVE to MSF module lookup table
+│   ├── cve_chain.py                  port/service to CVE to MSF module lookup
+│   ├── cve_intel.py                  CVE intelligence lookups
 │   ├── msf_engine.py                 Metasploit RPC wrapper with auto-reconnect
-│   ├── msf_scanner.py                Local MSF module filesystem scanner + CVE index
-│   ├── implant_engine.py             Hak5 device registry + payload library + Pineapple control
-│   ├── payload_sources.py            Vetted GitHub payload-source allowlist + access update
-│   └── loot.py                       HTML/JSON report generation
+│   ├── msf_scanner.py                local MSF module scanner + CVE index
+│   ├── ad_engine.py                  Active Directory attack paths (Responder,
+│   │                                 Kerberoast, BloodHound, Impacket, Certipy, Coercion)
+│   ├── c2_engine.py                  synthetic beacon emitter (detection validation)
+│   ├── emulation_engine.py           Atomic Red Team / CALDERA / playbook runner
+│   ├── msel.py                       scenario scheduler engine + /api/msel blueprint
+│   ├── cease.py                      global halt coordinator + /api/cease blueprint
+│   ├── mitre_mapping.py              action to ATT&CK technique mapping
+│   ├── implant_engine.py             device registry + payload library
+│   ├── payload_sources.py            vetted GitHub payload-source allowlist
+│   ├── report_engine.py              engagement report generation
+│   └── loot.py                       loot store + HTML/JSON reports
 │
 ├── templates/
-│   ├── base.html                     H3x-Dash theme, sidebar, authorization modal
-│   ├── dashboard.html                Stats, MSF connect, preflight, quick scan
-│   ├── scan.html                     Configurabulator UI, live terminal, results
-│   ├── enumerate.html                Tool dispatch, live output, findings table
-│   ├── exploit.html                  CVE suggestions, MSF launcher, session output
-│   ├── shell.html                    Interactive session shell with kill-all
-│   ├── loot.html                     Session relay, report generation, downloads
-│   └── modules.html                  Local MSF module browser with CVE search
+│   ├── console.html                  Purple Ops Console (primary single-page UI)
+│   ├── base.html                     legacy theme, sidebar, authorization modal
+│   ├── dashboard.html  scan.html  enumerate.html  exploit.html
+│   ├── shell.html  loot.html  modules.html  payload.html  spectrum.html
+│   ├── validate.html  credentials.html   (legacy multi-page views)
+│   └── partials/
 │
 ├── static/
+│   ├── scale.js                      uniform fixed-scale zoom
+│   ├── cease.js                      global halt control
 │   └── h3x-dash.js                   SSE client, shared fetch utilities
 │
-├── scans/                            Nmap XML output, gitignored
-├── reports/                          Generated reports, gitignored
-├── loot/                             Loot staging, gitignored
+├── scans/    reports/    loot/    logs/     runtime output, gitignored
 └── msf_modules_cache.json.gz         MSF module index cache, gitignored
 ```
 
@@ -463,28 +460,33 @@ h3x-dash/
 
 ## API Reference
 
-H3x-Dash exposes its functionality over a clean JSON API. Key groups:
+H3x-Dash exposes its functionality over a JSON API. Both the console and the legacy pages run over these endpoints. Key groups:
 
-| Group | Endpoints |
-|-------|-----------|
-| Scan | `POST /api/scan/start` · `POST /api/scan/stop` · `GET /api/scan/status` · `GET /api/scan/results` · `GET /api/scan/history` · `GET /api/scan/stream` |
-| CVE | `POST /api/cve/suggest` · `GET /api/cve/all` |
-| Metasploit | `POST /api/msf/connect` · `POST /api/msf/disconnect` · `GET /api/msf/status` · `POST /api/msf/search` · `POST /api/msf/run` · `GET /api/msf/sessions` · `POST /api/msf/sessions/kill-all` · `POST /api/msf/session/cmd` |
-| Enumerate | `POST /api/enum/start` · `GET /api/enum/stream` · `GET /api/enum/status` · `GET /api/enum/findings` · `GET /api/enum/tools` |
-| Loot | `POST /api/loot/generate` · `GET /api/loot/reports` · `GET /api/loot/download/<filename>` |
-| Modules | `GET /api/modules/search` · `GET /api/modules/cve/<cve>` · `POST /api/modules/match` · `GET /api/modules/stats` · `POST /api/modules/rescan` |
-| Payload | `GET /api/implants/tree` · `GET /api/implants/payloads` · `GET /api/implants/sources` · `POST /api/implants/sources/update` · `POST /api/implants/sources/describe` |
-| Preflight | `GET /api/preflight` · `POST /api/preflight/refresh` |
+| Group | Purpose |
+|-------|---------|
+| `scan` | Start / stop / status / results / history / stream |
+| `enum` | Start / stream / status / findings / tools |
+| `cve`, `cve_intel` | Chain suggestions and CVE intelligence lookups |
+| `modules` | Local MSF module search, CVE match, stats, rescan |
+| `msf` | Connect, status, search, run, sessions, session commands, daemon control |
+| `creds` | Captured credential store |
+| `ad` | Active Directory panes (Responder, Kerberoast, BloodHound, Impacket, Certipy, Coercion) |
+| `c2` | Synthetic beacon control |
+| `emulation` | Atomic Red Team, CALDERA, and playbook runs |
+| `mitre` | ATT&CK technique mapping and coverage |
+| `msel` | Scenario scheduler (blueprint) |
+| `cease` | Global halt and status (blueprint) |
+| `implants`, `wireless` | Payload devices and Spectrum hardware |
+| `report`, `loot` | Report generation and downloads |
+| `preflight`, `ops`, `network`, `evasion`, `classify`, `plugins` | Health, activity log, helpers |
 
-All SSE endpoints (`/api/scan/stream`, `/api/enum/stream`) accept a `client_id` parameter. The server-assigned ID from the corresponding `start` response is authoritative, so use `d.client_id` from the API response rather than a locally-generated value.
+SSE endpoints (`/api/scan/stream`, `/api/enum/stream`) accept a `client_id`; use the server-assigned ID from the corresponding `start` response.
 
 ---
 
 ## Vetted Payload Sources
 
-The Payload page ships a small, curated baseline payload catalog. The **LIBRARY** sub-tab extends it with an *access update* that pulls payloads from a strict **allowlist** of vetted GitHub repositories and merges them into the library so they can be selected on the Arm tab.
-
-The synced-payload browser groups and sorts the (often 800+) pulled payloads so they stay navigable: **group by category, product, or source**, **sort by name / category / source**, **filter by product**, and free-text search. Each payload row is collapsible; expanding it lazily fetches the payload's **description** (author + summary) from the source repo's README or the payload file's `Title:`/`Description:`/`Author:` headers, cached after first open so re-opening is free. Descriptions are fetched one row at a time on demand — never 800 up front — to stay well within the GitHub rate limit.
+The Payload page ships a curated baseline catalog. The **LIBRARY** sub-tab extends it with an access update that pulls payloads from a strict allowlist of vetted GitHub repositories and merges them into the library.
 
 | Source | Repository | Products |
 |--------|------------|----------|
@@ -499,96 +501,83 @@ The synced-payload browser groups and sorts the (often 800+) pulled payloads so 
 
 The allowlist is the security boundary, enforced in depth:
 
-- The update endpoint **refuses any source not on the allowlist** (`POST /api/implants/sources/update` with an unknown `source_id` returns `400`).
-- Every outbound request URL is built solely from a vetted entry's `org`/`repo` — no operator-supplied string ever reaches the URL.
-- The fetcher re-validates that the host is exactly `api.github.com` and the path targets the expected `/repos/<org>/<repo>/` prefix before any byte is sent, and re-checks the final URL after any redirect. Arbitrary URLs cannot be fetched, so the pull cannot be turned into a request-forgery primitive.
+- The update endpoint refuses any source not on the allowlist.
+- Every outbound request URL is built solely from a vetted entry's `org`/`repo`; no operator-supplied string ever reaches the URL.
+- The fetcher re-validates that the host is exactly `api.github.com` and the path targets the expected `/repos/<org>/<repo>/` prefix before any byte is sent, and re-checks after any redirect.
+- STDLIB-only pull via `urllib`, no new pip dependency. An unreachable source is reported, not fatal.
+- Synced payloads default to `callback: none`; a freshly pulled payload never auto-stages a handler. The operator reviews the source and wires the callback deliberately.
 
-Other properties:
-
-- **STDLIB-only.** The pull uses `urllib` against the GitHub REST API — no new pip dependency. On an air-gapped range an unreachable source is reported, not fatal; the built-in catalog keeps working.
-- **Rate limits.** Set `GITHUB_TOKEN` (or `H3X_GITHUB_TOKEN`) to raise the anonymous API rate limit. It is never required.
-- **Review before callback.** Synced payloads are catalogued and armable but always default to `callback: none` — a freshly pulled, un-reviewed payload never auto-stages an MSF handler. The operator reviews the source and wires the callback deliberately.
-- **Cached offline.** Pulled payloads persist to `loot/payload_sources.json` and re-register on startup, so the library survives restarts without re-fetching.
-
-### Device coverage
-
-The Payload page covers the arm-and-deploy Hak5 family — **USB Rubber Ducky, Bash Bunny, Shark Jack, LAN Turtle, Packet Squirrel, Key Croc, Signal Owl,** and the **O.MG Plug / Adapter / UnBlocker / Cable** — each backed by its vetted GitHub payload source above. The Spectrum page covers the capture/monitor family — **WiFi Pineapple** (full REST flow: recon, evil portal, deauth) plus **Screen Crab, Plunder Bug,** and **WiFi Coconut** as connect-to-add inventory/loot devices. Payload-class devices are seeded into the inventory on first run (and any newly shipped device is added on the next start without disturbing existing entries); Spectrum-class devices are registered via the connect-to-add flow, which validates connectivity first.
-
-Run `python3 audit/audit_payload_sources.py` to verify the allowlist shape, URL validation, tree-parsing, and library merge offline (no network required).
+Run `python3 audit/audit_payload_sources.py` to verify the allowlist shape, URL validation, tree-parsing, and library merge offline.
 
 ---
 
 ## Building a Lab
 
-Your home network is not a lab. Before running H3x-Dash against any target, you need a purpose-built vulnerable environment. These are built to be compromised, which means you get to have all the fun with none of the federal paperwork:
+Your home network is not a lab. Before running H3x-Dash against any target, build a purpose-built vulnerable environment.
 
 | Platform | Focus |
 |----------|-------|
-| **Metasploitable 2** | The classic. Covers the bulk of this tool's CVE map (Samba usermap, vsftpd, UnrealIRCd, distcc, Java RMI) |
-| **Metasploitable 3** | Windows and Linux, more modern attack surface |
+| **Metasploitable 2** | Covers the bulk of this tool's CVE map (Samba usermap, vsftpd, UnrealIRCd, distcc, Java RMI) |
+| **Metasploitable 3** | Windows and Linux, more modern attack surface, plus AD-side coverage |
+| **GOAD (Game of Active Directory)** | Purpose-built vulnerable AD forest for the Creds and AD, lateral, and coercion panes |
 | **VulnHub** | Downloadable CTF-style VMs at all difficulty levels |
-| **HackTheBox** | Realistic machines, guided and open-ended |
 | **DVWA** | Web application testing |
-| **TryHackMe** | Guided rooms from beginner through advanced |
 
-Metasploitable 2 alone validates roughly half the CVE chain. Every exploit marked `excellent` rank in the chain has a working target somewhere in that VM. Pair it with Metasploitable 3 for Windows-side coverage (Zerologon, PrintNightmare, EternalBlue, WinRM).
+Metasploitable 2 alone validates roughly half the CVE chain. Pair it with Metasploitable 3 for Windows-side coverage, and a vulnerable AD lab such as GOAD to exercise the Kerberoast, BloodHound, DCSync, ADCS, coercion, and lateral panes end to end.
 
 ---
 
-## Security & Legal
+## Security and Legal
 
-This tool is built exclusively for authorized penetration testing. See [SECURITY.md](SECURITY.md) for the full responsible use policy and vulnerability disclosure process.
+This tool is built exclusively for authorized security testing. See [SECURITY.md](SECURITY.md) for the full responsible-use policy and vulnerability disclosure process.
 
 Three rules, no exceptions:
 
 1. **Closed environment only.** Lab networks, air-gapped ranges, and purpose-built vulnerable systems. Not production. Not shared infrastructure. Not cloud environments without explicit provider authorization.
-
 2. **Systems you own.** Hardware, lease, or service agreement in your name. "I have admin credentials" is not ownership.
-
-3. **Written permission required.** A current, signed penetration testing agreement for any system you do not personally own. Verbal consent is not an agreement. Expired agreements are not agreements.
+3. **Written permission required.** A current, signed testing agreement for any system you do not personally own. Verbal consent is not an agreement. Expired agreements are not agreements.
 
 Unauthorized use of this tool is a federal crime under **18 U.S.C. § 1030** (Computer Fraud and Abuse Act) and equivalent legislation in most jurisdictions. The developer accepts no liability for unauthorized use. Every consequence is the sole responsibility of the operator.
 
-An authorization acknowledgment modal is displayed at the start of every browser session and requires explicit confirmation before the tool is accessible.
+An authorization acknowledgment is presented at the start of every browser session and requires explicit confirmation before the tool is accessible.
 
 ---
 
 ## Contributing
 
-Pull requests welcome. The codebase is structured so new modules drop in cleanly.
+Pull requests welcome. The codebase is structured so new engines drop in cleanly alongside the existing `modules/`.
 
 **High-value additions:**
-- **Impacket integration** for AD/Windows lateral movement: Pass-the-Hash, Kerberoasting (GetUserSPNs), DCSync, secretsdump. Slot it in as a new engine module alongside `msf_engine.py`. Pairs with the WinRM and DCERPC chain entries already in place.
-- **Credential tracking** to capture, organize, and deduplicate credentials harvested across the engagement. The loot module has the scaffolding.
-- **SOCKS proxy / pivot management** to route traffic through compromised hosts. Session data from `msf_engine.list_sessions()` is already available.
-- **Title-pattern auto-confirmation** to extend the `enum_confirmed` system in `cve_chain.suggest()` so it recognises more banner / version strings (Tomcat manager exposed to tomcat_mgr_upload, Drupal 7 banner to drupalgeddon2, and so on).
-- **Additional CVE mappings.** `cve_chain.py` is a plain dict. Add entries and include a source reference. Consistent format: `(CVE_string_or_None, msf_module_or_None, description, severity)`.
-- **Report templates.** The loot module's HTML renderer is self-contained. Alternative formats (PPTX, DOCX, PDF) for client deliverables would be a direct addition to `loot.py`.
+
+- **More ATT&CK coverage in the reconciliation layer.** Extend `mitre_mapping.py` so more actions resolve to techniques, tightening the hit / partial / miss picture in Detection Coverage.
+- **Additional CVE mappings.** `cve_chain.py` is a plain dict. Add entries as `(CVE_string_or_None, msf_module_or_None, description, severity)` and include a source reference.
+- **Title-pattern auto-confirmation.** Teach `cve_chain.suggest()` to recognise more banner and version strings so the matching module auto-promotes.
+- **New emulation content.** Additional playbook chains or CALDERA adversary profiles for the Emulation workspace.
+- **Report templates.** The report engine's HTML renderer is self-contained. Alternative formats (PDF, DOCX, PPTX) would be a direct addition.
 
 **Before submitting:**
+
 - Run the audit suite. Every PR that touches `cve_chain.py` or `enum_engine.py` must pass `audit_chain.py` and `audit_enum.py` clean; exploit changes must pass `audit_exploit.py` and `audit_msf_runner.py`.
-- Run `validate_chain.py` against a live msfrpcd if you added MSF module paths
-- Test exploit logic against Metasploitable 2/3 before opening a PR
-- CVE additions require a source reference in the description field
+- Run `validate_chain.py` against a live msfrpcd if you added MSF module paths.
+- Test against Metasploitable 2/3 (or a vulnerable AD lab for the AD panes) before opening a PR.
 
 ---
 
 ## Acknowledgements
 
-- **Nmap**, because without it, none of phase one works
-- **Metasploit Framework**, because without it, none of phase two works
-- **pymetasploit3**, the Python bridge between them
+- **Nmap** and **Metasploit Framework**, the foundation of phases one and two, with **pymetasploit3** as the Python bridge
 - **[Nmap Configurabulator](https://github.com/Null-H3x/nmap-configurobulator)**, the Layer 3/4 enumeration engine under the hood
 - **Project Discovery**, for the `httpx`, `nuclei`, `ffuf` family that anchors modern web triage
-- **SecLists**, the wordlists every content discovery and brute-force tool in this stack relies on
-- **Impacket** maintainers, **enum4linux-ng**, **NetExec** (formerly CrackMapExec), **WPScan**, **kerbrute**, **ldapdomaindump**, every tool wired into the enum engine
+- **SecLists**, the wordlists the content-discovery and brute-force tools rely on
+- **Impacket**, **Responder**, **NetExec** (formerly CrackMapExec), **enum4linux-ng**, **Certipy**, **BloodHound**, **kerbrute**, **hashcat**, and **ldapdomaindump** for the credential and Active Directory tooling
+- **MITRE**, for **ATT&CK**, **CALDERA**, and the **Atomic Red Team** project that make the emulation and coverage work possible
 - Every CVE researcher whose work appears in the mapping table. The vulnerability was found by someone else; this tool just connects the dots to the module that exploits it.
 
 ---
 
 <div align="center">
 
-`H3x-Dash // Automated Penetration Framework`
+`H3x-Dash // Offensive Security and Purple-Team Console`
 `// Built by Null-H3x // Authorized Use Only // Always //`
 
 </div>
