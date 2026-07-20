@@ -112,6 +112,24 @@ class ScannerRunner:
             if rport:
                 opts['RPORT'] = str(rport)
 
+            # Some auxiliary scanners have no RPORT option (they use CPORT,
+            # RHOSTS-only, or a URI). Setting an option a module does not declare
+            # makes MSF abort the run with "Unknown datastore option: RPORT".
+            # Ask the module what it actually accepts and send only those keys.
+            try:
+                caps  = self._engine.module_capabilities(module) or {}
+                valid = {str(k).upper() for k in (caps.get('options') or {}).keys()}
+                if valid:
+                    opts = {k: v for k, v in opts.items() if k.upper() in valid}
+                    # target host: prefer RHOSTS (modern), fall back to RHOST.
+                    if 'RHOSTS' in valid:
+                        opts['RHOSTS'] = ip
+                    elif 'RHOST' in valid:
+                        opts.pop('RHOSTS', None)
+                        opts['RHOST'] = ip
+            except Exception:
+                pass  # introspection unavailable — fall back to best-effort opts
+
             try:
                 res    = self._engine.run_exploit(module, options=opts, action='run')
                 status = res.get('status')
