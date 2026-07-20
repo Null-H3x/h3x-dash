@@ -45,6 +45,9 @@ from modules import report_engine
 from modules.emulation_engine import EmulationEngine, DetectionLedger
 from modules.ad_engine import AdEngine
 from modules.c2_engine import BeaconEmitter
+from modules.msel import (engine as msel_engine, Inject as MselInject,
+                          make_blueprint as make_msel_blueprint)
+from modules.cease import cease, make_cease_blueprint
 
 # ── App init ──────────────────────────────────────────────────────────────────
 
@@ -178,6 +181,97 @@ enum_engine.on_finding_hook = _capture_creds_from_finding
 
 msf_scanner = MsfScanner()
 msf_scanner.start()   # builds CVE index from local FS in background
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MSEL scheduler + global Cease coordinator
+# ══════════════════════════════════════════════════════════════════════════════
+# Point the MSEL audit trail at the app log dir — this JSONL is the exercise's
+# deconfliction record and AAR ground truth.
+msel_engine.configure(H3xConfig.LOG_DIR / 'msel')
+
+# ── MSEL inject adapters ──────────────────────────────────────────────────────
+# Each adapter bridges an inject to a REAL engine already wired above. The engine
+# fixes the signature: fn(inject, abort_event) -> result dict. Adapters start the
+# engine's job, block until it completes (honouring the abort_event), and return
+# a summary. Nothing is faked — an unregistered inject_type fails honestly as
+# HANDLER_NOT_REGISTERED.
+
+def _msel_wait_or_abort(done, abort_event, on_abort, poll=0.25):
+    """Block on `done`; if `abort_event` trips first, invoke on_abort() and raise
+    so the inject records as aborted rather than complete."""
+    while not done.wait(poll):
+        if abort_event.is_set():
+            try:
+                on_abort()
+            except Exception:
+                pass
+            raise RuntimeError('aborted by cease / master-abort')
+
+def _msel_scan_adapter(inject, abort_event):
+    ok, msg = validate_target(inject.target)
+    if not ok:
+        raise ValueError(f'invalid target: {msg}')
+    done = _t.Event(); meta = {}
+    def on_complete(hosts, m):
+        meta['hosts'] = len(hosts); done.set()
+    data = {'target': inject.target, **(inject.params or {})}
+    if not scan_engine.start_scan(data, on_output=lambda l: None, on_complete=on_complete):
+        raise RuntimeError('scan already running')
+    _msel_wait_or_abort(done, abort_event, scan_engine.stop_scan)
+    return {'tool': 'nmap', 'target': inject.target, 'hosts': meta.get('hosts', 0)}
+
+def _msel_enum_adapter(inject, abort_event):
+    hosts = [h for h in scan_engine.get_hosts_with_ports()
+             if (not inject.target) or h.get('ip') == inject.target]
+    if not hosts:
+        hosts = scan_engine.get_hosts_with_ports()
+    if not hosts:
+        raise RuntimeError('no scanned hosts to enumerate — run a scan inject first')
+    done = _t.Event(); res = {}
+    def on_complete(findings):
+        res['count'] = sum(len(v) for v in findings.values()); done.set()
+    started = enum_engine.start_enum(hosts, inject.params or {},
+                on_output=lambda l: None, on_finding=lambda f: None,
+                on_complete=on_complete)
+    if not started:
+        raise RuntimeError('enumeration already running')
+    _msel_wait_or_abort(done, abort_event, enum_engine.stop_all)
+    return {'tool': 'enum-suite', 'hosts': len(hosts), 'findings': res.get('count', 0)}
+
+def _msel_beacon_adapter(inject, abort_event):
+    p = inject.params or {}
+    cid = f'msel-{inject.id}'
+    spec = {'client_id': cid, 'target': inject.target,
+            'transport': p.get('transport', 'https'),
+            'profile':   p.get('profile', 'generic'),
+            'interval_s': p.get('interval_s', 15),
+            'jitter_pct': p.get('jitter_pct', 20),
+            'max_beacons': p.get('max_beacons', 5)}   # bounded so the inject completes
+    done = _t.Event(); res = {}
+    def on_complete(stats):
+        res.update(stats or {}); done.set()
+    ok, msg = beacon_emitter.start(spec, on_event=lambda e: None, on_complete=on_complete)
+    if not ok:
+        raise RuntimeError(f'beacon start failed: {msg}')
+    _msel_wait_or_abort(done, abort_event, lambda: beacon_emitter.stop(cid))
+    return {'tool': 'beacon-emitter', 'target': inject.target, 'sent': res.get('sent', 0)}
+
+msel_engine.register_handler('scan',   _msel_scan_adapter)
+msel_engine.register_handler('enum',   _msel_enum_adapter)
+msel_engine.register_handler('beacon', _msel_beacon_adapter)
+# ping / shell / pivot / custom stay unregistered → HANDLER_NOT_REGISTERED.
+
+# ── Global Cease coordinator: register every halt path ────────────────────────
+cease.configure(H3xConfig.LOG_DIR)
+cease.register('scan',         lambda: scan_engine.stop_scan())
+cease.register('enum',         lambda: enum_engine.stop_all())
+cease.register('msf-sessions', lambda: msf_engine.kill_all_sessions())
+cease.register('emulation',    lambda: emulation_engine.stop())
+cease.register('beacon',       lambda: beacon_emitter.stop_all())
+cease.register('msel',         lambda: msel_engine.abort('CEASE'))
+
+app.register_blueprint(make_msel_blueprint())
+app.register_blueprint(make_cease_blueprint())
 
 # ── Pre-flight check on startup ───────────────────────────────────────────────
 _preflight_results: dict = {}
@@ -1176,6 +1270,14 @@ def api_enum_start():
     if not started:
         return jsonify({'status': 'error', 'message': 'Enumeration already running'}), 409
     return jsonify({'status': 'started', 'client_id': client_id, 'host_count': len(hosts)})
+
+
+@app.route('/api/enum/stop', methods=['POST'])
+def api_enum_stop():
+    """Operator halt for a running enumeration. Process-group-kills every
+    in-flight tool and suppresses any pending launches. Honest kill count."""
+    result = enum_engine.stop_all()
+    return jsonify({'status': 'stopped', **result})
 
 
 @app.route('/api/enum/stream')
