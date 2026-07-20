@@ -677,6 +677,56 @@ def api_network_lhost():
     return jsonify({'lhost': '', 'error': 'Could not determine source address'})
 
 
+@app.route('/api/network/endpoint-scan')
+def api_network_endpoint_scan():
+    """
+    'Scan from endpoint' — local neighbor discovery from the host running
+    H3x-Dash, using the OS-appropriate command. This reads the local ARP /
+    neighbor table (who this box has recently talked to); it does not send
+    traffic to the wider network. OS-aware:
+      Linux   → `ip neigh show` (falls back to `arp -a`)
+      Windows → `arp -a`
+      macOS   → `arp -a`
+    Returns {os, method, count, neighbors:[{ip, mac}]}.
+    """
+    import platform as _pf, subprocess as _sp, re as _re
+    osname = _pf.system()
+
+    def _run(cmd):
+        try:
+            return _sp.run(cmd, capture_output=True, text=True, timeout=8).stdout or ''
+        except Exception:
+            return ''
+
+    if osname == 'Linux':
+        method, out = 'ip neigh', _run(['ip', 'neigh', 'show'])
+        if not out.strip():
+            method, out = 'arp -a', _run(['arp', '-a'])
+    else:  # Windows / Darwin / other all speak `arp -a`
+        method, out = 'arp -a', _run(['arp', '-a'])
+
+    ip_re  = _re.compile(r'(\d{1,3}(?:\.\d{1,3}){3})')
+    mac_re = _re.compile(r'([0-9a-fA-F]{2}(?:[:-][0-9a-fA-F]{2}){5})')
+    seen, neighbors = set(), []
+    for line in out.splitlines():
+        ipm = ip_re.search(line)
+        if not ipm:
+            continue
+        ip = ipm.group(1)
+        macm = mac_re.search(line)
+        mac  = macm.group(1).lower().replace('-', ':') if macm else ''
+        # drop incomplete/no-mac rows and broadcast/multicast noise
+        if not mac or ip.endswith('.255') or ip.startswith(('224.', '239.', '255.')):
+            continue
+        if ip in seen:
+            continue
+        seen.add(ip)
+        neighbors.append({'ip': ip, 'mac': mac})
+
+    return jsonify({'os': osname, 'method': method,
+                    'count': len(neighbors), 'neighbors': neighbors})
+
+
 @app.route('/api/network/callback-verify', methods=['POST'])
 def api_network_callback_verify():
     """Pre-flight reverse/bind callback path checks before exploit launch."""
