@@ -14,7 +14,7 @@
   --cyan:#0ff0fc; --violet:#9b30ff; --acid:#39ff14;
   --danger:#ff4d4d; --warn:#ff9e2c;
   --text:#b6c2cf; --dim:#6c7686; --muted:#464d5b;
-  --topbar-h:54px; --side-w:clamp(186px,17vw,230px); --dock-h:82px;
+  --topbar-h:54px; --side-w:220px; --dock-h:82px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -72,7 +72,7 @@ h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
 /* ── SECONDARY AXIS — contextual side-nav + main ────────────────────────── */
 .shell{position:fixed;top:var(--topbar-h);left:0;right:0;bottom:0;display:flex;z-index:1}
 .sidenav{width:var(--side-w);flex:0 0 var(--side-w);overflow-y:auto;
-  background:rgba(9,9,13,.6);border-right:1px solid var(--line);padding:18px 0 calc(var(--dock-h) + 6px)}
+  background:rgba(9,9,13,.6);border-right:1px solid var(--line);padding:132px 0 calc(var(--dock-h) + 6px)}
 .side-eyebrow{font-family:"Rajdhani",sans-serif;font-size:9.5px;letter-spacing:.28em;
   color:var(--violet);padding:0 20px 12px}
 .mlink{display:flex;align-items:center;gap:12px;padding:8px 20px;cursor:pointer;font-size:12.5px;
@@ -85,7 +85,7 @@ h1,h2,h3,.rj{font-family:"Rajdhani",sans-serif}
 .tag-new{margin-left:auto;font-size:7.5px;letter-spacing:.14em;color:var(--violet);
   border:1px solid #2f1c44;border-radius:3px;padding:1px 5px}
 
-.main{flex:1;overflow-y:auto;min-width:0;padding:clamp(16px,2.4vw,28px) clamp(16px,3vw,36px) 80px}
+.main{flex:1;overflow-y:auto;min-width:0;padding:26px 34px 80px}
 .wrap{max-width:1020px}
 .crumb{font-size:10px;letter-spacing:.18em;color:var(--muted);margin-bottom:7px}
 .crumb b{color:var(--violet);font-weight:400}
@@ -1535,6 +1535,7 @@ function render(){
   render();
 })();
 </script>
+<script src="/static/scale.js"></script>
 <script src="/static/cease.js"></script>
 </body>
 </html>
